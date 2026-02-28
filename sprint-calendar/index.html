@@ -4,260 +4,177 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sprint Calendar</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  :root {
-    --bg: #0d0f14;
-    --surface: #151820;
-    --border: #252a35;
-    --accent: #4ade80;
-    --accent2: #38bdf8;
-    --warn: #fb923c;
-    --text: #e2e8f0;
-    --muted: #64748b;
-    --current-bg: #0f2920;
-    --current-border: #4ade80;
-  }
-
   body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Syne', sans-serif;
-    min-height: 100vh;
-    padding: 20px;
+    background: #f1f3f5;
+    color: #1a1d23;
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    padding: 24px;
   }
 
   .header {
     display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 24px;
-  }
-
-  .header-icon {
-    width: 40px; height: 40px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 18px;
-  }
-
-  .header-title {
-    font-size: 20px;
-    font-weight: 800;
-    letter-spacing: -0.5px;
-  }
-
-  .today-chip {
-    margin-left: auto;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 6px 14px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
-    color: var(--muted);
-  }
-
-  .current-sprint {
-    background: var(--current-bg);
-    border: 1px solid var(--current-border);
-    border-radius: 14px;
-    padding: 20px 24px;
-    margin-bottom: 24px;
-    display: grid;
-    grid-template-columns: auto 1fr 1fr 1fr;
-    gap: 16px;
-    align-items: center;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .current-sprint::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0; height: 2px;
-    background: linear-gradient(90deg, var(--accent), transparent);
-  }
-
-  .current-badge {
-    background: var(--accent);
-    color: #0d0f14;
-    font-weight: 700;
-    font-size: 11px;
-    border-radius: 6px;
-    padding: 4px 10px;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    white-space: nowrap;
-  }
-
-  .sprint-num {
-    font-size: 32px;
-    font-weight: 800;
-    color: var(--accent);
-    letter-spacing: -1px;
-    line-height: 1;
-    white-space: nowrap;
-  }
-
-  .date-block { display: flex; flex-direction: column; gap: 3px; }
-  .date-label {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--muted);
-    font-weight: 600;
-  }
-  .date-value {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 13px;
-    color: var(--text);
-  }
-
-  .progress-section { margin-bottom: 24px; }
-  .progress-label {
-    display: flex;
+    align-items: baseline;
     justify-content: space-between;
-    font-size: 11px;
-    color: var(--muted);
-    margin-bottom: 6px;
-    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 20px;
   }
-  .progress-bar {
-    height: 6px;
-    background: var(--border);
-    border-radius: 3px;
-    overflow: hidden;
+  .header h1 { font-size: 16px; font-weight: 700; letter-spacing: -0.2px; }
+  .today-label { font-size: 12px; color: #6b7280; font-weight: 500; }
+
+  /* ── Cards ── */
+  .sprint-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin-bottom: 12px;
   }
-  .progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--accent), var(--accent2));
-    border-radius: 3px;
-    transition: width 0.6s ease;
+  .sprint-card.current { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.07); }
+
+  /* card header */
+  .card-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .sprint-num { font-size: 15px; font-weight: 700; }
+  .badge {
+    font-size: 10px; font-weight: 600;
+    padding: 2px 8px; border-radius: 4px;
+    text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .badge.current  { background: #eff6ff; color: #2563eb; }
+  .badge.upcoming { background: #f3f4f6; color: #6b7280; }
+  .days-info { margin-left: auto; font-size: 12px; color: #6b7280; }
+  .days-info strong { color: #1a1d23; }
+
+  /* ── Timeline (current sprint only) ── */
+  .timeline-area {
+    margin: 0 0 20px;
+    padding: 14px 0 52px;
+    position: relative;
   }
 
-  .days-left {
-    font-size: 12px;
-    color: var(--accent2);
-    margin-top: 6px;
-    font-family: 'JetBrains Mono', monospace;
-    text-align: right;
+  .rail {
+    position: relative;
+    height: 4px;
+    background: #e5e7eb;
+    border-radius: 2px;
+  }
+  .rail-fill {
+    position: absolute;
+    top: 0; left: 0; height: 100%;
+    background: #2563eb; border-radius: 2px;
   }
 
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
+  /* milestone dot on rail */
+  .ms {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .ms-dot {
+    width: 11px; height: 11px;
+    border-radius: 50%; background: #fff;
+    border: 2px solid #d1d5db;
+    position: relative; z-index: 2;
+  }
+  .ms.done .ms-dot { border-color: #2563eb; background: #2563eb; }
+
+  /* labels — all below the rail */
+  .ms-lbl {
+    position: absolute;
+    left: 50%; transform: translateX(-50%);
+    text-align: center; white-space: nowrap;
+    top: calc(100% + 10px);
   }
 
-  thead th {
-    padding: 10px 14px;
-    text-align: left;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: var(--muted);
-    border-bottom: 1px solid var(--border);
-    font-weight: 600;
+  .ms-lbl span.name {
+    display: block;
+    font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.4px;
+    color: #9ca3af; margin-bottom: 1px;
+  }
+  .ms-lbl span.date {
+    display: block;
+    font-size: 11px; font-weight: 500; color: #374151;
+  }
+  .ms.done .ms-lbl span.name,
+  .ms.done .ms-lbl span.date { color: #9ca3af; }
+
+  /* today */
+  .today-mk {
+    position: absolute;
+    top: 50%; transform: translate(-50%, -50%);
+    z-index: 10;
+  }
+  .today-dot {
+    width: 14px; height: 14px;
+    border-radius: 50%; background: #2563eb;
+    border: 2.5px solid #fff;
+    box-shadow: 0 0 0 2px #2563eb, 0 2px 8px rgba(37,99,235,.35);
+  }
+  .today-pill {
+    position: absolute;
+    bottom: calc(100% + 7px);
+    left: 50%; transform: translateX(-50%);
+    background: #2563eb; color: #fff;
+    font-size: 10px; font-weight: 700;
+    padding: 2px 7px; border-radius: 4px;
+    white-space: nowrap;
+  }
+  .today-pill::after {
+    content: '';
+    position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+    border: 4px solid transparent; border-top-color: #2563eb;
   }
 
-  tbody tr {
-    border-bottom: 1px solid var(--border);
-    transition: background 0.15s;
+  /* ── Stats row ── */
+  .stats-row {
+    display: flex; gap: 24px;
+    padding-top: 12px;
+    border-top: 1px solid #f3f4f6;
   }
-  tbody tr:hover { background: var(--surface); }
+  .stat { display: flex; flex-direction: column; gap: 3px; }
+  .stat-lbl { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+  .stat-val { font-size: 13px; font-weight: 600; color: #1a1d23; }
+  .stat-val.blue { color: #2563eb; }
 
-  tbody td {
-    padding: 10px 14px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
-    color: var(--muted);
+  /* ── Info cards (next / upcoming) ── */
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(4, auto) 1fr;
+    gap: 4px 32px;
+    align-items: start;
   }
+  .info-item { display: flex; flex-direction: column; gap: 4px; }
+  .info-lbl { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+  .info-val { font-size: 14px; font-weight: 600; color: #374151; }
 
-  tbody td:first-child {
-    font-family: 'Syne', sans-serif;
-    font-weight: 700;
-    font-size: 14px;
-    color: var(--text);
+  /* workday badge */
+  .workday-note {
+    margin-left: auto;
+    align-self: center;
+    font-size: 11px; color: #6b7280;
+    background: #f3f4f6;
+    padding: 4px 10px; border-radius: 6px;
   }
-
-  tr.is-current {
-    background: var(--current-bg) !important;
-  }
-  tr.is-current td { color: var(--text); }
-  tr.is-current td:first-child { color: var(--accent); }
-
-  tr.is-past td { opacity: 0.4; }
-
-  .dot {
-    display: inline-block;
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--accent);
-    margin-right: 6px;
-    animation: pulse 2s infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
+  .workday-note strong { color: #1a1d23; }
 </style>
 </head>
 <body>
+
 <div class="header">
-  <div class="header-icon">🚀</div>
-  <div class="header-title">Lending Sprint Calendar</div>
-  <div class="today-chip" id="todayChip">—</div>
+  <h1>Lending — Sprint Calendar</h1>
+  <span class="today-label" id="todayLabel"></span>
 </div>
 
-<div class="current-sprint" id="currentSprintCard">
-  <div>
-    <div class="current-badge"><span class="dot"></span>Active</div>
-  </div>
-  <div class="date-block">
-    <div class="date-label">Sprint</div>
-    <div class="sprint-num" id="csNum">—</div>
-  </div>
-  <div class="date-block">
-    <div class="date-label">Start dev</div>
-    <div class="date-value" id="csStart">—</div>
-  </div>
-  <div class="date-block">
-    <div class="date-label">End dev</div>
-    <div class="date-value" id="csEnd">—</div>
-  </div>
-  <div class="date-block">
-    <div class="date-label">Deploy</div>
-    <div class="date-value" id="csDeploy">—</div>
-  </div>
-</div>
-
-<div class="progress-section">
-  <div class="progress-label">
-    <span>Sprint progress</span>
-    <span id="progressPct">0%</span>
-  </div>
-  <div class="progress-bar">
-    <div class="progress-fill" id="progressFill" style="width:0%"></div>
-  </div>
-  <div class="days-left" id="daysLeft"></div>
-</div>
-
-<table>
-  <thead>
-    <tr>
-      <th>Sprint</th>
-      <th>Start dev</th>
-      <th>End dev</th>
-      <th>Deploy</th>
-    </tr>
-  </thead>
-  <tbody id="tableBody"></tbody>
-</table>
+<div id="cards"></div>
 
 <script>
 const SPRINTS = [
@@ -286,80 +203,162 @@ const SPRINTS = [
   [204,"2026-12-29","2027-01-11","2027-01-14"],
 ];
 
-function fmt(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-function today() {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-}
-
-function parseDate(str) {
-  const [y,m,d] = str.split('-').map(Number);
+function parseD(s) {
+  const [y,m,d] = s.split('-').map(Number);
   return new Date(y, m-1, d);
 }
-
-const todayDate = today();
-
-document.getElementById('todayChip').textContent = todayDate.toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
-
-let currentSprint = null;
-for (const s of SPRINTS) {
-  const start = parseDate(s[1]);
-  const deploy = parseDate(s[3]);
-  if (todayDate >= start && todayDate <= deploy) { currentSprint = s; break; }
+function fmt(d) {
+  return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short' });
 }
-// fallback: next upcoming sprint
-if (!currentSprint) {
-  for (const s of SPRINTS) {
-    if (parseDate(s[1]) > todayDate) { currentSprint = s; break; }
+function fmtFull(d) {
+  return d.toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
+}
+
+// workdays between two dates (excl. Sat/Sun), end inclusive
+function workdays(a, b) {
+  let count = 0, cur = new Date(a);
+  while (cur <= b) {
+    const wd = cur.getDay();
+    if (wd !== 0 && wd !== 6) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+
+// workdays remaining from today to b (inclusive), skipping today if it's a weekend
+function workdaysLeft(today, b) {
+  if (today > b) return 0;
+  return workdays(today, b);
+}
+
+const today = (() => {
+  const n = new Date();
+  return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+})();
+
+document.getElementById('todayLabel').textContent = 'Today · ' + fmtFull(today);
+
+// find current sprint
+let currentIdx = -1;
+for (let i = 0; i < SPRINTS.length; i++) {
+  const s = parseD(SPRINTS[i][1]), d = parseD(SPRINTS[i][3]);
+  if (today >= s && today <= d) { currentIdx = i; break; }
+}
+if (currentIdx === -1) {
+  for (let i = 0; i < SPRINTS.length; i++) {
+    if (parseD(SPRINTS[i][1]) > today) { currentIdx = i; break; }
   }
 }
+if (currentIdx === -1) currentIdx = SPRINTS.length - 1;
 
-if (currentSprint) {
-  document.getElementById('csNum').textContent = currentSprint[0];
-  document.getElementById('csStart').textContent = fmt(currentSprint[1]);
-  document.getElementById('csEnd').textContent = fmt(currentSprint[2]);
-  document.getElementById('csDeploy').textContent = fmt(currentSprint[3]);
+const indices = [];
+for (let i = currentIdx; i < Math.min(currentIdx + 3, SPRINTS.length); i++) indices.push(i);
 
-  const start = parseDate(currentSprint[1]);
-  const end = parseDate(currentSprint[2]);
-  const total = (end - start) / 86400000;
-  const elapsed = Math.min(Math.max((todayDate - start) / 86400000, 0), total);
-  const pct = Math.round(elapsed / total * 100);
-  document.getElementById('progressFill').style.width = pct + '%';
-  document.getElementById('progressPct').textContent = pct + '%';
-  const remaining = Math.max(Math.ceil((end - todayDate) / 86400000), 0);
-  document.getElementById('daysLeft').textContent = remaining > 0 ? `${remaining} days left until End dev` : 'Dev phase completed';
-}
+const container = document.getElementById('cards');
 
-const tbody = document.getElementById('tableBody');
-for (const s of SPRINTS) {
-  const tr = document.createElement('tr');
-  const start = parseDate(s[1]);
-  const deploy = parseDate(s[3]);
-  const isCurrent = currentSprint && s[0] === currentSprint[0];
-  const isPast = deploy < todayDate;
+indices.forEach((idx, cardNum) => {
+  const s      = SPRINTS[idx];
+  const isCur  = idx === currentIdx;
+  const startD = parseD(s[1]);
+  const endD   = parseD(s[2]);
+  const depD   = parseD(s[3]);
 
-  if (isCurrent) tr.className = 'is-current';
-  else if (isPast) tr.className = 'is-past';
+  const wdDevTotal   = workdays(startD, endD);
+  const wdDevLeft    = workdaysLeft(today, endD);
+  const wdToDepoly   = workdaysLeft(today, depD);
+  const devProgressPct = Math.min(Math.max(
+    Math.round((workdays(startD, today <= startD ? startD : today) - (today <= startD ? 1 : 0)) / wdDevTotal * 100), 0), 100);
 
-  tr.innerHTML = `
-    <td>${isCurrent ? '<span class="dot"></span>' : ''}${s[0]}</td>
-    <td>${fmt(s[1])}</td>
-    <td>${fmt(s[2])}</td>
-    <td>${fmt(s[3])}</td>
-  `;
-  tbody.appendChild(tr);
-}
+  const statusLabel = isCur ? 'Current' : (cardNum === 1 ? 'Next' : 'Upcoming');
+  const badgeCls    = isCur ? 'current' : 'upcoming';
 
-// scroll current into view
-setTimeout(() => {
-  const cur = tbody.querySelector('.is-current');
-  if (cur) cur.scrollIntoView({ block: 'center', behavior: 'smooth' });
-}, 300);
+  let daysInfoHTML = '';
+  if (isCur) {
+    if (today <= endD) {
+      daysInfoHTML = `<span class="days-info"><strong>${wdDevLeft}</strong> working days left in dev</span>`;
+    } else {
+      daysInfoHTML = `<span class="days-info">Dev done · <strong>${wdToDepoly}</strong> working days to deploy</span>`;
+    }
+  }
+
+  const card = document.createElement('div');
+  card.className = 'sprint-card' + (isCur ? ' current' : '');
+
+  // ── Head
+  const headHTML = `
+    <div class="card-head">
+      <span class="sprint-num">Sprint ${s[0]}</span>
+      <span class="badge ${badgeCls}">${statusLabel}</span>
+      ${daysInfoHTML}
+    </div>`;
+
+  if (isCur) {
+    // ── Timeline
+    const totalMs = depD - startD;
+    function pct(d) { return Math.min(Math.max((d - startD) / totalMs, 0), 1) * 100; }
+
+    const onRail    = today >= startD && today <= depD;
+    const fillWidth = today > depD ? 100 : today < startD ? 0 : pct(today);
+
+    const milestones = [
+      { name: 'Start',   date: startD },
+      { name: 'End dev', date: endD   },
+      { name: 'Deploy',  date: depD   },
+    ];
+
+    const msHTML = milestones.map(m => {
+      const done = today >= m.date;
+      const p    = pct(m.date);
+      const lbl  = `<span class="name">${m.name}</span><span class="date">${fmt(m.date)}</span>`;
+      return `
+        <div class="ms ${done ? 'done' : ''}" style="left:${p}%">
+          <div class="ms-dot"></div>
+          <div class="ms-lbl">${lbl}</div>
+        </div>`;
+    }).join('');
+
+    const todayHTML = onRail ? `
+      <div class="today-mk" style="left:${pct(today)}%">
+        <div class="today-pill">Today</div>
+        <div class="today-dot"></div>
+      </div>` : '';
+
+    const timelineHTML = `
+      <div class="timeline-area">
+        <div class="rail">
+          <div class="rail-fill" style="width:${fillWidth}%"></div>
+          ${msHTML}
+          ${todayHTML}
+        </div>
+      </div>`;
+
+    const statsHTML = `
+      <div class="stats-row">
+        <div class="stat"><span class="stat-lbl">Start dev</span><span class="stat-val">${fmt(startD)}</span></div>
+        <div class="stat"><span class="stat-lbl">End dev</span><span class="stat-val">${fmt(endD)}</span></div>
+        <div class="stat"><span class="stat-lbl">Deploy</span><span class="stat-val">${fmt(depD)}</span></div>
+        <div class="stat"><span class="stat-lbl">Dev workdays</span><span class="stat-val">${wdDevTotal}d</span></div>
+        <div class="stat"><span class="stat-lbl">Dev progress</span><span class="stat-val blue">${devProgressPct}%</span></div>
+      </div>`;
+
+    card.innerHTML = headHTML + timelineHTML + statsHTML;
+
+  } else {
+    // ── Simple info grid
+    const wdDev = workdays(startD, endD);
+    const infoHTML = `
+      <div class="info-grid">
+        <div class="info-item"><span class="info-lbl">Start dev</span><span class="info-val">${fmt(startD)}</span></div>
+        <div class="info-item"><span class="info-lbl">End dev</span><span class="info-val">${fmt(endD)}</span></div>
+        <div class="info-item"><span class="info-lbl">Deploy</span><span class="info-val">${fmt(depD)}</span></div>
+        <div class="info-item"><span class="info-lbl">Dev workdays</span><span class="info-val">${wdDev}d</span></div>
+        <div class="workday-note">Starts in <strong>${workdaysLeft(today, startD)}</strong> working days</div>
+      </div>`;
+    card.innerHTML = headHTML + infoHTML;
+  }
+
+  container.appendChild(card);
+});
 </script>
 </body>
 </html>

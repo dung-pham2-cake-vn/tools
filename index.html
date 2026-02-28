@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tools — dung-pham2-cake-vn</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0d0f14;--surface:#151820;--border:#252a35;--accent:#4ade80;--accent2:#38bdf8;--text:#e2e8f0;--muted:#64748b}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;padding:40px 20px}
+.container{max-width:800px;margin:0 auto}
+.header{margin-bottom:48px}
+.logo{font-size:11px;text-transform:uppercase;letter-spacing:3px;color:var(--muted);margin-bottom:12px}
+h1{font-size:42px;font-weight:800;letter-spacing:-2px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{color:var(--muted);margin-top:8px;font-size:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.card{display:block;text-decoration:none;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;transition:all .2s;position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),transparent);opacity:0;transition:opacity .2s}
+.card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.card:hover::before{opacity:1}
+.card-icon{font-size:28px;margin-bottom:14px}
+.card-title{font-weight:700;font-size:16px;margin-bottom:6px;color:var(--text)}
+.card-desc{font-size:13px;color:var(--muted);line-height:1.5}
+.card-tag{display:inline-block;margin-top:12px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--accent);font-family:'JetBrains Mono',monospace}
+footer{margin-top:60px;text-align:center;font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="logo">dung-pham2-cake-vn / tools</div>
+    <h1>Internal Tools</h1>
+    <p class="subtitle">A collection of web-based tools and dashboards for the team</p>
+  </div>
+  <div class="grid">
+    <a class="card" href="./sprint-calendar/">
+      <div class="card-icon">🚀</div>
+      <div class="card-title">Sprint Calendar</div>
+      <div class="card-desc">Track current sprint progress, dev timelines, and deploy dates for the Lending team.</div>
+      <div class="card-tag">→ lending · agile</div>
+    </a>
+  </div>
+  <footer>built with love · hosted on github pages</footer>
+</div>
+</body>
+</html>

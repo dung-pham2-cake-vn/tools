@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sprint Calendar</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0f14;
+    --surface: #151820;
+    --border: #252a35;
+    --accent: #4ade80;
+    --accent2: #38bdf8;
+    --warn: #fb923c;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --current-bg: #0f2920;
+    --current-border: #4ade80;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    padding: 20px;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .header-icon {
+    width: 40px; height: 40px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+
+  .header-title {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .today-chip {
+    margin-left: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .current-sprint {
+    background: var(--current-bg);
+    border: 1px solid var(--current-border);
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    display: grid;
+    grid-template-columns: auto 1fr 1fr 1fr;
+    gap: 16px;
+    align-items: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .current-sprint::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+  }
+
+  .current-badge {
+    background: var(--accent);
+    color: #0d0f14;
+    font-weight: 700;
+    font-size: 11px;
+    border-radius: 6px;
+    padding: 4px 10px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .sprint-num {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: -1px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .date-block { display: flex; flex-direction: column; gap: 3px; }
+  .date-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .date-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  .progress-section { margin-bottom: 24px; }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .progress-bar {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 3px;
+    transition: width 0.6s ease;
+  }
+
+  .days-left {
+    font-size: 12px;
+    color: var(--accent2);
+    margin-top: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    text-align: right;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  thead th {
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+  tbody tr:hover { background: var(--surface); }
+
+  tbody td {
+    padding: 10px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  tbody td:first-child {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text);
+  }
+
+  tr.is-current {
+    background: var(--current-bg) !important;
+  }
+  tr.is-current td { color: var(--text); }
+  tr.is-current td:first-child { color: var(--accent); }
+
+  tr.is-past td { opacity: 0.4; }
+
+  .dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-right: 6px;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-icon">🚀</div>
+  <div class="header-title">Lending Sprint Calendar</div>
+  <div class="today-chip" id="todayChip">—</div>
+</div>
+
+<div class="current-sprint" id="currentSprintCard">
+  <div>
+    <div class="current-badge"><span class="dot"></span>Active</div>
+  </div>
+  <div class="date-block">
+    <div class="date-label">Sprint</div>
+    <div class="sprint-num" id="csNum">—</div>
+  </div>
+  <div class="date-block">
+    <div class="date-label">Start dev</div>
+    <div class="date-value" id="csStart">—</div>
+  </div>
+  <div class="date-block">
+    <div class="date-label">End dev</div>
+    <div class="date-value" id="csEnd">—</div>
+  </div>
+  <div class="date-block">
+    <div class="date-label">Deploy</div>
+    <div class="date-value" id="csDeploy">—</div>
+  </div>
+</div>
+
+<div class="progress-section">
+  <div class="progress-label">
+    <span>Sprint progress</span>
+    <span id="progressPct">0%</span>
+  </div>
+  <div class="progress-bar">
+    <div class="progress-fill" id="progressFill" style="width:0%"></div>
+  </div>
+  <div class="days-left" id="daysLeft"></div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Sprint</th>
+      <th>Start dev</th>
+      <th>End dev</th>
+      <th>Deploy</th>
+    </tr>
+  </thead>
+  <tbody id="tableBody"></tbody>
+</table>
+
+<script>
+const SPRINTS = [
+  [182,"2026-02-24","2026-03-09","2026-03-12"],
+  [183,"2026-03-10","2026-03-23","2026-03-26"],
+  [184,"2026-03-24","2026-04-06","2026-04-09"],
+  [185,"2026-04-07","2026-04-20","2026-04-23"],
+  [186,"2026-04-21","2026-05-04","2026-05-07"],
+  [187,"2026-05-05","2026-05-18","2026-05-21"],
+  [188,"2026-05-19","2026-06-01","2026-06-04"],
+  [189,"2026-06-02","2026-06-15","2026-06-18"],
+  [190,"2026-06-16","2026-06-29","2026-07-02"],
+  [191,"2026-06-30","2026-07-13","2026-07-16"],
+  [192,"2026-07-14","2026-07-27","2026-07-30"],
+  [193,"2026-07-28","2026-08-10","2026-08-13"],
+  [194,"2026-08-11","2026-08-24","2026-08-27"],
+  [195,"2026-08-25","2026-09-07","2026-09-10"],
+  [196,"2026-09-08","2026-09-21","2026-09-24"],
+  [197,"2026-09-22","2026-10-05","2026-10-08"],
+  [198,"2026-10-06","2026-10-19","2026-10-22"],
+  [199,"2026-10-20","2026-11-02","2026-11-05"],
+  [200,"2026-11-03","2026-11-16","2026-11-19"],
+  [201,"2026-11-17","2026-11-30","2026-12-03"],
+  [202,"2026-12-01","2026-12-14","2026-12-17"],
+  [203,"2026-12-15","2026-12-28","2026-12-31"],
+  [204,"2026-12-29","2027-01-11","2027-01-14"],
+];
+
+function fmt(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function today() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function parseDate(str) {
+  const [y,m,d] = str.split('-').map(Number);
+  return new Date(y, m-1, d);
+}
+
+const todayDate = today();
+
+document.getElementById('todayChip').textContent = todayDate.toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', year:'numeric' });
+
+let currentSprint = null;
+for (const s of SPRINTS) {
+  const start = parseDate(s[1]);
+  const deploy = parseDate(s[3]);
+  if (todayDate >= start && todayDate <= deploy) { currentSprint = s; break; }
+}
+// fallback: next upcoming sprint
+if (!currentSprint) {
+  for (const s of SPRINTS) {
+    if (parseDate(s[1]) > todayDate) { currentSprint = s; break; }
+  }
+}
+
+if (currentSprint) {
+  document.getElementById('csNum').textContent = currentSprint[0];
+  document.getElementById('csStart').textContent = fmt(currentSprint[1]);
+  document.getElementById('csEnd').textContent = fmt(currentSprint[2]);
+  document.getElementById('csDeploy').textContent = fmt(currentSprint[3]);
+
+  const start = parseDate(currentSprint[1]);
+  const end = parseDate(currentSprint[2]);
+  const total = (end - start) / 86400000;
+  const elapsed = Math.min(Math.max((todayDate - start) / 86400000, 0), total);
+  const pct = Math.round(elapsed / total * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressPct').textContent = pct + '%';
+  const remaining = Math.max(Math.ceil((end - todayDate) / 86400000), 0);
+  document.getElementById('daysLeft').textContent = remaining > 0 ? `${remaining} days left until End dev` : 'Dev phase completed';
+}
+
+const tbody = document.getElementById('tableBody');
+for (const s of SPRINTS) {
+  const tr = document.createElement('tr');
+  const start = parseDate(s[1]);
+  const deploy = parseDate(s[3]);
+  const isCurrent = currentSprint && s[0] === currentSprint[0];
+  const isPast = deploy < todayDate;
+
+  if (isCurrent) tr.className = 'is-current';
+  else if (isPast) tr.className = 'is-past';
+
+  tr.innerHTML = `
+    <td>${isCurrent ? '<span class="dot"></span>' : ''}${s[0]}</td>
+    <td>${fmt(s[1])}</td>
+    <td>${fmt(s[2])}</td>
+    <td>${fmt(s[3])}</td>
+  `;
+  tbody.appendChild(tr);
+}
+
+// scroll current into view
+setTimeout(() => {
+  const cur = tbody.querySelector('.is-current');
+  if (cur) cur.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}, 300);
+</script>
+</body>
+</html>

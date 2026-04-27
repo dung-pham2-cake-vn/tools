@@ -1,0 +1,168 @@
+{
+  "tasks": {
+    "createTask": {
+      "endpoint": "POST /api/tasks",
+      "description": "Create a new task",
+      "body": {
+        "title": "Implement user authentication",
+        "description": "Add JWT-based authentication system",
+        "storyPoints": 5,
+        "status": "todo",
+        "priority": "high",
+        "assignee": "john.doe@example.com"
+      },
+      "response": {
+        "_id": "507f1f77bcf86cd799439011",
+        "title": "Implement user authentication",
+        "description": "Add JWT-based authentication system",
+        "storyPoints": 5,
+        "status": "todo",
+        "priority": "high",
+        "assignee": "john.doe@example.com",
+        "createdAt": "2024-04-15T10:30:00Z",
+        "updatedAt": "2024-04-15T10:30:00Z"
+      }
+    },
+    "getTasks": {
+      "endpoint": "GET /api/tasks?status=todo&priority=high",
+      "description": "Get filtered list of tasks",
+      "queryParams": {
+        "status": "todo | in-progress | in-review | done",
+        "priority": "low | medium | high | critical",
+        "sprint": "sprintId"
+      }
+    },
+    "updateTaskStatus": {
+      "endpoint": "PATCH /api/tasks/{taskId}/status",
+      "body": {
+        "status": "in-progress"
+      }
+    }
+  },
+  "sprints": {
+    "createSprint": {
+      "endpoint": "POST /api/sprints",
+      "description": "Create a new sprint",
+      "body": {
+        "name": "Sprint 1 - Q2 2024",
+        "description": "First sprint of quarter 2",
+        "startDate": "2024-04-01T00:00:00Z",
+        "endDate": "2024-04-14T23:59:59Z",
+        "status": "active"
+      },
+      "response": {
+        "_id": "507f1f77bcf86cd799439012",
+        "name": "Sprint 1 - Q2 2024",
+        "description": "First sprint of quarter 2",
+        "startDate": "2024-04-01T00:00:00Z",
+        "endDate": "2024-04-14T23:59:59Z",
+        "status": "active",
+        "tasks": [],
+        "totalStoryPoints": 0,
+        "completedStoryPoints": 0
+      }
+    },
+    "addTaskToSprint": {
+      "endpoint": "POST /api/sprints/{sprintId}/tasks",
+      "description": "Add a task to sprint",
+      "body": {
+        "taskId": "507f1f77bcf86cd799439011"
+      }
+    },
+    "getSprintMetrics": {
+      "endpoint": "GET /api/sprints/{sprintId}/metrics",
+      "description": "Get sprint metrics and progress",
+      "response": {
+        "totalStoryPoints": 20,
+        "completedStoryPoints": 12,
+        "completionPercentage": 60
+      }
+    }
+  },
+  "roadmaps": {
+    "createRoadmap": {
+      "endpoint": "POST /api/roadmaps",
+      "description": "Create a new roadmap",
+      "body": {
+        "title": "2024 Product Roadmap",
+        "description": "Roadmap for 2024 product releases",
+        "version": "1.0.0",
+        "status": "in-progress"
+      }
+    },
+    "addItemToRoadmap": {
+      "endpoint": "POST /api/roadmaps/{roadmapId}/items",
+      "description": "Add item to roadmap",
+      "body": {
+        "title": "Mobile App Launch",
+        "description": "Launch iOS and Android applications",
+        "quarter": "Q2 2024",
+        "status": "in-progress",
+        "priority": "high"
+      }
+    },
+    "updateRoadmapItem": {
+      "endpoint": "PUT /api/roadmaps/{roadmapId}/items/{itemId}",
+      "description": "Update roadmap item",
+      "body": {
+        "status": "completed",
+        "priority": "medium"
+      }
+    }
+  },
+  "jira": {
+    "getJiraIssue": {
+      "endpoint": "GET /api/jira/issue/{issueKey}",
+      "description": "Get Jira issue details",
+      "example": "GET /api/jira/issue/PROJ-123"
+    },
+    "syncTaskFromJira": {
+      "endpoint": "POST /api/jira/sync/{jiraKey}",
+      "description": "Sync a Jira issue to local task",
+      "example": "POST /api/jira/sync/PROJ-123",
+      "response": {
+        "_id": "507f1f77bcf86cd799439011",
+        "title": "Issue title from Jira",
+        "jiraKey": "PROJ-123",
+        "storyPoints": 5,
+        "status": "in-progress",
+        "priority": "high"
+      }
+    },
+    "searchJiraIssues": {
+      "endpoint": "GET /api/jira/search?jql={jqlQuery}",
+      "description": "Search Jira issues using JQL",
+      "queryParams": {
+        "jql": "project = PROJ AND status = 'In Progress'"
+      }
+    },
+    "getJiraProjects": {
+      "endpoint": "GET /api/jira/projects",
+      "description": "Get list of Jira projects"
+    }
+  },
+  "commonUseCases": {
+    "planSprint": {
+      "steps": [
+        "POST /api/sprints - Create sprint",
+        "GET /api/tasks - Get available tasks",
+        "POST /api/sprints/{id}/tasks - Add tasks to sprint",
+        "GET /api/sprints/{id}/metrics - View sprint metrics"
+      ]
+    },
+    "syncFromJira": {
+      "steps": [
+        "GET /api/jira/search - Search for Jira issues",
+        "POST /api/jira/sync/{issueKey} - Sync selected issues",
+        "GET /api/tasks - Verify synced tasks"
+      ]
+    },
+    "trackProgress": {
+      "steps": [
+        "PATCH /api/tasks/{id}/status - Update task status",
+        "GET /api/sprints/{id}/metrics - Monitor sprint progress",
+        "GET /api/roadmaps/{id} - Check roadmap status"
+      ]
+    }
+  }
+}

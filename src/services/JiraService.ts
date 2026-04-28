@@ -27,8 +27,51 @@ interface JiraSearchIssue {
   fields: Record<string, unknown>;
 }
 
+interface JiraBoard {
+  id: number;
+  name: string;
+  type?: string;
+}
+
+interface JiraSprint {
+  id: number;
+  name: string;
+  state?: string;
+  startDate?: string;
+  endDate?: string;
+  completeDate?: string;
+  originBoardId?: number;
+}
+
+interface JiraVersion {
+  id: string;
+  name: string;
+  released?: boolean;
+  archived?: boolean;
+  startDate?: string;
+  releaseDate?: string;
+}
+
+interface NormalizedSprintDetail {
+  id: number | null;
+  name: string;
+  state?: string;
+  startDate: string | null;
+  endDate: string | null;
+}
+
+interface NormalizedFixVersionDetail {
+  id: string | undefined;
+  name: string;
+  startDate: string | null;
+  releaseDate: string | null;
+  released?: boolean;
+  archived?: boolean;
+}
+
 export class JiraService {
   private axiosInstance: AxiosInstance;
+  private agileAxiosInstance: AxiosInstance;
   private fieldDefinitionsPromise: Promise<JiraFieldDefinition[]> | null = null;
 
   constructor() {
@@ -42,6 +85,18 @@ export class JiraService {
 
     this.axiosInstance = axios.create({
       baseURL: `${jiraHost}/rest/api/3`,
+      auth: {
+        username: jiraUsername,
+        password: jiraToken,
+      },
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+    });
+
+    this.agileAxiosInstance = axios.create({
+      baseURL: `${jiraHost}/rest/agile/1.0`,
       auth: {
         username: jiraUsername,
         password: jiraToken,
@@ -128,6 +183,99 @@ export class JiraService {
     }
   }
 
+  async getBoards(projectKeyOrId: string): Promise<JiraBoard[]> {
+    try {
+      const boards: JiraBoard[] = [];
+      let startAt = 0;
+      let isLast = false;
+
+      do {
+        const response = await this.agileAxiosInstance.get('/board', {
+          params: {
+            projectKeyOrId,
+            type: 'scrum',
+            startAt,
+            maxResults: 50,
+          },
+        });
+
+        boards.push(...(response.data.values || []));
+        startAt += (response.data.values || []).length;
+        isLast = Boolean(response.data.isLast);
+
+        if ((response.data.values || []).length === 0) {
+          break;
+        }
+      } while (!isLast);
+
+      return boards;
+    } catch (error) {
+      console.error(`Error fetching boards for ${projectKeyOrId}:`, this.formatAxiosError(error));
+      throw error;
+    }
+  }
+
+  async getBoardSprints(boardId: number, state = 'active'): Promise<JiraSprint[]> {
+    try {
+      const sprints: JiraSprint[] = [];
+      let startAt = 0;
+      let isLast = false;
+
+      do {
+        const response = await this.agileAxiosInstance.get(`/board/${boardId}/sprint`, {
+          params: {
+            state,
+            startAt,
+            maxResults: 50,
+          },
+        });
+
+        sprints.push(...(response.data.values || []));
+        startAt += (response.data.values || []).length;
+        isLast = Boolean(response.data.isLast);
+
+        if ((response.data.values || []).length === 0) {
+          break;
+        }
+      } while (!isLast);
+
+      return sprints;
+    } catch (error) {
+      console.error(`Error fetching sprints for board ${boardId}:`, this.formatAxiosError(error));
+      throw error;
+    }
+  }
+
+  async getProjectVersions(projectKeyOrId: string): Promise<JiraVersion[]> {
+    try {
+      const versions: JiraVersion[] = [];
+      let startAt = 0;
+      let isLast = false;
+
+      do {
+        const response = await this.axiosInstance.get(`/project/${projectKeyOrId}/version`, {
+          params: {
+            startAt,
+            maxResults: 50,
+          },
+        });
+
+        versions.push(...(response.data.values || []));
+        startAt += (response.data.values || []).length;
+        isLast = startAt >= (response.data.total || 0);
+
+        if ((response.data.values || []).length === 0) {
+          break;
+        }
+      } while (!isLast);
+
+      return versions;
+    } catch (error) {
+      console.error(`Error fetching versions for ${projectKeyOrId}:`, this.formatAxiosError(error));
+      throw error;
+    }
+  }
+
   private async getFieldDefinitions(): Promise<JiraFieldDefinition[]> {
     if (!this.fieldDefinitionsPromise) {
       this.fieldDefinitionsPromise = this.axiosInstance
@@ -192,41 +340,93 @@ export class JiraService {
     const priority = issue.fields.priority as { name?: string } | undefined;
     const assignee = issue.fields.assignee as { displayName?: string } | null | undefined;
     const fixVersions = issue.fields.fixVersions as Array<{ name?: string }> | undefined;
+    const sprintDetails = this.extractSprintDetails(sprintValues);
+    const fixVersionDetails = this.extractFixVersionDetails(
+      issue.fields.fixVersions as Array<Record<string, unknown>> | undefined
+    );
 
     return {
       ...issue,
       fields: {
         ...issue.fields,
-        normalizedSprintNames: this.extractSprintNames(sprintValues),
+        normalizedSprintNames: sprintDetails.map((item) => item.name),
+        normalizedSprints: sprintDetails,
         normalizedStoryPoints: typeof rawStoryPoints === 'number' ? rawStoryPoints : Number(rawStoryPoints || 0),
         normalizedStatusName: status?.name || '',
         normalizedPriorityName: priority?.name || '',
         normalizedAssigneeName: assignee?.displayName || '',
         normalizedFixVersionNames: (fixVersions || []).map((item) => item.name || '').filter(Boolean),
+        normalizedFixVersions: fixVersionDetails,
       },
     };
   }
 
-  private extractSprintNames(rawSprintValue: unknown): string[] {
+  private extractSprintDetails(rawSprintValue: unknown): NormalizedSprintDetail[] {
     if (!Array.isArray(rawSprintValue)) {
       return [];
     }
 
-    return rawSprintValue
+    const mapped: Array<NormalizedSprintDetail | null> = rawSprintValue
       .map((value) => {
         if (typeof value === 'string') {
+          const idMatch = value.match(/id=([^,\]]+)/);
           const nameMatch = value.match(/name=([^,\]]+)/);
-          return nameMatch ? nameMatch[1] : value;
+          const stateMatch = value.match(/state=([^,\]]+)/);
+          const startDateMatch = value.match(/startDate=([^,\]]+)/);
+          const endDateMatch = value.match(/endDate=([^,\]]+)/);
+
+          return {
+            id: idMatch ? Number(idMatch[1]) : null,
+            name: nameMatch ? nameMatch[1] : value,
+            state: stateMatch ? stateMatch[1] : undefined,
+            startDate: startDateMatch ? startDateMatch[1] : null,
+            endDate: endDateMatch ? endDateMatch[1] : null,
+          };
         }
 
         if (value && typeof value === 'object' && 'name' in value) {
-          const sprintName = (value as { name?: unknown }).name;
-          return typeof sprintName === 'string' ? sprintName : '';
+          const sprint = value as Record<string, unknown>;
+          const sprintName = sprint.name;
+
+          return {
+            id: typeof sprint.id === 'number' ? sprint.id : null,
+            name: typeof sprintName === 'string' ? sprintName : '',
+            state: typeof sprint.state === 'string' ? sprint.state : undefined,
+            startDate: typeof sprint.startDate === 'string' ? sprint.startDate : null,
+            endDate: typeof sprint.endDate === 'string' ? sprint.endDate : null,
+          };
         }
 
-        return '';
-      })
-      .filter((name): name is string => Boolean(name));
+        return null;
+      });
+
+    return mapped.filter((item): item is NormalizedSprintDetail => item !== null && item.name.length > 0);
+  }
+
+  private extractFixVersionDetails(rawFixVersions: Array<Record<string, unknown>> | undefined): NormalizedFixVersionDetail[] {
+    if (!rawFixVersions || rawFixVersions.length === 0) {
+      return [];
+    }
+
+    const mapped: Array<NormalizedFixVersionDetail | null> = rawFixVersions
+      .map((item) => {
+        const name = item.name;
+
+        if (typeof name !== 'string' || !name) {
+          return null;
+        }
+
+        return {
+          id: typeof item.id === 'string' ? item.id : undefined,
+          name,
+          startDate: typeof item.startDate === 'string' ? item.startDate : null,
+          releaseDate: typeof item.releaseDate === 'string' ? item.releaseDate : null,
+          released: typeof item.released === 'boolean' ? item.released : undefined,
+          archived: typeof item.archived === 'boolean' ? item.archived : undefined,
+        };
+      });
+
+    return mapped.filter((item): item is NormalizedFixVersionDetail => item !== null);
   }
 
   private formatAxiosError(error: unknown) {

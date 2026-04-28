@@ -1,192 +1,385 @@
-import React, { useEffect, useState } from 'react';
-import SprintCard from '@/components/SprintCard';
-import { sprintAPI } from '@/utils/api';
+import React, { useEffect, useMemo, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
+import { jiraAPI } from '@/utils/api';
 
-interface SprintForm {
+type ProjectKey = 'PL' | 'PLO' | 'DOP';
+type TimeStatus = 'within' | 'overdue' | 'upcoming';
+
+interface NormalizedSprintDetail {
+  id: number | null;
   name: string;
-  description: string;
-  startDate: string;
-  endDate: string;
-  status: 'planning' | 'active' | 'closed';
+  state?: string;
+  startDate: string | null;
+  endDate: string | null;
 }
 
-export default function SprintsPage() {
-  const [sprints, setSprnts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [formData, setFormData] = useState<SprintForm>({
-    name: '',
-    description: '',
-    startDate: '',
-    endDate: '',
-    status: 'planning',
+interface NormalizedFixVersionDetail {
+  id: string | undefined;
+  name: string;
+  startDate: string | null;
+  releaseDate: string | null;
+  released?: boolean;
+  archived?: boolean;
+}
+
+interface JiraSearchIssue {
+  id: string;
+  key: string;
+  fields: {
+    normalizedSprints?: NormalizedSprintDetail[];
+    normalizedFixVersions?: NormalizedFixVersionDetail[];
+  };
+}
+
+interface JiraSearchResponse {
+  issues: JiraSearchIssue[];
+}
+
+interface JiraVersion {
+  id: string;
+  name: string;
+  released?: boolean;
+  archived?: boolean;
+  startDate?: string | null;
+  releaseDate?: string | null;
+}
+
+interface TimelineItem {
+  marker: '✅' | '❌';
+  label: string;
+  name: string;
+  startDate: string | null;
+  endDate: string | null;
+  timeStatus: TimeStatus | null;
+  notes: string[];
+}
+
+interface ProjectReport {
+  projectKey: ProjectKey;
+  sprintLine: TimelineItem;
+  versionLine: TimelineItem;
+}
+
+const PROJECT_KEYS: ProjectKey[] = ['PL', 'PLO', 'DOP'];
+const UTC7_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+const isDateOnly = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+const toUtc7Date = (value?: string | null): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  if (isDateOnly(value)) {
+    return value;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return new Date(date.getTime() + UTC7_OFFSET_MS).toISOString().slice(0, 10);
+};
+
+const getTodayUtc7 = (): string => toUtc7Date(new Date().toISOString()) || '';
+
+const compareDateStrings = (left: string, right: string) => left.localeCompare(right);
+
+const getTimeStatus = (today: string, startDate: string | null, endDate: string | null): TimeStatus | null => {
+  if (!startDate || !endDate) {
+    return null;
+  }
+
+  if (compareDateStrings(today, startDate) < 0) {
+    return 'upcoming';
+  }
+
+  if (compareDateStrings(today, endDate) > 0) {
+    return 'overdue';
+  }
+
+  return 'within';
+};
+
+const appendTimeStatus = (rangeText: string, status: TimeStatus | null): string => {
+  if (status === 'overdue') {
+    return `${rangeText} 🔴 QUÁ HẠN`;
+  }
+
+  if (status === 'upcoming') {
+    return `${rangeText} 🔴 CHƯA ĐẾN`;
+  }
+
+  return rangeText;
+};
+
+const formatRange = (startDate: string | null, endDate: string | null, status: TimeStatus | null): string => {
+  const start = startDate || '?';
+  const end = endDate || '?';
+  return appendTimeStatus(`(${start} -> ${end})`, status);
+};
+
+const getMostCommonDate = (dates: Array<string | null>): string | null => {
+  const counts = new Map<string, number>();
+
+  dates.filter((value): value is string => Boolean(value)).forEach((value) => {
+    counts.set(value, (counts.get(value) || 0) + 1);
   });
 
+  let winner: string | null = null;
+  let maxCount = 0;
+
+  counts.forEach((count, value) => {
+    if (count > maxCount) {
+      winner = value;
+      maxCount = count;
+    }
+  });
+
+  return winner;
+};
+
+const buildOpenSprintJql = (projectKey: ProjectKey) => `project=${projectKey} and Sprint IN openSprints()`;
+
+const dedupeByName = <T extends { name: string }>(items: T[]): T[] => {
+  const map = new Map<string, T>();
+  items.forEach((item) => {
+    if (!map.has(item.name)) {
+      map.set(item.name, item);
+    }
+  });
+  return Array.from(map.values());
+};
+
+const pickEarliestUnreleasedVersion = (versions: JiraVersion[]): { item: JiraVersion | null; notes: string[] } => {
+  const unreleased = versions.filter((version) => !version.released && !version.archived);
+
+  if (unreleased.length === 0) {
+    return { item: null, notes: ['no earliest unreleased fix version returned by project versions'] };
+  }
+
+  const sorted = [...unreleased].sort((left, right) => {
+    const leftPrimary = left.startDate || left.releaseDate || '9999-99-99';
+    const rightPrimary = right.startDate || right.releaseDate || '9999-99-99';
+    const primaryCompare = leftPrimary.localeCompare(rightPrimary);
+
+    if (primaryCompare !== 0) {
+      return primaryCompare;
+    }
+
+    return (left.releaseDate || '9999-99-99').localeCompare(right.releaseDate || '9999-99-99');
+  });
+
+  return { item: sorted[0], notes: [] };
+};
+
+const pickSingleSprint = (issues: JiraSearchIssue[]): { item: NormalizedSprintDetail | null; notes: string[] } => {
+  const sprints = dedupeByName(
+    issues.flatMap((issue) => issue.fields.normalizedSprints || []).filter((item) => item.state === 'active')
+  );
+
+  if (sprints.length === 0) {
+    return { item: null, notes: ['no active sprint returned by JQL'] };
+  }
+
+  if (sprints.length > 1) {
+    return {
+      item: null,
+      notes: [`multiple active sprints returned by JQL: ${sprints.map((item) => item.name).join(', ')}`],
+    };
+  }
+
+  return { item: sprints[0], notes: [] };
+};
+
+export default function SprintsPage() {
+  const [reports, setReports] = useState<ProjectReport[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   useEffect(() => {
-    loadSprints();
+    const loadAlignmentReport = async () => {
+      try {
+        setLoading(true);
+        setLoadError(null);
+        const today = getTodayUtc7();
+
+        const rawReports: ProjectReport[] = await Promise.all(
+          PROJECT_KEYS.map(async (projectKey) => {
+            const [sprintResponse, versionResponse] = await Promise.all([
+              jiraAPI.searchIssues({
+                jql: buildOpenSprintJql(projectKey),
+                maxResults: 50,
+                fields: ['fixVersions'],
+              }),
+              jiraAPI.getProjectVersions(projectKey),
+            ]);
+
+            const sprintIssues = ((sprintResponse.data.data as JiraSearchResponse)?.issues || []) as JiraSearchIssue[];
+            const projectVersions = (versionResponse.data.data || []) as JiraVersion[];
+            const sprintSelection = pickSingleSprint(sprintIssues);
+            const versionSelection = pickEarliestUnreleasedVersion(projectVersions);
+
+            const sprintStart = toUtc7Date(sprintSelection.item?.startDate);
+            const sprintEnd = toUtc7Date(sprintSelection.item?.endDate);
+            const versionStart = toUtc7Date(versionSelection.item?.startDate);
+            const versionEnd = toUtc7Date(versionSelection.item?.releaseDate);
+
+            const sprintLine: TimelineItem = {
+              marker: sprintSelection.item ? '✅' : '❌',
+              label: 'Sprint',
+              name: sprintSelection.item?.name || 'Not found',
+              startDate: sprintStart,
+              endDate: sprintEnd,
+              timeStatus: sprintSelection.item ? getTimeStatus(today, sprintStart, sprintEnd) : null,
+              notes: sprintSelection.notes,
+            };
+
+            const versionLine: TimelineItem = {
+              marker: versionSelection.item ? '✅' : '❌',
+              label: 'Fix-ver',
+              name: versionSelection.item?.name || 'Not found',
+              startDate: versionStart,
+              endDate: versionEnd,
+              timeStatus: versionSelection.item ? getTimeStatus(today, versionStart, versionEnd) : null,
+              notes: versionSelection.notes,
+            };
+
+            return {
+              projectKey,
+              sprintLine,
+              versionLine,
+            };
+          })
+        );
+
+        const allItems = rawReports.flatMap((report) => [report.sprintLine, report.versionLine]);
+        const canonicalStart = getMostCommonDate(allItems.map((item) => item.startDate));
+        const canonicalEnd = getMostCommonDate(allItems.map((item) => item.endDate));
+
+        const normalizedReports: ProjectReport[] = rawReports.map((report) => {
+          const updateMarker = (item: TimelineItem): TimelineItem => {
+            const notes = [...item.notes];
+            let marker: '✅' | '❌' = item.marker;
+
+            if (!item.startDate || !item.endDate) {
+              notes.push('missing start/end date');
+              marker = '❌';
+            }
+
+            if (canonicalStart && item.startDate && item.startDate !== canonicalStart) {
+              notes.push(`start date differs from baseline ${canonicalStart}`);
+              marker = '❌';
+            }
+
+            if (canonicalEnd && item.endDate && item.endDate !== canonicalEnd) {
+              notes.push(`end date differs from baseline ${canonicalEnd}`);
+              marker = '❌';
+            }
+
+            const updatedItem: TimelineItem = {
+              ...item,
+              marker,
+              notes,
+            };
+
+            return updatedItem;
+          };
+
+          return {
+            ...report,
+            sprintLine: updateMarker(report.sprintLine),
+            versionLine: updateMarker(report.versionLine),
+          };
+        });
+
+        setReports(normalizedReports);
+      } catch (error) {
+        console.error('Error loading sprint alignment:', error);
+        setReports([]);
+        setLoadError('Failed to load sprint alignment report');
+        toast.error('Failed to load sprint alignment report');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAlignmentReport();
   }, []);
 
-  const loadSprints = async () => {
-    try {
-      setLoading(true);
-      const response = await sprintAPI.getAll();
-      setSprnts(response.data.data || []);
-    } catch (error) {
-      console.error('Error loading sprints:', error);
-      toast.error('Failed to load sprints');
-    } finally {
-      setLoading(false);
+  const summary = useMemo(() => {
+    if (loadError) {
+      return {
+        isAligned: false,
+        issues: [loadError],
+      };
     }
-  };
 
-  const handleCreateSprint = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await sprintAPI.create(formData);
-      toast.success('Sprint created successfully');
-      setIsFormOpen(false);
-      setFormData({
-        name: '',
-        description: '',
-        startDate: '',
-        endDate: '',
-        status: 'planning',
-      });
-      loadSprints();
-    } catch (error) {
-      console.error('Error creating sprint:', error);
-      toast.error('Failed to create sprint');
-    }
-  };
+    const issues = reports.flatMap((report) =>
+      [report.sprintLine, report.versionLine].flatMap((item) => {
+        const noteLines = item.notes.map((note) => `${report.projectKey} ${item.label}: ${note}`);
+        const statusLine =
+          item.timeStatus && item.timeStatus !== 'within'
+            ? [`${report.projectKey} ${item.label}: ${item.timeStatus === 'overdue' ? 'QUÁ HẠN' : 'CHƯA ĐẾN'}`]
+            : [];
 
-  const handleDeleteSprint = async (sprintId: string) => {
-    if (!confirm('Are you sure you want to delete this sprint?')) return;
-    try {
-      await sprintAPI.delete(sprintId);
-      toast.success('Sprint deleted successfully');
-      loadSprints();
-    } catch (error) {
-      console.error('Error deleting sprint:', error);
-      toast.error('Failed to delete sprint');
-    }
-  };
+        return [...noteLines, ...statusLine];
+      })
+    );
+
+    return {
+      isAligned: issues.length === 0,
+      issues,
+    };
+  }, [loadError, reports]);
 
   return (
-    <div>
+    <div className="space-y-6">
       <Toaster position="top-right" />
 
-      <div className="flex justify-between items-center mb-8">
+      <div>
         <h1 className="text-4xl font-bold text-gray-900">Sprints</h1>
-        <button
-          onClick={() => setIsFormOpen(!isFormOpen)}
-          className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors font-semibold"
-        >
-          + New Sprint
-        </button>
+        <p className="mt-2 text-sm text-gray-600">Alignment check using 6 JQL queries for PL, PLO, and DOP</p>
       </div>
 
-      {isFormOpen && (
-        <div className="bg-white rounded-lg shadow-md p-8 mb-8">
-          <h2 className="text-2xl font-bold mb-6">Create New Sprint</h2>
-          <form onSubmit={handleCreateSprint} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sprint Name *</label>
-              <input
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-                placeholder="e.g., Sprint 1 - Q2 2024"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-                placeholder="Sprint description"
-                rows={3}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={formData.startDate}
-                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-                />
+      <div className="rounded-lg bg-white p-6 shadow-md">
+        {loading ? (
+          <div className="py-10 text-center text-gray-500">Loading sprint alignment...</div>
+        ) : loadError ? (
+          <div className="py-10 text-center text-red-600">{loadError}</div>
+        ) : (
+          <div className="space-y-4">
+            {reports.map((report) => (
+              <div key={report.projectKey} className="space-y-2 border-b border-slate-100 pb-4 last:border-b-0 last:pb-0">
+                <div className="font-mono text-sm text-gray-900">
+                  {report.sprintLine.marker} {report.projectKey} Sprint: {report.sprintLine.name}{' '}
+                  {formatRange(report.sprintLine.startDate, report.sprintLine.endDate, report.sprintLine.timeStatus)}
+                </div>
+                <div className="font-mono text-sm text-gray-900">
+                  {report.versionLine.marker} {report.projectKey} Fix-ver: {report.versionLine.name}{' '}
+                  {formatRange(report.versionLine.startDate, report.versionLine.endDate, report.versionLine.timeStatus)}
+                </div>
               </div>
+            ))}
+          </div>
+        )}
+      </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">End Date *</label>
-                <input
-                  type="date"
-                  required
-                  value={formData.endDate}
-                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-                >
-                  <option value="planning">Planning</option>
-                  <option value="active">Active</option>
-                  <option value="closed">Closed</option>
-                </select>
-              </div>
+      {!loading && (
+        <div className="rounded-lg bg-white p-6 shadow-md">
+          <h2 className="text-xl font-bold text-gray-900">
+            Tong ket: {summary.isAligned ? '✅ Dong bo' : '❌ Lech'}
+          </h2>
+          {summary.isAligned ? (
+            <p className="mt-3 text-sm text-gray-700">✅ Tat ca Sprint va Version dang dong bo va trong thoi han.</p>
+          ) : (
+            <div className="mt-3 space-y-2 text-sm text-gray-700">
+              {summary.issues.map((issue) => (
+                <p key={issue}>- {issue}</p>
+              ))}
             </div>
-
-            <div className="flex gap-3 pt-4">
-              <button
-                type="button"
-                onClick={() => setIsFormOpen(false)}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
-              >
-                Create Sprint
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {loading ? (
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-          <p className="text-gray-600 mt-4">Loading sprints...</p>
-        </div>
-      ) : sprints.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg shadow-md">
-          <p className="text-gray-600 text-lg">No sprints found</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {sprints.map((sprint) => (
-            <SprintCard
-              key={sprint._id}
-              sprint={sprint}
-              onDelete={() => handleDeleteSprint(sprint._id)}
-            />
-          ))}
+          )}
         </div>
       )}
     </div>

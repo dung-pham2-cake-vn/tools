@@ -42,6 +42,37 @@ export class JiraController {
     }
   }
 
+  async getBoards(req: Request, res: Response): Promise<void> {
+    try {
+      const { projectKeyOrId } = req.query;
+      const boards = await jiraService.getBoards(projectKeyOrId as string);
+      res.status(200).json({ success: true, data: boards });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async getBoardSprints(req: Request, res: Response): Promise<void> {
+    try {
+      const { boardId } = req.params;
+      const { state } = req.query;
+      const sprints = await jiraService.getBoardSprints(Number(boardId), (state as string) || 'active');
+      res.status(200).json({ success: true, data: sprints });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async getProjectVersions(req: Request, res: Response): Promise<void> {
+    try {
+      const { projectKeyOrId } = req.params;
+      const versions = await jiraService.getProjectVersions(projectKeyOrId);
+      res.status(200).json({ success: true, data: versions });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
   async syncTaskFromJira(req: Request, res: Response): Promise<void> {
     try {
       const { jiraKey } = req.params;

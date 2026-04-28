@@ -61,6 +61,10 @@ export const jiraAPI = {
       },
     }),
   getProjects: () => apiClient.get('/jira/projects'),
+  getBoards: (projectKeyOrId: string) => apiClient.get('/jira/boards', { params: { projectKeyOrId } }),
+  getBoardSprints: (boardId: number, state = 'active') =>
+    apiClient.get(`/jira/boards/${boardId}/sprints`, { params: { state } }),
+  getProjectVersions: (projectKeyOrId: string) => apiClient.get(`/jira/projects/${projectKeyOrId}/versions`),
   syncTask: (jiraKey: string) => apiClient.post(`/jira/sync/${jiraKey}`),
   createIssue: (data: any) => apiClient.post('/jira/create', data),
 };

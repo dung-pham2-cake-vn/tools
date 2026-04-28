@@ -118,6 +118,28 @@ export class JiraService {
     }
   }
 
+  async getAllIssueComments(issueKey: string): Promise<any[]> {
+    const comments: any[] = [];
+    let startAt = 0;
+    const maxResults = 100;
+
+    try {
+      while (true) {
+        const response = await this.axiosInstance.get(`/issue/${issueKey}/comment`, {
+          params: { startAt, maxResults, orderBy: 'created' },
+        });
+        const page = response.data.comments || [];
+        comments.push(...page);
+        if (comments.length >= response.data.total || page.length < maxResults) break;
+        startAt += page.length;
+      }
+      return comments;
+    } catch (error) {
+      console.error(`Error fetching comments for ${issueKey}:`, this.formatAxiosError(error));
+      return [];
+    }
+  }
+
   async createIssue(issueData: any) {
     try {
       const response = await this.axiosInstance.post('/issues', issueData);

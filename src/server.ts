@@ -8,6 +8,8 @@ import taskRoutes from './routes/taskRoutes';
 import sprintRoutes from './routes/sprintRoutes';
 import roadmapRoutes from './routes/roadmapRoutes';
 import jiraRoutes from './routes/jiraRoutes';
+import supportRoutes from './routes/supportRoutes';
+import configRoutes from './routes/configRoutes';
 
 dotenv.config();
 
@@ -30,6 +32,8 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/sprints', sprintRoutes);
 app.use('/api/roadmaps', roadmapRoutes);
 app.use('/api/jira', jiraRoutes);
+app.use('/api/support', supportRoutes);
+app.use('/api/config', configRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -41,6 +45,7 @@ app.get('/', (req, res) => {
       sprints: '/api/sprints',
       roadmaps: '/api/roadmaps',
       jira: '/api/jira',
+      support: '/api/support',
     },
   });
 });

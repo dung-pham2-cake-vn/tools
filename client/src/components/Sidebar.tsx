@@ -13,6 +13,8 @@ const Sidebar: React.FC = () => {
     { label: 'Sprints', path: '/sprints', icon: '🏃' },
     { label: 'Roadmap', path: '/roadmap', icon: '🗺️' },
     { label: 'Jira', path: '/jira', icon: '🔗' },
+    { label: 'Support', path: '/support', icon: '🛠️' },
+    { label: 'Settings', path: '/config', icon: '⚙️' },
   ];
 
   return (

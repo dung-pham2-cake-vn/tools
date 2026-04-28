@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -42,6 +42,24 @@ export const roadmapAPI = {
   addItem: (id: string, itemData: any) => apiClient.post(`/roadmaps/${id}/items`, itemData),
   updateItem: (id: string, itemId: string, data: any) => apiClient.put(`/roadmaps/${id}/items/${itemId}`, data),
   removeItem: (id: string, itemId: string) => apiClient.delete(`/roadmaps/${id}/items/${itemId}`),
+};
+
+// Support API
+export const supportAPI = {
+  scan: (mode: 'Scan Un-closed' | 'Scan All') => apiClient.post('/support/scan', { mode }),
+  getTickets: () => apiClient.get('/support/tickets'),
+  saveAnalyzeNote: (id: string, analyzeNote: string) =>
+    apiClient.patch(`/support/tickets/${id}/analyze`, { analyzeNote }),
+  reloadTicket: (id: string) => apiClient.post(`/support/tickets/${id}/reload`),
+  aiAnalyze: (id: string) => apiClient.post(`/support/tickets/${id}/ai-analyze`),
+};
+
+// Config API
+export const configAPI = {
+  getAI: () => apiClient.get('/config/ai'),
+  saveAI: (data: { provider: string; apiKey: string; model: string; baseUrl?: string }) =>
+    apiClient.put('/config/ai', data),
+  testAI: () => apiClient.post('/config/ai/test'),
 };
 
 // Jira API

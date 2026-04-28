@@ -15,8 +15,18 @@ export class JiraController {
 
   async searchIssues(req: Request, res: Response): Promise<void> {
     try {
-      const { jql } = req.query;
-      const issues = await jiraService.searchIssues(jql as string);
+      const { jql, startAt, maxResults, fields, nextPageToken } = req.query;
+      const parsedFields =
+        typeof fields === 'string'
+          ? fields.split(',').map((field) => field.trim()).filter(Boolean)
+          : undefined;
+
+      const issues = await jiraService.searchIssuesWithOptions(jql as string, {
+        startAt: startAt ? Number(startAt) : undefined,
+        maxResults: maxResults ? Number(maxResults) : undefined,
+        fields: parsedFields,
+        nextPageToken: typeof nextPageToken === 'string' ? nextPageToken : undefined,
+      });
       res.status(200).json({ success: true, data: issues });
     } catch (error: any) {
       res.status(400).json({ success: false, error: error.message });

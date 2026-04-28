@@ -3,8 +3,33 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+interface JiraFieldDefinition {
+  id: string;
+  key: string;
+  name: string;
+  schema?: {
+    type?: string;
+    custom?: string;
+  };
+}
+
+interface SearchIssuesOptions {
+  startAt?: number;
+  maxResults?: number;
+  fields?: string[];
+  nextPageToken?: string;
+}
+
+interface JiraSearchIssue {
+  id: string;
+  key: string;
+  self?: string;
+  fields: Record<string, unknown>;
+}
+
 export class JiraService {
   private axiosInstance: AxiosInstance;
+  private fieldDefinitionsPromise: Promise<JiraFieldDefinition[]> | null = null;
 
   constructor() {
     const jiraHost = process.env.JIRA_HOST;
@@ -33,7 +58,7 @@ export class JiraService {
       const response = await this.axiosInstance.get(`/issues/${issueKey}`);
       return response.data;
     } catch (error) {
-      console.error(`Error fetching Jira issue ${issueKey}:`, error);
+      console.error(`Error fetching Jira issue ${issueKey}:`, this.formatAxiosError(error));
       throw error;
     }
   }
@@ -43,7 +68,7 @@ export class JiraService {
       const response = await this.axiosInstance.post('/issues', issueData);
       return response.data;
     } catch (error) {
-      console.error('Error creating Jira issue:', error);
+      console.error('Error creating Jira issue:', this.formatAxiosError(error));
       throw error;
     }
   }
@@ -53,19 +78,42 @@ export class JiraService {
       const response = await this.axiosInstance.put(`/issues/${issueKey}`, updateData);
       return response.data;
     } catch (error) {
-      console.error(`Error updating Jira issue ${issueKey}:`, error);
+      console.error(`Error updating Jira issue ${issueKey}:`, this.formatAxiosError(error));
       throw error;
     }
   }
 
   async searchIssues(jql: string) {
     try {
-      const response = await this.axiosInstance.get('/search', {
-        params: { jql },
-      });
-      return response.data;
+      return await this.searchIssuesWithOptions(jql);
     } catch (error) {
-      console.error('Error searching Jira issues:', error);
+      console.error('Error searching Jira issues:', this.formatAxiosError(error));
+      throw error;
+    }
+  }
+
+  async searchIssuesWithOptions(jql: string, options: SearchIssuesOptions = {}) {
+    try {
+      const fields = await this.resolveRequestedFields(options.fields);
+      const response = await this.axiosInstance.post('/search/jql', {
+        jql,
+        maxResults: options.maxResults ?? 50,
+        fields,
+        nextPageToken: options.nextPageToken,
+      });
+
+      const fieldMap = await this.getFieldDefinitionMap();
+      const sprintField = this.findFieldIdByName(fieldMap, ['Sprint']);
+      const storyPointsField = this.findFieldIdByName(fieldMap, ['Story Points', 'Story point estimate']);
+
+      return {
+        ...response.data,
+        issues: (response.data.issues || []).map((issue: JiraSearchIssue) =>
+          this.normalizeSearchIssue(issue, sprintField, storyPointsField)
+        ),
+      };
+    } catch (error) {
+      console.error('Error searching Jira issues:', this.formatAxiosError(error));
       throw error;
     }
   }
@@ -75,9 +123,128 @@ export class JiraService {
       const response = await this.axiosInstance.get('/projects');
       return response.data;
     } catch (error) {
-      console.error('Error fetching Jira projects:', error);
+      console.error('Error fetching Jira projects:', this.formatAxiosError(error));
       throw error;
     }
+  }
+
+  private async getFieldDefinitions(): Promise<JiraFieldDefinition[]> {
+    if (!this.fieldDefinitionsPromise) {
+      this.fieldDefinitionsPromise = this.axiosInstance
+        .get('/field')
+        .then((response) => response.data as JiraFieldDefinition[]);
+    }
+
+    return this.fieldDefinitionsPromise;
+  }
+
+  private async getFieldDefinitionMap(): Promise<Map<string, JiraFieldDefinition>> {
+    const fields = await this.getFieldDefinitions();
+    return new Map(fields.map((field) => [field.id, field]));
+  }
+
+  private findFieldIdByName(fieldMap: Map<string, JiraFieldDefinition>, candidateNames: string[]): string | null {
+    const normalizedCandidates = candidateNames.map((name) => name.toLowerCase());
+
+    for (const field of fieldMap.values()) {
+      if (normalizedCandidates.includes(field.name.toLowerCase())) {
+        return field.id;
+      }
+    }
+
+    return null;
+  }
+
+  private async resolveRequestedFields(requestedFields?: string[]): Promise<string[]> {
+    const defaultFields = [
+      'summary',
+      'assignee',
+      'status',
+      'priority',
+      'fixVersions',
+      'issuetype',
+    ];
+
+    const fieldMap = await this.getFieldDefinitionMap();
+    const resolvedFields = new Set(requestedFields && requestedFields.length > 0 ? requestedFields : defaultFields);
+    const sprintField = this.findFieldIdByName(fieldMap, ['Sprint']);
+    const storyPointsField = this.findFieldIdByName(fieldMap, ['Story Points', 'Story point estimate']);
+
+    if (sprintField) {
+      resolvedFields.add(sprintField);
+    }
+
+    if (storyPointsField) {
+      resolvedFields.add(storyPointsField);
+    }
+
+    return Array.from(resolvedFields);
+  }
+
+  private normalizeSearchIssue(
+    issue: JiraSearchIssue,
+    sprintFieldId: string | null,
+    storyPointsFieldId: string | null
+  ) {
+    const sprintValues = sprintFieldId ? issue.fields[sprintFieldId] : undefined;
+    const rawStoryPoints = storyPointsFieldId ? issue.fields[storyPointsFieldId] : undefined;
+    const status = issue.fields.status as { name?: string } | undefined;
+    const priority = issue.fields.priority as { name?: string } | undefined;
+    const assignee = issue.fields.assignee as { displayName?: string } | null | undefined;
+    const fixVersions = issue.fields.fixVersions as Array<{ name?: string }> | undefined;
+
+    return {
+      ...issue,
+      fields: {
+        ...issue.fields,
+        normalizedSprintNames: this.extractSprintNames(sprintValues),
+        normalizedStoryPoints: typeof rawStoryPoints === 'number' ? rawStoryPoints : Number(rawStoryPoints || 0),
+        normalizedStatusName: status?.name || '',
+        normalizedPriorityName: priority?.name || '',
+        normalizedAssigneeName: assignee?.displayName || '',
+        normalizedFixVersionNames: (fixVersions || []).map((item) => item.name || '').filter(Boolean),
+      },
+    };
+  }
+
+  private extractSprintNames(rawSprintValue: unknown): string[] {
+    if (!Array.isArray(rawSprintValue)) {
+      return [];
+    }
+
+    return rawSprintValue
+      .map((value) => {
+        if (typeof value === 'string') {
+          const nameMatch = value.match(/name=([^,\]]+)/);
+          return nameMatch ? nameMatch[1] : value;
+        }
+
+        if (value && typeof value === 'object' && 'name' in value) {
+          const sprintName = (value as { name?: unknown }).name;
+          return typeof sprintName === 'string' ? sprintName : '';
+        }
+
+        return '';
+      })
+      .filter((name): name is string => Boolean(name));
+  }
+
+  private formatAxiosError(error: unknown) {
+    if (axios.isAxiosError(error)) {
+      return {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        errorMessages: error.response?.data?.errorMessages,
+        errors: error.response?.data?.errors,
+      };
+    }
+
+    if (error instanceof Error) {
+      return { message: error.message };
+    }
+
+    return { message: 'Unknown Jira error' };
   }
 
   async syncTaskFromJira(jiraKey: string) {
@@ -96,7 +263,7 @@ export class JiraService {
         assignee: jiraIssue.fields.assignee?.displayName,
       };
     } catch (error) {
-      console.error(`Error syncing task from Jira ${jiraKey}:`, error);
+      console.error(`Error syncing task from Jira ${jiraKey}:`, this.formatAxiosError(error));
       throw error;
     }
   }

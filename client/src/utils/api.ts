@@ -47,7 +47,19 @@ export const roadmapAPI = {
 // Jira API
 export const jiraAPI = {
   getIssue: (issueKey: string) => apiClient.get(`/jira/issue/${issueKey}`),
-  searchIssues: (jql: string) => apiClient.get('/jira/search', { params: { jql } }),
+  searchIssues: (params: {
+    jql: string;
+    startAt?: number;
+    maxResults?: number;
+    fields?: string[];
+    nextPageToken?: string;
+  }) =>
+    apiClient.get('/jira/search', {
+      params: {
+        ...params,
+        fields: params.fields?.join(','),
+      },
+    }),
   getProjects: () => apiClient.get('/jira/projects'),
   syncTask: (jiraKey: string) => apiClient.post(`/jira/sync/${jiraKey}`),
   createIssue: (data: any) => apiClient.post('/jira/create', data),

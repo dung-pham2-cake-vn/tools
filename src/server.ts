@@ -10,6 +10,7 @@ import roadmapRoutes from './routes/roadmapRoutes';
 import jiraRoutes from './routes/jiraRoutes';
 import supportRoutes from './routes/supportRoutes';
 import configRoutes from './routes/configRoutes';
+import sprintManagementRoutes from './routes/sprintManagementRoutes';
 
 dotenv.config();
 
@@ -23,7 +24,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
@@ -34,9 +35,10 @@ app.use('/api/roadmaps', roadmapRoutes);
 app.use('/api/jira', jiraRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/config', configRoutes);
+app.use('/api/sprint-management', sprintManagementRoutes);
 
 // Root endpoint
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.json({
     message: 'Tools Management System API',
     version: '1.0.0',

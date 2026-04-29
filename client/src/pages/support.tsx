@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supportAPI } from '../utils/api';
+import AdfRenderer from '../components/AdfRenderer';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 interface Comment {
   id: string;
   author: string;
   body: string;
+  bodyAdf?: any;
   created: string;
   updated: string;
 }
@@ -14,6 +18,7 @@ interface Ticket {
   key: string;
   title: string;
   description: string;
+  descriptionAdf?: any;
   type: string;
   status: string;
   assignee: string;
@@ -25,6 +30,7 @@ interface Ticket {
   comments: Comment[];
   linkedWorkItems: any[];
   analyzeNote: string;
+  attachments: { id: string; filename: string; mimeType: string }[];
 }
 
 const LINK_CONDITION = `(issueLinkType = "causes" or (type = Bug and (labels not in (NON_PROD, auto_stage) or labels is empty)))`;
@@ -52,10 +58,13 @@ function groupTickets(tickets: Ticket[]): { label: string; items: Ticket[] }[] {
   const byCreated = (a: Ticket, b: Ticket) =>
     new Date(b.created).getTime() - new Date(a.created).getTime();
   const working = tickets.filter((t) => isWorking(t.status)).sort(byCreated);
-  const closed = tickets.filter((t) => !isWorking(t.status)).sort(byCreated);
+  const closedAll = tickets.filter((t) => !isWorking(t.status)).sort(byCreated);
+  const closedPending = closedAll.filter((t) => !t.analyzeNote?.trim());
+  const closedDone = closedAll.filter((t) => !!t.analyzeNote?.trim());
   return [
     { label: 'Working', items: working },
-    { label: 'Closed', items: closed },
+    { label: 'Closed — Not Analyzed', items: closedPending },
+    { label: 'Closed — Analyzed', items: closedDone },
   ].filter((g) => g.items.length > 0);
 }
 
@@ -290,10 +299,33 @@ const TicketDetail: React.FC<{
           </div>
 
           {/* description */}
-          {ticket.description && (
+          {(ticket.descriptionAdf || ticket.description) && (
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Description</p>
-              <p className="text-sm text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
+              <AdfRenderer adf={ticket.descriptionAdf} fallback={ticket.description} />
+            </div>
+          )}
+
+          {/* image attachments */}
+          {ticket.attachments?.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase mb-2">
+                Images ({ticket.attachments.length})
+              </p>
+              <div className="space-y-2">
+                {ticket.attachments.map((a) => (
+                  <div key={a.id}>
+                    <p className="text-xs text-gray-400 mb-1">{a.filename}</p>
+                    <img
+                      src={`${API_BASE}/support/attachment/${a.id}`}
+                      alt={a.filename}
+                      className="max-w-full rounded border border-gray-200"
+                      loading="lazy"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -306,12 +338,26 @@ const TicketDetail: React.FC<{
               <ul className="space-y-1">
                 {ticket.linkedWorkItems.map((link: any, i: number) => {
                   const linked = link.inwardIssue || link.outwardIssue;
+                  const linkedUrl = linked?.key
+                    ? ticket.hyperlink.replace(/\/browse\/.*$/, `/browse/${linked.key}`)
+                    : null;
                   return (
                     <li key={i} className="text-sm text-gray-700 flex gap-2">
-                      <span className="text-gray-400 text-xs mt-0.5">{link.type}</span>
+                      <span className="text-gray-400 text-xs mt-0.5 shrink-0">{link.type}</span>
                       {linked ? (
                         <span>
-                          <span className="font-mono text-xs text-blue-600">{linked.key}</span>
+                          {linkedUrl ? (
+                            <a
+                              href={linkedUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-xs text-blue-600 hover:underline"
+                            >
+                              {linked.key}
+                            </a>
+                          ) : (
+                            <span className="font-mono text-xs text-blue-600">{linked.key}</span>
+                          )}
                           {linked.summary && <span className="text-gray-600"> — {linked.summary}</span>}
                         </span>
                       ) : null}
@@ -339,7 +385,7 @@ const TicketDetail: React.FC<{
                         {c.created ? new Date(c.created).toLocaleString() : ''}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{c.body}</p>
+                    <AdfRenderer adf={c.bodyAdf} fallback={c.body} />
                   </li>
                 ))}
               </ul>
@@ -357,6 +403,14 @@ const SavedTicketsTab: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Ticket | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set(['Closed — Analyzed']));
+
+  const toggleGroup = (label: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.has(label) ? next.delete(label) : next.add(label);
+      return next;
+    });
 
   useEffect(() => {
     supportAPI
@@ -414,25 +468,25 @@ const SavedTicketsTab: React.FC = () => {
             <tbody>
               {groupTickets(tickets).map(({ label, items }) => (
                 <React.Fragment key={label}>
-                  <tr className="bg-gray-100 border-t-2 border-gray-300">
+                  <tr
+                    className="bg-gray-100 border-t-2 border-gray-300 cursor-pointer select-none hover:bg-gray-200"
+                    onClick={() => toggleGroup(label)}
+                  >
                     <td colSpan={10} className="px-4 py-2">
+                      <span className="text-xs mr-2 text-gray-500">
+                        {collapsed.has(label) ? '▶' : '▼'}
+                      </span>
                       <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">
                         {label}
                       </span>
                       <span className="ml-2 text-xs text-gray-400">{items.length} tickets</span>
                     </td>
                   </tr>
-                  {items.map((t) => (
+                  {!collapsed.has(label) && items.map((t) => (
+
                     <tr key={t._id} className="hover:bg-gray-50 border-b border-gray-100">
-                      <td className="px-4 py-3 font-mono whitespace-nowrap">
-                        <a
-                          href={t.hyperlink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline"
-                        >
-                          {t.key}
-                        </a>
+                      <td className="px-4 py-3 font-mono whitespace-nowrap text-gray-800">
+                        {t.key}
                       </td>
                       <td className="px-4 py-3 max-w-xs">
                         <button

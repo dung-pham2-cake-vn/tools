@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import axios from 'axios';
 import { scanUnclosed, scanAll, executeJQLQuery, saveTicketsToDatabase } from '../services/SupportService';
 import { SupportTicket } from '../models/SupportTicket';
 import { analyzeTicketWithAI } from '../services/AIService';
@@ -78,5 +79,36 @@ export const aiAnalyzeTicket = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error in AI analysis:', error);
     res.status(500).json({ message: error?.message || 'AI analysis failed' });
+  }
+};
+
+export const proxyAttachment = async (req: Request, res: Response) => {
+  const { attachmentId } = req.params;
+  const jiraHost = process.env.JIRA_HOST;
+  const jiraUsername = process.env.JIRA_USERNAME;
+  const jiraToken = process.env.JIRA_API_TOKEN;
+
+  if (!jiraHost || !jiraUsername || !jiraToken) {
+    return res.status(500).json({ message: 'Jira not configured' });
+  }
+
+  try {
+    // attachmentId must be the Jira numeric attachment ID (not ADF media UUID)
+    const response = await axios.get(
+      `${jiraHost}/rest/api/3/attachment/content/${attachmentId}`,
+      {
+        auth: { username: jiraUsername, password: jiraToken },
+        responseType: 'stream',
+        maxRedirects: 5,
+      }
+    );
+    const contentType = typeof response.headers['content-type'] === 'string'
+      ? response.headers['content-type']
+      : 'image/png';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    response.data.pipe(res);
+  } catch (error: any) {
+    res.status(404).json({ message: 'Attachment not found' });
   }
 };

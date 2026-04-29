@@ -5,6 +5,7 @@ export interface ISupportTicket extends Document {
   key: string;
   title: string;
   description: string;
+  descriptionAdf: any;
   linkedWorkItems: any[];
   hyperlink: string;
   type: string;
@@ -16,6 +17,7 @@ export interface ISupportTicket extends Document {
   updated: Date;
   comments: any[];
   analyzeNote: string;
+  attachments: any[];
 }
 
 const SupportTicketSchema = new Schema<ISupportTicket>(
@@ -24,6 +26,7 @@ const SupportTicketSchema = new Schema<ISupportTicket>(
     key: { type: String, required: true },
     title: { type: String, required: true },
     description: { type: String, default: '' },
+    descriptionAdf: { type: Schema.Types.Mixed },
     linkedWorkItems: [{ type: Schema.Types.Mixed }],
     hyperlink: { type: String },
     type: { type: String },
@@ -35,6 +38,7 @@ const SupportTicketSchema = new Schema<ISupportTicket>(
     updated: { type: Date },
     comments: [{ type: Schema.Types.Mixed }],
     analyzeNote: { type: String, default: '' },
+    attachments: [{ type: Schema.Types.Mixed }],
   },
   { timestamps: true }
 );

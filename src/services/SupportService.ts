@@ -12,6 +12,7 @@ const SUPPORT_FIELDS = [
   'comment',
   'created',
   'updated',
+  'attachment',
 ];
 
 const CLOSED_STATUSES = ['Invalid', 'Test Passed', 'Done'];
@@ -105,9 +106,18 @@ export const saveTicketsToDatabase = async (issues: any[]) => {
       id: c.id,
       author: c.author?.displayName || '',
       body: extractDescriptionText(c.body),
+      bodyAdf: c.body ?? null,
       created: c.created,
       updated: c.updated,
     }));
+
+    const attachments = (f.attachment || [])
+      .filter((a: any) => a.mimeType?.startsWith('image/'))
+      .map((a: any) => ({
+        id: a.id,
+        filename: a.filename,
+        mimeType: a.mimeType,
+      }));
 
     const linkedWorkItems = (f.issuelinks || []).map((link: any) => ({
       id: link.id,
@@ -127,6 +137,7 @@ export const saveTicketsToDatabase = async (issues: any[]) => {
         key: issue.key,
         title: f.summary || '',
         description: extractDescriptionText(f.description),
+        descriptionAdf: f.description ?? null,
         linkedWorkItems,
         hyperlink: `${jiraHost}/browse/${issue.key}`,
         type: f.issuetype?.name || '',
@@ -137,6 +148,7 @@ export const saveTicketsToDatabase = async (issues: any[]) => {
         created: f.created ? new Date(f.created) : undefined,
         updated: f.updated ? new Date(f.updated) : undefined,
         comments,
+        attachments,
       },
       { upsert: true, new: true }
     );

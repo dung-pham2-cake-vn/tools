@@ -62,6 +62,16 @@ export const configAPI = {
   testAI: () => apiClient.post('/config/ai/test'),
 };
 
+// Sprint Management API
+export const sprintManagementAPI = {
+  getConfluenceChildren: () => apiClient.get('/sprint-management/confluence-children'),
+  getLoadedPages: () => apiClient.get('/sprint-management/loaded-pages'),
+  loadPage: (pageId: string) => apiClient.post(`/sprint-management/load-page/${pageId}`),
+  getPageContent: (pageId: string) => apiClient.get(`/sprint-management/page-content/${pageId}`),
+  analyze: (data: { pageIds: string[]; prompt: string }) => apiClient.post('/sprint-management/analyze', data),
+  getResults: () => apiClient.get('/sprint-management/results'),
+};
+
 // Jira API
 export const jiraAPI = {
   getIssue: (issueKey: string) => apiClient.get(`/jira/issue/${issueKey}`),

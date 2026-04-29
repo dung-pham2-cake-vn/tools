@@ -62,16 +62,25 @@ export const testAIConfig = async (): Promise<{ ok: boolean; provider: string; m
 
   try {
     const prompt = 'Reply with exactly: OK';
-    let result: string;
     if (config.provider === 'anthropic') {
-      result = await callAnthropic(config.apiKey, config.model, prompt);
+      await callAnthropic(config.apiKey, config.model, prompt);
     } else {
-      result = await callOpenAI(config.apiKey, config.model, config.baseUrl || 'https://api.openai.com', prompt);
+      await callOpenAI(config.apiKey, config.model, config.baseUrl || 'https://api.openai.com', prompt);
     }
     return { ok: true, provider: config.provider, model: config.model, error: undefined };
   } catch (err: any) {
     return { ok: false, provider: config.provider, model: config.model, error: err?.message };
   }
+};
+
+export const analyzeWithCustomPrompt = async (prompt: string): Promise<string> => {
+  const config: AIConfig | null = await getAIConfig();
+  if (!config?.apiKey) throw new Error('AI not configured. Go to Settings to configure.');
+
+  if (config.provider === 'anthropic') {
+    return callAnthropic(config.apiKey, config.model, prompt);
+  }
+  return callOpenAI(config.apiKey, config.model, config.baseUrl || 'https://api.openai.com', prompt);
 };
 
 export const analyzeTicketWithAI = async (ticketData: {
@@ -100,12 +109,21 @@ export const analyzeTicketWithAI = async (ticketData: {
     .filter(Boolean)
     .join('\n');
 
-  const prompt = `You are analyzing a support ticket. Based on all available information, provide a concise analysis in exactly this format. Keep the 4 label names in English but write the content in Vietnamese:
+  const hasComments = ticketData.comments.length > 0;
 
-Symptoms: <triệu chứng và vấn đề được báo cáo>
-Root cause: <nguyên nhân gốc rễ>
-Resolution: <cách đã hoặc nên xử lý>
-Prevention: <cách phòng ngừa trong tương lai>
+  const prompt = `You are analyzing a support ticket. Provide analysis in exactly this format. Keep the 4 label names in English, write content in Vietnamese.
+
+Rules:
+- Symptoms: derive from description (what users experienced/reported).
+- Root cause, Resolution, Prevention: derive PRIMARILY from comments. If comments exist but lack sufficient information to confirm these, write "Chưa xác định" for those fields. If there are NO comments at all, write "Chưa xác định" for all three fields.
+- Do not guess or infer Root cause / Resolution / Prevention from description alone.
+
+${hasComments ? '' : '⚠ No comments available — Root cause, Resolution, Prevention must be "Chưa xác định".'}
+
+Symptoms: <triệu chứng và vấn đề được báo cáo, dựa trên description>
+Root cause: <nguyên nhân gốc rễ từ comment, hoặc "Chưa xác định">
+Resolution: <cách đã xử lý từ comment, hoặc "Chưa xác định">
+Prevention: <cách phòng ngừa từ comment, hoặc "Chưa xác định">
 
 Ticket: ${ticketData.key} - ${ticketData.title}
 Status: ${ticketData.status}

@@ -69,9 +69,20 @@ interface NormalizedFixVersionDetail {
   archived?: boolean;
 }
 
+export interface ConfluencePage {
+  id: string;
+  title: string;
+  status: string;
+}
+
+export interface ConfluencePageWithBody extends ConfluencePage {
+  body: string;
+}
+
 export class JiraService {
   private axiosInstance: AxiosInstance;
   private agileAxiosInstance: AxiosInstance;
+  private confluenceAxiosInstance: AxiosInstance;
   private fieldDefinitionsPromise: Promise<JiraFieldDefinition[]> | null = null;
 
   constructor() {
@@ -106,6 +117,52 @@ export class JiraService {
         'Content-Type': 'application/json',
       },
     });
+
+    this.confluenceAxiosInstance = axios.create({
+      baseURL: `${jiraHost}/wiki/api/v2`,
+      auth: {
+        username: jiraUsername,
+        password: jiraToken,
+      },
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+    });
+  }
+
+  async getConfluenceChildPages(pageId: string): Promise<ConfluencePage[]> {
+    try {
+      const response = await this.confluenceAxiosInstance.get(`/pages/${pageId}/children`, {
+        params: { limit: 50, sort: '-created-date' },
+      });
+      return (response.data.results || []).map((p: any) => ({
+        id: p.id,
+        title: p.title,
+        status: p.status,
+      }));
+    } catch (error) {
+      console.error(`Error fetching Confluence children for ${pageId}:`, this.formatAxiosError(error));
+      throw error;
+    }
+  }
+
+  async getConfluencePageContent(pageId: string): Promise<ConfluencePageWithBody> {
+    try {
+      const response = await this.confluenceAxiosInstance.get(`/pages/${pageId}`, {
+        params: { 'body-format': 'storage' },
+      });
+      const page = response.data;
+      return {
+        id: page.id,
+        title: page.title,
+        status: page.status,
+        body: page.body?.storage?.value || '',
+      };
+    } catch (error) {
+      console.error(`Error fetching Confluence page ${pageId}:`, this.formatAxiosError(error));
+      throw error;
+    }
   }
 
   async getIssue(issueKey: string) {

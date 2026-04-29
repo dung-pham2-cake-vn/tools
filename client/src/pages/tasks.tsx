@@ -25,6 +25,8 @@ interface AssigneeSummary {
   assignee: string;
   storyPoints: number;
   ticketCount: number;
+  withPoints: number;
+  withoutPoints: number;
 }
 
 interface JiraSearchResponse {
@@ -113,7 +115,12 @@ export default function TasksPage() {
       });
 
       const data = response.data.data as JiraSearchResponse;
-      const pageIssues = data.issues || [];
+      const pageIssues = (data.issues || []).map((issue) => {
+        if (issue.fields.normalizedStoryPoints === 0 && !('normalizedStoryPoints' in issue.fields)) {
+          issue.fields.normalizedStoryPoints = null;
+        }
+        return issue;
+      });
 
       allIssues.push(...pageIssues);
       nextPageToken = data.nextPageToken;
@@ -150,23 +157,30 @@ export default function TasksPage() {
   };
 
   const assigneeSummaries = useMemo<AssigneeSummary[]>(() => {
-    const summaryMap = new Map<string, AssigneeSummary>();
+    const summaryMap = new Map<string, AssigneeSummary & { withPoints: number; withoutPoints: number }>();
 
     issues.forEach((issue) => {
       const assignee = issue.fields.normalizedAssigneeName || 'Unassigned';
-      const storyPoints = issue.fields.normalizedStoryPoints || 0;
+      const storyPoints = issue.fields.customfield_10036;
       const existing = summaryMap.get(assignee);
 
       if (existing) {
-        existing.storyPoints += storyPoints;
+        existing.storyPoints += storyPoints || 0;
         existing.ticketCount += 1;
+        if (storyPoints === null) {
+          existing.withoutPoints += 1;
+        } else {
+          existing.withPoints += 1;
+        }
         return;
       }
 
       summaryMap.set(assignee, {
         assignee,
-        storyPoints,
+        storyPoints: storyPoints || 0,
         ticketCount: 1,
+        withPoints: storyPoints === null ? 0 : 1,
+        withoutPoints: storyPoints === null ? 1 : 0,
       });
     });
 
@@ -267,6 +281,14 @@ export default function TasksPage() {
           <div className="rounded-lg border border-gray-200 bg-slate-50 px-4 py-3 text-sm text-gray-700">
             <p className="font-semibold text-gray-900">JQL</p>
             <pre className="mt-2 whitespace-pre-wrap font-mono text-xs text-gray-600">{buildSprintJql(currentSprint || sprintInput || DEFAULT_SPRINT)}</pre>
+            <a
+              href="https://cakedigitalbank.atlassian.net/issues?jql=project%20IN%20(PL%2C%20%22Product%3A%20DOP%22%2C%20%22Platform%3A%20LOS%22)%20AND%20status%20NOT%20IN%20(%22PO%2FTM%20Review%22%2C%20%22Will%20Not%20Do%22%2C%20Done%2C%20Ready4Release%2C%20Released%2C%20%22Request%20Bot%20To%20Delete%22)%20and%20type%20%3D%20Backend-SubTask%20AND%20(Sprint%20in%20(%22Sprint%20186%20-%20Lending%22%2C%20%22Sprint%20186%20-%20LOS%22%2C%20%22Sprint%20186%20-%20DOP%22)%20OR%20fixVersion%20~%20%22Sprint%20186*%22)%20ORDER%20BY%20priority%20DESC%2C%20status%20ASC"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-block rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+            >
+              Open in Jira
+            </a>
           </div>
         </div>
       </div>
@@ -308,14 +330,26 @@ export default function TasksPage() {
                 </th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">
                   <button onClick={() => toggleAssigneeSort('storyPoints')} className="flex items-center gap-2">
-                    Story Points
+                    Tickets with Points
                     {renderSortIndicator(assigneeSort.key === 'storyPoints', assigneeSort.direction)}
                   </button>
                 </th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">
                   <button onClick={() => toggleAssigneeSort('ticketCount')} className="flex items-center gap-2">
-                    Tickets
+                    Tickets without Points
                     {renderSortIndicator(assigneeSort.key === 'ticketCount', assigneeSort.direction)}
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">
+                  <button onClick={() => toggleAssigneeSort('ticketCount')} className="flex items-center gap-2">
+                    Total Tickets
+                    {renderSortIndicator(assigneeSort.key === 'ticketCount', assigneeSort.direction)}
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">
+                  <button onClick={() => toggleAssigneeSort('storyPoints')} className="flex items-center gap-2">
+                    Total Story Points
+                    {renderSortIndicator(assigneeSort.key === 'storyPoints', assigneeSort.direction)}
                   </button>
                 </th>
               </tr>
@@ -323,7 +357,7 @@ export default function TasksPage() {
             <tbody className="divide-y divide-gray-100 bg-white">
               {assigneeSummaries.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                     No assignee data yet
                   </td>
                 </tr>
@@ -331,8 +365,10 @@ export default function TasksPage() {
                 assigneeSummaries.map((item) => (
                   <tr key={item.assignee}>
                     <td className="px-4 py-3 text-gray-900">{item.assignee}</td>
-                    <td className="px-4 py-3 text-gray-700">{item.storyPoints}</td>
+                    <td className="px-4 py-3 text-gray-700">{item.withPoints}</td>
+                    <td className="px-4 py-3 text-gray-700">{item.withoutPoints}</td>
                     <td className="px-4 py-3 text-gray-700">{item.ticketCount}</td>
+                    <td className="px-4 py-3 text-gray-700">{item.storyPoints}</td>
                   </tr>
                 ))
               )}
@@ -394,7 +430,11 @@ export default function TasksPage() {
                       </a>
                     </td>
                     <td className="px-4 py-3 text-gray-900">{issue.fields.summary || '-'}</td>
-                    <td className="px-4 py-3 text-gray-700">{issue.fields.normalizedStoryPoints || 0}</td>
+                    <td className="px-4 py-3 text-gray-700">
+                      {issue.fields.customfield_10036 === null
+                        ? 'Not Estimated'
+                        : issue.fields.customfield_10036}
+                    </td>
                     <td className="px-4 py-3 text-gray-700">{issue.fields.normalizedAssigneeName || 'Unassigned'}</td>
                     <td className="px-4 py-3 text-gray-700">{issue.fields.normalizedStatusName || '-'}</td>
                     <td className="px-4 py-3 text-gray-700">

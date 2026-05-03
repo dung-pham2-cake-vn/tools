@@ -263,7 +263,7 @@
   .api-info { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px 28px; margin-bottom: 28px; }
   .api-title { font-family: var(--sans); font-size: 30px; letter-spacing: -0.02em; margin-bottom: 4px; line-height: 1.2; }
   .api-version { display: inline-flex; align-items: center; background: var(--table-header); border: 1px solid var(--border); padding: 2px 10px; border-radius: 99px; font-size: 12px; font-weight: 500; margin-bottom: 10px; }
-  .api-desc { color: var(--text-muted); font-size: 13px; margin-bottom: 18px; line-height: 1.7; }
+  .api-desc { color: var(--text-muted); font-size: 13px; margin-bottom: 18px; line-height: 1.7; overflow-x: auto; }
   .info-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
   .servers-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   .servers-table th { background: var(--table-header); padding: 7px 12px; text-align: left; font-weight: 600; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); border: 1px solid var(--border); }
@@ -319,9 +319,10 @@
   .md-prose blockquote { border-left: 3px solid var(--border); padding-left: 12px; margin: 8px 0; font-style: italic; }
   .md-prose a { color: var(--accent); text-decoration: underline; }
   .md-prose strong { color: var(--text); font-weight: 600; }
-  .md-prose table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 12px; }
-  .md-prose table th { background: var(--table-header); padding: 6px 10px; border: 1px solid var(--border); font-weight: 600; text-align: left; }
-  .md-prose table td { padding: 6px 10px; border: 1px solid var(--border); }
+  .md-prose table { border-collapse: collapse; width: max-content; min-width: 100%; margin: 8px 0; font-size: 12px; }
+  .md-prose table th { background: var(--table-header); padding: 6px 10px; border: 1px solid var(--border); font-weight: 600; text-align: left; white-space: nowrap; }
+  .md-prose table td { padding: 6px 10px; border: 1px solid var(--border); word-break: break-word; overflow-wrap: break-word; max-width: 240px; }
+  .md-prose table td code { word-break: break-all; }
 
   /* ── PARAM GROUPS ── */
   .param-group { margin-bottom: 14px; }
@@ -789,13 +790,38 @@ function block(label, inner){
   return `<div class="endpoint-block"><div class="block-label">${label}</div>${inner}</div>`;
 }
 
+function renderServerExtras(s) {
+  const xKeys = Object.keys(s).filter(k => k.startsWith('x-'));
+  if (!xKeys.length) return '';
+  const items = xKeys.map(k => {
+    const val = s[k];
+    const label = k.replace(/^x-/, '').replace(/-/g, ' ');
+    let display;
+    if (Array.isArray(val)) {
+      display = `<ul style="margin:3px 0 0;padding-left:16px">${val.map(v=>`<li>${escHtml(String(v))}</li>`).join('')}</ul>`;
+    } else if (val && typeof val === 'object') {
+      display = `<code style="font-size:11px;white-space:pre-wrap">${escHtml(JSON.stringify(val, null, 2))}</code>`;
+    } else {
+      display = `<code style="font-size:11px">${escHtml(String(val))}</code>`;
+    }
+    return `<div style="margin-top:5px">
+      <span style="font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--accent)">${escHtml(label)}</span>
+      <div style="font-size:12px;color:var(--text);margin-top:1px">${display}</div>
+    </div>`;
+  }).join('');
+  return `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">${items}</div>`;
+}
+
 function renderInfo(spec) {
   const info=spec.info||{}, servers=spec.servers||[];
   let srv='';
   if(servers.length){
-    const rows=servers.map(s=>`<tr><td>${escHtml(s.url)}</td><td>${escHtml(s.description||'')}</td></tr>`).join('');
+    const rows=servers.map(s=>`<tr>
+      <td style="font-family:var(--mono);font-size:12px;vertical-align:top">${escHtml(s.url)}</td>
+      <td style="vertical-align:top">${escHtml(s.description||'')}${renderServerExtras(s)}</td>
+    </tr>`).join('');
     srv=`<div class="info-label" style="margin-top:14px">Servers</div>
-      <table class="servers-table"><thead><tr><th>URL</th><th>Description</th></tr></thead><tbody>${rows}</tbody></table>`;
+      <table class="servers-table"><thead><tr><th>URL</th><th>Info</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
   return `<div class="api-info">
     <div class="api-title">${escHtml(info.title||'API Documentation')}</div>

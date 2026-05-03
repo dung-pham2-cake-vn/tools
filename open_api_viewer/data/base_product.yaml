@@ -3,13 +3,6 @@ info:
   title: product_id - Native Lending APIs
   description: |
     API tích hợp giữa đối tác (Partner) và hệ thống Cake Digital Bank cho các sản phẩm vay.
-    
-    ## Môi trường
-    | Environment | Base URL |
-    |-------------|----------|
-    | SIT | `https://gw.qa.cakedigibank.tech/ext/loan/{group}/{product_id}` |
-    | UAT | `https://gw.stage.cakedigibank.tech/ext/loan/{group}/{product_id}` |
-    | PROD | `https://gw.cake.vn/ext/loan/{group}/{product_id}` |
 
     ## Cơ chế xác thực (Signature)
     Tất cả request từ Partner gọi Cake đều phải ký signature:
@@ -19,30 +12,107 @@ info:
     signature = base64_encode(rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA256, hash))
     ```
     Partner cần tạo cặp khóa RSA 1024 bit: private key (PKCS#8) và public key (X.509).
+    Test chữ ký có thể dùng tool online như [https://emn178.github.io/online-tools/rsa/verify](https://emn178.github.io/online-tools/rsa/verify/?input=%7B%22req_id%22%3A%221%22%2C%22action%22%3A1%7DPartner&input_type=utf-8&algorithm=SHA256&public_key=-----BEGIN%20PUBLIC%20KEY-----%0AMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC0KTbcJmoAT1g%2FFEp7eWWzuATg%0AK%2F7Go01PKZUaVTsN80JiDdg%2FmgDIcE0D9w5fYsDBN2pgeQ7EW8qqB8wb84qqk7QX%0AzAFfAqGx10X5aRe0WPsL3x7SCnG9QDz%2Fsun7hvrELes2sBw1a63lk3ZHyU9xLAcs%0ASsOFirCfQDlq0sbvNQIDAQAB%0A-----END%20PUBLIC%20KEY-----&signature_input_type=base64&signature=LWRijuKu83sa%2BU2FMe%2BsrtP8ctIaPjNAZ68YBiOiZNhzl%2FBELWztAcnTaOxINjghrfepTRLjhjvQw5mfwZrUHue4hwWDRvCpTMvCSfv513vuKp4kIQFK5EAASMZuhjwTn6mBxeO1i55xWB2wHqXVJxXgFecSok6T8qqJyH4XUzc%3D).
 
-    ## IP Whitelist
-    ### PROD Cake IP Addresses (Partner cần thêm vào whitelist):
-    - 34.87.56.148/32
-    - 35.240.146.157/32
-    - 34.87.175.195/32
-    - 34.142.177.122/32
-    - 34.87.39.41/32
-    - 34.143.164.31/32
-    - 34.143.174.79/32
+    ## Môi trường
 
-    ### SIT/UAT Cake IP Addresses:
-    - 35.197.157.155/32
-    - 34.87.136.147/32
-    - 35.240.241.82/32
-    - 34.142.212.108/32
-    - 35.198.211.12/32
-    - 34.143.164.202/32
-    - 34.124.200.2/32
+    ### SIT+UAT Environment
 
-    ## Challenge Levels
-    - `1` - None: Không cần xác thực thêm
-    - `2` - Facematch: Gọi API `challenge-facematch`
-    - `3` - SMS OTP: Gọi `challenge-get-otp` rồi `challenge-verify-otp`
+    | Key | Value | Description |
+    |-----|-------|-------------|
+    | CAKE_API_URL | `https://gw.stage.cakedigibank.tech/ext/loan/{group}/{product_id}` | |
+    | CAKE_PARTNER_ID | *(Cake cấp)* | Gắn ở header khi gọi API Cake |
+    | CAKE_PARTNER_KEY | *(Cake cấp)* | Gắn sau body khi ký api partner |
+    | CAKE_IP_ADDRESS | `35.197.157.155/32`<br>`34.87.136.147/32`<br>`35.240.241.82/32`<br>`34.142.212.108/32`<br>`35.198.211.12/32`<br>`34.143.164.202/32`<br>`34.124.200.2/32` | Partner thêm các IP này vào Whitelist |
+    | PARTNER_API_URL | *(Partner cấp)* | |
+    | PARTNER_PUBLIC_KEY | *(Partner cấp)* | Gọi API Cake, Partner ký bằng private key, Cake verify |
+    | PARTNER_IP_ADDRESS | *(Partner cấp)*<br>`34.87.136.147 (Cake auto)` | Cake thêm các IP này vào Whitelist |
+
+    ### PROD Environment
+
+    | Key | Value | Description |
+    |-----|-------|-------------|
+    | CAKE_API_URL | `https://gw.cake.vn/ext/loan/{group}/{product_id}` | |
+    | CAKE_PARTNER_ID | *(Cake cấp)* | Gắn ở header khi gọi API Cake |
+    | CAKE_PARTNER_KEY | *(Cake cấp)* | Gắn sau body khi ký api partner |
+    | CAKE_IP_ADDRESS | `34.87.56.148/32`<br>`35.240.146.157/32`<br>`34.87.175.195/32`<br>`34.142.177.122/32`<br>`34.87.39.41/32`<br>`34.143.164.31/32`<br>`34.143.174.79/32` | Partner thêm các IP này vào Whitelist |
+    | PARTNER_API_URL | *(Partner cấp)* | |
+    | PARTNER_PUBLIC_KEY | *(Partner cấp)* | Gọi API Cake, Partner ký bằng private key, Cake verify |
+    | PARTNER_IP_ADDRESS | *(Partner cấp)* | Cake thêm các IP này vào Whitelist |
+
+    ## Error Codes
+
+    ### General
+    | Code | Message |
+    |------|---------|
+    | `1` | Thành công |
+    | `900000` | Có lỗi xảy ra, vui lòng thử lại sau |
+    | `900001` | Hệ thống đang bảo trì |
+    | `900002` | Request is processing |
+    | `200000` | Chữ ký không hợp lệ |
+    | `200001` | Mã đối tác không hợp lệ |
+    | `200003` | Request ID không hợp lệ (NID hoặc Phone không khớp) |
+    | `400001` | Không có thông tin khoản vay |
+    | `100100` | COB Time - không thể thực hiện giao dịch (23:50–4:00) |
+    | `500013` | Trường dữ liệu không hợp lệ |
+
+    ### Onboarding / Pre-check
+    | Code | Message |
+    |------|---------|
+    | `100008` | Hồ sơ không đủ điều kiện |
+    | `100009` | Thông tin GTTT đã tồn tại |
+    | `100011` | Không đủ tuổi đăng ký |
+    | `500010` | Hồ sơ mới bị từ chối gần đây (cần đợi 7 ngày) |
+    | `500015` | Đang có khoản vay Active |
+    | `500016` | GTTT không còn đủ hiệu lực |
+    | `500017` | Chưa thực hiện xác thực NFC |
+    | `500020` | Hồ sơ không trùng khớp với Cake |
+    | `500024` | Tài khoản nhận giải ngân không hợp lệ |
+    | `500029` | Đang mở khoản vay khác chưa hoàn tất |
+    | `500030` | Tài khoản đang tạm khóa |
+    | `500031` | Tài khoản giải ngân không hợp lệ |
+
+    ### Contract
+    | Code | Message |
+    |------|---------|
+    | `300001` | Hợp đồng hết hạn (quá 30 ngày) |
+    | `300002` | Cần facematch để ký (quá 7 ngày từ approved) |
+    | `300003` | OTP bị chặn 15 phút (sau 3 lần gửi) |
+    | `300004` | Hợp đồng bị hủy (vượt 6 lần get-OTP) |
+    | `300005` | Nhập sai OTP |
+    | `300006` | Hồ sơ bị block 15 phút (sai OTP 3 lần liên tiếp) |
+    | `300007` | Hợp đồng bị hủy (sai OTP 6 lần) |
+
+    ### Challenge
+    | Code | Message |
+    |------|---------|
+    | `170000` | OTP quá nhiều lần, block 15 phút |
+    | `170006` | OTP quá 6 lần/ngày, block đến 24h |
+    | `170002` | OTP đã hết hiệu lực (quá 2 phút) |
+    | `170003` | OTP không chính xác |
+    | `170004` | Sai OTP quá nhiều, block 5 phút |
+    | `170005` | Sai OTP quá 6 lần/ngày, block đến 24h |
+    | `500027` | challenge_id không hợp lệ hoặc hết hạn |
+
+    ### Repayment
+    | Code | Message |
+    |------|---------|
+    | `100103` | Số tiền vượt quá dư nợ có thể thanh toán |
+    | `400000` | partner_reference_id đã được dùng trước đó |
+    | `600000` | Thông tin thanh toán không hợp lệ |
+
+    ### Termination
+    | Code | Message |
+    |------|---------|
+    | `100102` | Có số dư thanh toán trước hạn, không thể tất toán |
+    | `100104` | Khoản vay đã quá hạn, cần thanh toán toàn bộ dư nợ |
+    | `100002` | Ảnh selfie không đúng (facematch thất bại) |
+
+    ### Installment
+    | Code | Message |
+    |------|---------|
+    | `500027` | challenge_id không hợp lệ hoặc chưa xác thực thành công |
+    | `500028` | Giao dịch không đủ điều kiện chuyển đổi trả góp |
 
   version: "1.0.0"
   contact:
@@ -60,14 +130,7 @@ servers:
         description: Mã sản phẩm được cấu hình
         default: product_id
   - url: https://gw.stage.cakedigibank.tech/ext/loan/{group}/{product_id}
-    description: UAT
-    variables:
-      group:
-        default: cashloan
-      product_id:
-        default: product_id
-  - url: https://gw.qa.cakedigibank.tech/ext/loan/{group}/{product_id}
-    description: SIT
+    description: SIT+UAT
     variables:
       group:
         default: cashloan
@@ -83,10 +146,10 @@ components:
       name: partner
       in: header
       required: true
-      description: Partner ID được cấu hình trong môi trường
+      description: CAKE_PARTNER_ID được cấu hình trong môi trường
       schema:
         type: string
-        example: PARTNER_ID_HERE
+        example: CAKE_PARTNER_ID
 
     SignatureHeader:
       name: signature
@@ -117,7 +180,6 @@ components:
           example: true
         code:
           type: integer
-          format: int32
           description: Mã trạng thái hệ thống
           example: 1
         message:
@@ -127,7 +189,7 @@ components:
         response_id:
           type: string
           description: Mã định danh duy nhất của mỗi phản hồi
-          example: "550e8400-e29b-41d4-a716-446655440000"
+          example: "849KTQG7SQWLWQW5"
         timestamp:
           type: string
           format: date-time
@@ -152,7 +214,7 @@ components:
 
     ChallengeGetOtpResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -204,7 +266,7 @@ components:
 
     ChallengeVerifyOtpResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -244,7 +306,7 @@ components:
 
     ChallengeFacematchResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -254,7 +316,7 @@ components:
     # ── Onboarding ──
     DataConfigResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -302,7 +364,8 @@ components:
                     type: object
                 occupation:
                   type: array
-                  description: "1=Nhân viên văn phòng, 2=Lao động phổ thông, 3=Tự kinh doanh, 4=Sinh viên, 5=Không đi làm, 6=Khác"
+                  description: "1=Nhân viên văn phòng, 2=Lao động phổ thông, 3=Tự kinh doanh,
+                    4=Sinh viên, 5=Không đi làm, 6=Khác"
                   items:
                     type: object
                 job_title:
@@ -312,12 +375,14 @@ components:
                     type: object
                 contact_relationship:
                   type: array
-                  description: "1=Vợ, 2=Chồng, 3=Cha, 4=Mẹ, 5=Anh/Em trai, 6=Chị/Em gái, 7=Ông, 8=Bà, 9=Đồng nghiệp, 10=Bạn bè, 11=Con"
+                  description: "1=Vợ, 2=Chồng, 3=Cha, 4=Mẹ, 5=Anh/Em trai, 6=Chị/Em gái, 7=Ông,
+                    8=Bà, 9=Đồng nghiệp, 10=Bạn bè, 11=Con"
                   items:
                     type: object
                 loan_purpose:
                   type: array
-                  description: "1=Mua sắm đồ dùng, 2=Chi phí y tế, 3=Du lịch, 6=Tiêu dùng hợp pháp khác, 7=Đóng học phí"
+                  description: "1=Mua sắm đồ dùng, 2=Chi phí y tế, 3=Du lịch, 6=Tiêu dùng hợp pháp
+                    khác, 7=Đóng học phí"
                   items:
                     type: object
 
@@ -356,7 +421,7 @@ components:
 
     CheckProfileResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -364,7 +429,6 @@ components:
               properties:
                 reject_code:
                   type: integer
-                  format: int32
                   nullable: true
                   description: Mã lý do từ chối hồ sơ
                 reject_message:
@@ -373,10 +437,11 @@ components:
                   description: Thông báo chi tiết tương ứng với reject_code
                 challenge_level:
                   type: array
-                  description: "1=None, 2=Facematch, 3=SMS OTP, 4=DTN Cake OTP. Sản phẩm này luôn là [4]"
+                  description: "1=None, 2=Facematch, 3=SMS OTP, 4=DTN Cake OTP. Sản phẩm này luôn
+                    là [4]"
                   items:
                     type: integer
-                  example: [4]
+                  example: [ 4 ]
                 challenge_id:
                   type: string
                   description: ID dùng cho API xác thực challenge
@@ -520,7 +585,8 @@ components:
           example: "Phường Hải Châu"
         occupation:
           type: string
-          description: "1=Nhân viên VP, 2=Lao động phổ thông, 3=Tự kinh doanh, 4=Sinh viên, 5=Không đi làm, 6=Khác"
+          description: "1=Nhân viên VP, 2=Lao động phổ thông, 3=Tự kinh doanh, 4=Sinh
+            viên, 5=Không đi làm, 6=Khác"
           example: "1"
         job_title:
           type: string
@@ -569,7 +635,7 @@ components:
         loan_insurance:
           type: string
           description: Bảo hiểm khoản vay
-          enum: ["True", "False"]
+          enum: [ "True", "False" ]
           example: "True"
         loan_purpose:
           type: string
@@ -610,7 +676,7 @@ components:
 
     ClientCreateResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -681,7 +747,7 @@ components:
 
     ClientUpdateResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -712,7 +778,7 @@ components:
 
     LoanRegisterResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -751,7 +817,7 @@ components:
 
     GetStatusResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -782,7 +848,7 @@ components:
 
     GetLoanDetailResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -913,7 +979,7 @@ components:
 
     GetEsignResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -958,7 +1024,7 @@ components:
 
     GetOtpResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -996,7 +1062,7 @@ components:
 
     VerifyEsignResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -1025,7 +1091,7 @@ components:
         partner_disburse_status:
           type: integer
           description: "Trạng thái giải ngân: 1=Thành công, 2=Thất bại"
-          enum: [1, 2]
+          enum: [ 1, 2 ]
           example: 1
 
     # ── Repayment ──
@@ -1048,13 +1114,12 @@ components:
           description: ID tạo mới mỗi request (idempotency key)
         payment_amount:
           type: integer
-          format: int32
           description: Số tiền thanh toán (VNĐ)
           example: 5000000
 
     RepaymentRequestResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -1087,12 +1152,11 @@ components:
           description: order_id từ API /repayment-request
         payment_amount:
           type: integer
-          format: int32
           example: 5000000
 
     RepaymentVanResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -1137,7 +1201,7 @@ components:
 
     RepaymentStatusResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -1161,7 +1225,7 @@ components:
     # ── Termination ──
     TerminateReviewResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -1193,12 +1257,12 @@ components:
           description: ID tạo mới mỗi request
         payment_amount:
           type: integer
-          format: int32
+
           description: Số tiền cần tất toán (VNĐ)
 
     TerminateRequestResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -1212,7 +1276,7 @@ components:
                   items:
                     type: integer
                   description: "1=None, 2=Facematch, 3=SMS OTP"
-                  example: [3]
+                  example: [ 3 ]
                 challenge_id:
                   type: string
                   description: ID dùng cho API xác thực challenge
@@ -1242,7 +1306,6 @@ components:
           description: order_id từ API /terminate-request
         payment_amount:
           type: integer
-          format: int32
         challenge_id:
           type: string
           description: ID xác thực challenge
@@ -1266,7 +1329,6 @@ components:
           type: string
         payment_amount:
           type: integer
-          format: int32
 
     # ── Payment ──
     GetInstallmentOffersRequest:
@@ -1286,7 +1348,6 @@ components:
           example: "0345678900"
         payment_amount:
           type: integer
-          format: int32
           description: Số tiền cần thanh toán
         partner_group_code:
           type: string
@@ -1305,7 +1366,7 @@ components:
 
     GetInstallmentOffersResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -1347,7 +1408,6 @@ components:
           description: ID tạo mới mỗi request
         payment_amount:
           type: integer
-          format: int32
           description: Số tiền thanh toán dịch vụ
         partner_group_code:
           type: string
@@ -1373,7 +1433,7 @@ components:
 
     PaymentRequestResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -1390,7 +1450,7 @@ components:
                   items:
                     type: integer
                   description: "1=None, 2=Facematch, 3=SMS OTP"
-                  example: [3]
+                  example: [ 3 ]
                 challenge_id:
                   type: string
                   example: "a27f5d0e-8b43-4e3f-9bfa-0c6d7c5b2189"
@@ -1441,7 +1501,7 @@ components:
 
     PaymentStatusResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -1489,11 +1549,9 @@ components:
           type: string
         payment_amount:
           type: integer
-          format: int32
           description: Số tiền đơn hàng gốc
         revert_amount:
           type: integer
-          format: int32
           description: Số tiền cần revert (≤ payment_amount)
 
     # ── Installment ──
@@ -1513,7 +1571,6 @@ components:
           example: "0345678900"
         limit_unit_page:
           type: integer
-          format: int32
           description: Giới hạn trên mỗi trang (tối đa 50)
           maximum: 50
           example: 20
@@ -1524,7 +1581,7 @@ components:
 
     GetInstallmentEligibleResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -1584,7 +1641,7 @@ components:
 
     GetInstallmentOfferingListResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -1601,11 +1658,12 @@ components:
                         example: "3"
                       ins_fee_type:
                         type: string
-                        enum: [per_month, total]
+                        enum: [ per_month, total ]
                         description: "per_month: phí theo tháng; total: phí kỳ đầu"
                       total_ins_fee_amount_vat:
                         type: string
-                        description: "Tổng phí (bao gồm VAT) = payment_amount * ins_fee_rate_vat * tenor"
+                        description: "Tổng phí (bao gồm VAT) = payment_amount * ins_fee_rate_vat *
+                          tenor"
                         example: "891000"
                       total_amount:
                         type: string
@@ -1642,7 +1700,7 @@ components:
 
     InstallmentRequestResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
@@ -1657,7 +1715,7 @@ components:
                   items:
                     type: integer
                   description: "Sản phẩm này luôn là [3] (SMS OTP)"
-                  example: [3]
+                  example: [ 3 ]
                 challenge_id:
                   type: string
                   example: "a27f5d0e-8b43-4e3f-9bfa-0c6d7c5b2189"
@@ -1693,16 +1751,16 @@ components:
 
     InstallmentDetailResponse:
       allOf:
-        - $ref: '#/components/schemas/BaseResponse'
+        - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
               type: object
               properties:
                 transaction:
-                  $ref: '#/components/schemas/InstallmentTransactionInfo'
+                  $ref: "#/components/schemas/InstallmentTransactionInfo"
                 installment:
-                  $ref: '#/components/schemas/InstallmentInfo'
+                  $ref: "#/components/schemas/InstallmentInfo"
 
     InstallmentTransactionInfo:
       type: object
@@ -1737,14 +1795,14 @@ components:
           type: string
         status:
           type: string
-          enum: [ACTIVE, CLOSE]
+          enum: [ ACTIVE, CLOSE ]
           description: "ACTIVE: đang hoạt động; CLOSE: đã tất toán"
         tenor:
           type: string
           example: "3"
         ins_fee_type:
           type: string
-          enum: [per_month, total]
+          enum: [ per_month, total ]
         total_ins_fee_amount_vat:
           type: string
           example: "891000"
@@ -1865,7 +1923,7 @@ components:
           description: OrderId từ api repayment-van
         status:
           type: string
-          enum: [SUCCESS, FAILED]
+          enum: [ SUCCESS, FAILED ]
 
     PartnerPaymentStatusRequest:
       type: object
@@ -1885,11 +1943,11 @@ components:
           example: "0345678900"
         status:
           type: string
-          enum: [SUCCESS, FAILED, REVERT]
+          enum: [ SUCCESS, FAILED, REVERT ]
         status_installment:
           type: string
           nullable: true
-          enum: [SUCCESS, FAILED]
+          enum: [ SUCCESS, FAILED ]
           description: Trạng thái trả góp (nếu có)
 
   # ── Reusable request headers ──
@@ -1910,83 +1968,83 @@ paths:
   # ════════════════════
   /challenge-get-otp:
     post:
-      tags: [Challenge]
+      tags: [ Challenge ]
       summary: API-1 - Gửi lại OTP để xác thực challenge
       description: Gửi mã OTP cho KH để xác thực challenge. Mỗi OTP có hiệu lực 2 phút.
       operationId: challengeGetOtp
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ChallengeGetOtpRequest'
+              $ref: "#/components/schemas/ChallengeGetOtpRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChallengeGetOtpResponse'
+                $ref: "#/components/schemas/ChallengeGetOtpResponse"
 
   /challenge-verify-otp:
     post:
-      tags: [Challenge]
+      tags: [ Challenge ]
       summary: API-2 - Xác thực OTP để hoàn tất challenge
       description: |
         Xác thực mã OTP để hoàn tất challenge.
         **Giới hạn:** 3 lần/OTP, 6 lần/ngày. Sai 3 lần liên tiếp bị block 5 phút.
       operationId: challengeVerifyOtp
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ChallengeVerifyOtpRequest'
+              $ref: "#/components/schemas/ChallengeVerifyOtpRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChallengeVerifyOtpResponse'
+                $ref: "#/components/schemas/ChallengeVerifyOtpResponse"
 
   /challenge-facematch:
     post:
-      tags: [Challenge]
+      tags: [ Challenge ]
       summary: API-3 - Xác thực khuôn mặt để hoàn tất challenge
       operationId: challengeFacematch
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ChallengeFacematchRequest'
+              $ref: "#/components/schemas/ChallengeFacematchRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ChallengeFacematchResponse'
+                $ref: "#/components/schemas/ChallengeFacematchResponse"
 
   # ════════════════════
   # ONBOARDING
   # ════════════════════
   /data-config:
     post:
-      tags: [Onboarding]
+      tags: [ Onboarding ]
       summary: API-4 - Lấy danh sách cấu hình cho form onboarding
       description: |
         Cung cấp value list cho form onboarding: tỉnh/thành, quận/huyện, phường/xã,
@@ -1994,9 +2052,9 @@ paths:
         Không cần request body.
       operationId: dataConfig
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: false
         content:
@@ -2005,169 +2063,169 @@ paths:
               type: object
               description: Không cần body
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DataConfigResponse'
+                $ref: "#/components/schemas/DataConfigResponse"
 
   /check-profile:
     post:
-      tags: [Onboarding]
+      tags: [ Onboarding ]
       summary: API-5 - Pre-check điều kiện trước khi mở khoản vay
       description: |
         Kiểm tra điều kiện hợp lệ trước khi KH đăng ký khoản vay.
         **Điều kiện tiếp tục:** response code = 1 AND reject_code = null → gọi client-create.
       operationId: checkProfile
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CheckProfileRequest'
+              $ref: "#/components/schemas/CheckProfileRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CheckProfileResponse'
+                $ref: "#/components/schemas/CheckProfileResponse"
 
   /client-create:
     post:
-      tags: [Onboarding]
+      tags: [ Onboarding ]
       summary: API-6 - Tạo hồ sơ KH sau khi precheck thành công
       description: |
         Tạo hồ sơ KH mới.
         **Điều kiện tiếp tục:** response request_id != null → gọi client-update.
       operationId: clientCreate
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ClientCreateRequest'
+              $ref: "#/components/schemas/ClientCreateRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientCreateResponse'
+                $ref: "#/components/schemas/ClientCreateResponse"
 
   /client-update:
     post:
-      tags: [Onboarding]
+      tags: [ Onboarding ]
       summary: API-7 - Cập nhật hồ sơ KH và upload ảnh eKYC
       description: |
         Upload ảnh selfie, mặt trước/sau GTTT và dữ liệu NFC (nếu có).
         **Điều kiện tiếp tục:** response status = EKYC_SUCCESS → gọi loan-register.
       operationId: clientUpdate
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ClientUpdateRequest'
+              $ref: "#/components/schemas/ClientUpdateRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ClientUpdateResponse'
+                $ref: "#/components/schemas/ClientUpdateResponse"
 
   /loan-register:
     post:
-      tags: [Onboarding]
+      tags: [ Onboarding ]
       summary: API-8 - Đăng ký khoản vay
       description: |
         Đăng ký khoản vay mới dựa trên thông tin KH đã có.
         **Điều kiện tiếp tục:** response status = LOAN_APPROVE → gọi get-esign.
       operationId: loanRegister
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoanRegisterRequest'
+              $ref: "#/components/schemas/LoanRegisterRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LoanRegisterResponse'
+                $ref: "#/components/schemas/LoanRegisterResponse"
 
   /get-status:
     post:
-      tags: [Onboarding]
+      tags: [ Onboarding ]
       summary: API-9 - Truy vấn trạng thái hồ sơ eKYC
       operationId: getStatus
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GetStatusRequest'
+              $ref: "#/components/schemas/GetStatusRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GetStatusResponse'
+                $ref: "#/components/schemas/GetStatusResponse"
 
   /get-loan-detail:
     post:
-      tags: [Onboarding]
+      tags: [ Onboarding ]
       summary: API-10 - Truy vấn thông tin chi tiết khoản vay
       operationId: getLoanDetail
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GetLoanDetailRequest'
+              $ref: "#/components/schemas/GetLoanDetailRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GetLoanDetailResponse'
+                $ref: "#/components/schemas/GetLoanDetailResponse"
 
   # ════════════════════
   # CONTRACT
   # ════════════════════
   /get-esign:
     post:
-      tags: [Contract]
+      tags: [ Contract ]
       summary: API-12 - Lấy URL ký hợp đồng điện tử
       description: |
         Lấy URL hợp đồng điện tử (HTML và PDF). Link hết hạn trong ngày.
@@ -2175,262 +2233,262 @@ paths:
         và phải gọi trước khi gọi API /get-otp.
       operationId: getEsign
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GetEsignRequest'
+              $ref: "#/components/schemas/GetEsignRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GetEsignResponse'
+                $ref: "#/components/schemas/GetEsignResponse"
 
   /contract-cancel:
     post:
-      tags: [Contract]
+      tags: [ Contract ]
       summary: API-13 - Hủy hợp đồng điện tử
       operationId: contractCancel
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ContractCancelRequest'
+              $ref: "#/components/schemas/ContractCancelRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BaseResponse'
+                $ref: "#/components/schemas/BaseResponse"
 
   /get-otp:
     post:
-      tags: [Contract]
+      tags: [ Contract ]
       summary: API-14 - Gửi OTP xác thực ký hợp đồng
       description: |
         Gửi mã OTP để KH xác thực ký hợp đồng.
-        
+
         **Quy tắc OTP:**
         - Mỗi OTP hiệu lực 2 phút; gọi lại trong 2 phút không tạo OTP mới
         - Tối đa 6 lần get-OTP/hợp đồng → Sau lần 6 hệ thống hủy hợp đồng
         - 3 lần liên tiếp (chưa verify) → Block 15 phút
       operationId: getOtp
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GetOtpRequest'
+              $ref: "#/components/schemas/GetOtpRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GetOtpResponse'
+                $ref: "#/components/schemas/GetOtpResponse"
 
   /verify-esign:
     post:
-      tags: [Contract]
+      tags: [ Contract ]
       summary: API-15 - Xác nhận ký hợp đồng điện tử bằng OTP
       description: |
         Xác nhận ký hợp đồng điện tử bằng mã OTP.
-        
+
         **Quy tắc verify:**
         - Tối đa 6 lần sai/hợp đồng → Hủy hợp đồng
         - 3 lần sai liên tiếp → Block 15 phút
         - 3 lần sai với cùng 1 OTP → Phải lấy OTP mới
       operationId: verifyEsign
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/VerifyEsignRequest'
+              $ref: "#/components/schemas/VerifyEsignRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/VerifyEsignResponse'
+                $ref: "#/components/schemas/VerifyEsignResponse"
 
   /disburse-update:
     post:
-      tags: [Contract]
+      tags: [ Contract ]
       summary: API-17 - Đối tác cập nhật trạng thái giải ngân
       description: |
         Đối tác gọi API này để cập nhật kết quả giải ngân (thành công/thất bại).
-        
+
         **Lưu ý:** Nếu Cake đã gửi partner-disburse-request và đối tác đã giải ngân
         nhưng gọi disburse-update thất bại, Cake sẽ gọi lại partner-disburse-request.
         Khi đó đối tác **KHÔNG giải ngân lại** mà chỉ gọi lại disburse-update.
       operationId: disburseUpdate
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DisburseUpdateRequest'
+              $ref: "#/components/schemas/DisburseUpdateRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BaseResponse'
+                $ref: "#/components/schemas/BaseResponse"
 
   # ════════════════════
   # REPAYMENT
   # ════════════════════
   /repayment-request:
     post:
-      tags: [Repayment]
+      tags: [ Repayment ]
       summary: API-18 - Tạo yêu cầu thanh toán khoản vay
       description: |
         Tạo yêu cầu thanh toán. partner_reference_id phải là duy nhất mỗi request.
         Không thể thực hiện trong giờ COB (23:50–4:00).
       operationId: repaymentRequest
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RepaymentRequestBody'
+              $ref: "#/components/schemas/RepaymentRequestBody"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RepaymentRequestResponse'
+                $ref: "#/components/schemas/RepaymentRequestResponse"
 
   /repayment-confirm:
     post:
-      tags: [Repayment]
+      tags: [ Repayment ]
       summary: API-19 - Xác nhận giao dịch thanh toán hoàn tất
       operationId: repaymentConfirm
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RepaymentConfirmRequest'
+              $ref: "#/components/schemas/RepaymentConfirmRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BaseResponse'
+                $ref: "#/components/schemas/BaseResponse"
 
   /repayment-van:
     post:
-      tags: [Repayment]
+      tags: [ Repayment ]
       summary: API-20 - Tạo QR code thanh toán khoản vay (VAN)
       operationId: repaymentVan
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RepaymentRequestBody'
+              $ref: "#/components/schemas/RepaymentRequestBody"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RepaymentVanResponse'
+                $ref: "#/components/schemas/RepaymentVanResponse"
 
   /repayment-status:
     post:
-      tags: [Repayment]
+      tags: [ Repayment ]
       summary: API-21 - Truy vấn trạng thái thanh toán
       operationId: repaymentStatus
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RepaymentStatusRequest'
+              $ref: "#/components/schemas/RepaymentStatusRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RepaymentStatusResponse'
+                $ref: "#/components/schemas/RepaymentStatusResponse"
 
   # ════════════════════
   # TERMINATION
   # ════════════════════
   /terminate-review:
     post:
-      tags: [Termination]
+      tags: [ Termination ]
       summary: API-23 - Kiểm tra điều kiện và thông tin tất toán
       operationId: terminateReview
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GetEsignRequest'
+              $ref: "#/components/schemas/GetEsignRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TerminateReviewResponse'
+                $ref: "#/components/schemas/TerminateReviewResponse"
 
   /terminate-request:
     post:
-      tags: [Termination]
+      tags: [ Termination ]
       summary: API-24 - Khởi tạo yêu cầu tất toán hợp đồng
       description: |
         Sau khi gọi terminate-request, xử lý tiếp dựa trên challenge_level:
@@ -2439,98 +2497,98 @@ paths:
         - [3] SMS OTP → Gọi challenge-get-otp + challenge-verify-otp
       operationId: terminateRequest
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TerminateRequestBody'
+              $ref: "#/components/schemas/TerminateRequestBody"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TerminateRequestResponse'
+                $ref: "#/components/schemas/TerminateRequestResponse"
 
   /terminate-confirm:
     post:
-      tags: [Termination]
+      tags: [ Termination ]
       summary: API-27 - Xác nhận và hoàn tất tất toán hợp đồng
       operationId: terminateConfirm
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TerminateConfirmRequest'
+              $ref: "#/components/schemas/TerminateConfirmRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BaseResponse'
+                $ref: "#/components/schemas/BaseResponse"
 
   /terminate-van:
     post:
-      tags: [Termination]
+      tags: [ Termination ]
       summary: terminate-van - Tạo QR code thanh toán tất toán (VAN)
       operationId: terminateVan
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TerminateVanRequest'
+              $ref: "#/components/schemas/TerminateVanRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RepaymentVanResponse'
+                $ref: "#/components/schemas/RepaymentVanResponse"
 
   # ════════════════════
   # PAYMENT
   # ════════════════════
   /get-installment-offers:
     post:
-      tags: [Payment]
+      tags: [ Payment ]
       summary: get-installment-offers - Lấy danh sách gói trả góp cho payment
       operationId: getInstallmentOffers
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GetInstallmentOffersRequest'
+              $ref: "#/components/schemas/GetInstallmentOffersRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GetInstallmentOffersResponse'
+                $ref: "#/components/schemas/GetInstallmentOffersResponse"
 
   /payment-request:
     post:
-      tags: [Payment]
+      tags: [ Payment ]
       summary: API-28 - Tạo yêu cầu thanh toán dịch vụ
       description: |
         Tạo yêu cầu thanh toán dịch vụ (Paylater payment).
@@ -2540,190 +2598,190 @@ paths:
         - [3] SMS OTP → Gọi challenge-get-otp + challenge-verify-otp
       operationId: paymentRequest
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PaymentRequestBody'
+              $ref: "#/components/schemas/PaymentRequestBody"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaymentRequestResponse'
+                $ref: "#/components/schemas/PaymentRequestResponse"
 
   /payment-confirm:
     post:
-      tags: [Payment]
+      tags: [ Payment ]
       summary: API-31 - Xác nhận giao dịch thanh toán dịch vụ
       operationId: paymentConfirm
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PaymentConfirmRequest'
+              $ref: "#/components/schemas/PaymentConfirmRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BaseResponse'
+                $ref: "#/components/schemas/BaseResponse"
 
   /payment-status:
     post:
-      tags: [Payment]
+      tags: [ Payment ]
       summary: API-32 - Truy vấn trạng thái giao dịch thanh toán dịch vụ
       operationId: paymentStatus
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PaymentStatusRequest'
+              $ref: "#/components/schemas/PaymentStatusRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaymentStatusResponse'
+                $ref: "#/components/schemas/PaymentStatusResponse"
 
   /payment-revert:
     post:
-      tags: [Payment]
+      tags: [ Payment ]
       summary: API-33 - Yêu cầu hoàn tiền giao dịch thanh toán dịch vụ
       operationId: paymentRevert
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PaymentRevertRequest'
+              $ref: "#/components/schemas/PaymentRevertRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BaseResponse'
+                $ref: "#/components/schemas/BaseResponse"
 
   # ════════════════════
   # INSTALLMENT
   # ════════════════════
   /get-installment-eligible:
     post:
-      tags: [Installment]
+      tags: [ Installment ]
       summary: API-35 - Truy vấn đơn hàng có thể chuyển đổi trả góp
       description: Hỗ trợ phân trang bằng cursor. Tối đa 50 bản ghi/trang.
       operationId: getInstallmentEligible
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GetInstallmentEligibleRequest'
+              $ref: "#/components/schemas/GetInstallmentEligibleRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GetInstallmentEligibleResponse'
+                $ref: "#/components/schemas/GetInstallmentEligibleResponse"
 
   /get-installment-offering-list:
     post:
-      tags: [Installment]
+      tags: [ Installment ]
       summary: API-36 - Truy vấn danh sách gói trả góp phù hợp với đơn hàng
       operationId: getInstallmentOfferingList
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GetInstallmentOfferingListRequest'
+              $ref: "#/components/schemas/GetInstallmentOfferingListRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/GetInstallmentOfferingListResponse'
+                $ref: "#/components/schemas/GetInstallmentOfferingListResponse"
 
   /installment-request:
     post:
-      tags: [Installment]
+      tags: [ Installment ]
       summary: API-37 - Tạo yêu cầu chuyển đổi trả góp
       description: |
         Tạo yêu cầu chuyển đổi trả góp. Sau đó phải xác thực challenge (luôn là [3] SMS OTP).
       operationId: installmentRequest
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/InstallmentRequestBody'
+              $ref: "#/components/schemas/InstallmentRequestBody"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/InstallmentRequestResponse'
+                $ref: "#/components/schemas/InstallmentRequestResponse"
 
   /installment-confirm:
     post:
-      tags: [Installment]
+      tags: [ Installment ]
       summary: API-38 - Xác nhận chuyển đổi trả góp hoàn tất
       operationId: installmentConfirm
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/InstallmentConfirmRequest'
+              $ref: "#/components/schemas/InstallmentConfirmRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/BaseResponse'
+                  - $ref: "#/components/schemas/BaseResponse"
                   - type: object
                     properties:
                       data:
@@ -2735,20 +2793,20 @@ paths:
 
   /get-installment-detail:
     post:
-      tags: [Installment]
+      tags: [ Installment ]
       summary: API-39 - Truy vấn chi tiết đơn hàng đã chuyển đổi trả góp
       operationId: getInstallmentDetail
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [loan_code, phone_number, installment_id]
+              required: [ loan_code, phone_number, installment_id ]
               properties:
                 loan_code:
                   type: string
@@ -2760,16 +2818,16 @@ paths:
                   type: string
                   example: "3b6c9a18-4c92-4c8a-9e6f-2e4b7e1c9f34"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/InstallmentDetailResponse'
+                $ref: "#/components/schemas/InstallmentDetailResponse"
 
   /get-installment-transactions:
     post:
-      tags: [Installment]
+      tags: [ Installment ]
       summary: API-40 - Truy vấn danh sách đơn hàng đã chuyển đổi trả góp
       description: |
         - status=ACTIVE: lấy full giao dịch
@@ -2777,16 +2835,16 @@ paths:
         Hỗ trợ phân trang bằng cursor.
       operationId: getInstallmentTransactions
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [loan_code, phone_number, status, limit_unit_page, cursor]
+              required: [ loan_code, phone_number, status, limit_unit_page, cursor ]
               properties:
                 loan_code:
                   type: string
@@ -2796,23 +2854,22 @@ paths:
                   example: "0345678900"
                 status:
                   type: string
-                  enum: [ACTIVE, CLOSE]
+                  enum: [ ACTIVE, CLOSE ]
                 limit_unit_page:
                   type: integer
-                  format: int32
                   maximum: 50
                   example: 20
                 cursor:
                   type: string
                   default: ""
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
                 allOf:
-                  - $ref: '#/components/schemas/BaseResponse'
+                  - $ref: "#/components/schemas/BaseResponse"
                   - type: object
                     properties:
                       data:
@@ -2828,16 +2885,16 @@ paths:
                               type: object
                               properties:
                                 transaction:
-                                  $ref: '#/components/schemas/InstallmentTransactionInfo'
+                                  $ref: "#/components/schemas/InstallmentTransactionInfo"
                                 installment:
-                                  $ref: '#/components/schemas/InstallmentInfo'
+                                  $ref: "#/components/schemas/InstallmentInfo"
 
   # ════════════════════
   # PARTNER CALLBACKS (Cake gọi Partner)
   # ════════════════════
   /partner-update-status:
     post:
-      tags: [Partner Callbacks]
+      tags: [ Partner Callbacks ]
       summary: API-11 - Cake cập nhật trạng thái hồ sơ sang đối tác
       description: |
         **Chiều: Cake → Partner**
@@ -2845,26 +2902,26 @@ paths:
         Partner cần expose endpoint này và trả về response chuẩn.
       operationId: partnerUpdateStatus
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PartnerUpdateStatusRequest'
+              $ref: "#/components/schemas/PartnerUpdateStatusRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BaseResponse'
+                $ref: "#/components/schemas/BaseResponse"
 
   /partner-disburse-request:
     post:
-      tags: [Partner Callbacks]
+      tags: [ Partner Callbacks ]
       summary: API-16 - Cake gửi yêu cầu giải ngân sang đối tác
       description: |
         **Chiều: Cake → Partner**
@@ -2872,74 +2929,74 @@ paths:
         Partner thực hiện giải ngân và gọi lại API /disburse-update để xác nhận kết quả.
       operationId: partnerDisburseRequest
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PartnerDisburseRequest'
+              $ref: "#/components/schemas/PartnerDisburseRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BaseResponse'
+                $ref: "#/components/schemas/BaseResponse"
 
   /partner-repayment-status:
     post:
-      tags: [Partner Callbacks]
+      tags: [ Partner Callbacks ]
       summary: API-22 - Cake cập nhật trạng thái thanh toán sang đối tác
       description: |
         **Chiều: Cake → Partner**
         Cake thông báo kết quả giao dịch thanh toán khoản vay cho đối tác.
       operationId: partnerRepaymentStatus
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PartnerRepaymentStatusRequest'
+              $ref: "#/components/schemas/PartnerRepaymentStatusRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BaseResponse'
+                $ref: "#/components/schemas/BaseResponse"
 
   /partner-payment-status:
     post:
-      tags: [Partner Callbacks]
+      tags: [ Partner Callbacks ]
       summary: API-34 - Cake cập nhật trạng thái thanh toán dịch vụ sang đối tác
       description: |
         **Chiều: Cake → Partner**
         Cake thông báo kết quả giao dịch payment (và installment nếu có) cho đối tác.
       operationId: partnerPaymentStatus
       parameters:
-        - $ref: '#/components/parameters/ContentTypeHeader'
-        - $ref: '#/components/parameters/PartnerHeader'
-        - $ref: '#/components/parameters/SignatureHeader'
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PartnerPaymentStatusRequest'
+              $ref: "#/components/schemas/PartnerPaymentStatusRequest"
       responses:
-        '200':
+        "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BaseResponse'
+                $ref: "#/components/schemas/BaseResponse"
 
 # ─────────────────────────────────────────────
 # TAGS
@@ -2949,6 +3006,11 @@ tags:
     description: |
       Nhóm API xác thực thêm (OTP/Facematch).
       Được gọi khi challenge_level = 2 hoặc 3 từ các API khác.
+
+      **Challenge Levels:**
+      - `1` - None: Không cần xác thực thêm
+      - `2` - Facematch: Gọi API `challenge-facematch`
+      - `3` - SMS OTP: Gọi `challenge-get-otp` rồi `challenge-verify-otp`
   - name: Onboarding
     description: |
       Luồng đăng ký khoản vay:
@@ -2973,112 +3035,6 @@ tags:
       Xác thực ngược chiều (Cake ký, Partner verify).
 
 # ─────────────────────────────────────────────
-# ERROR CODES REFERENCE (x-extension)
-# ─────────────────────────────────────────────
-x-error-codes:
-  general:
-    - code: 1
-      message: Thành công
-    - code: 900000
-      message: Có lỗi xảy ra, vui lòng thử lại sau
-    - code: 900001
-      message: Hệ thống đang bảo trì
-    - code: 900002
-      message: Request is processing
-    - code: 200000
-      message: Chữ ký không hợp lệ
-    - code: 200001
-      message: Mã đối tác không hợp lệ
-    - code: 200003
-      message: Request ID không hợp lệ (NID hoặc Phone không khớp)
-    - code: 400001
-      message: Không có thông tin khoản vay
-    - code: 100100
-      message: COB Time - không thể thực hiện giao dịch (23:50–4:00)
-    - code: 500013
-      message: Trường dữ liệu không hợp lệ
-
-  onboarding_precheck:
-    - code: 100008
-      message: Hồ sơ không đủ điều kiện
-    - code: 100009
-      message: Thông tin GTTT đã tồn tại
-    - code: 100011
-      message: Không đủ tuổi đăng ký
-    - code: 500010
-      message: Hồ sơ mới bị từ chối gần đây (cần đợi 7 ngày)
-    - code: 500015
-      message: Đang có khoản vay Active
-    - code: 500016
-      message: GTTT không còn đủ hiệu lực
-    - code: 500017
-      message: Chưa thực hiện xác thực NFC
-    - code: 500020
-      message: Hồ sơ không trùng khớp với Cake
-    - code: 500024
-      message: Tài khoản nhận giải ngân không hợp lệ
-    - code: 500029
-      message: Đang mở khoản vay khác chưa hoàn tất
-    - code: 500030
-      message: Tài khoản đang tạm khóa
-    - code: 500031
-      message: Tài khoản giải ngân không hợp lệ
-
-  contract:
-    - code: 300001
-      message: Hợp đồng hết hạn (quá 30 ngày)
-    - code: 300002
-      message: Cần facematch để ký (quá 7 ngày từ approved)
-    - code: 300003
-      message: OTP bị chặn 15 phút (sau 3 lần gửi)
-    - code: 300004
-      message: Hợp đồng bị hủy (vượt 6 lần get-OTP)
-    - code: 300005
-      message: Nhập sai OTP
-    - code: 300006
-      message: Hồ sơ bị block 15 phút (sai OTP 3 lần liên tiếp)
-    - code: 300007
-      message: Hợp đồng bị hủy (sai OTP 6 lần)
-
-  repayment:
-    - code: 100103
-      message: Số tiền vượt quá dư nợ có thể thanh toán
-    - code: 400000
-      message: partner_reference_id đã được dùng trước đó
-    - code: 600000
-      message: Thông tin thanh toán không hợp lệ
-
-  challenge:
-    - code: 170000
-      message: OTP quá nhiều lần, block 15 phút
-    - code: 170006
-      message: OTP quá 6 lần/ngày, block đến 24h
-    - code: 170002
-      message: OTP đã hết hiệu lực (quá 2 phút)
-    - code: 170003
-      message: OTP không chính xác
-    - code: 170004
-      message: Sai OTP quá nhiều, block 5 phút
-    - code: 170005
-      message: Sai OTP quá 6 lần/ngày, block đến 24h
-    - code: 500027
-      message: challenge_id không hợp lệ hoặc hết hạn
-
-  termination:
-    - code: 100102
-      message: Có số dư thanh toán trước hạn, không thể tất toán
-    - code: 100104
-      message: Khoản vay đã quá hạn, cần thanh toán toàn bộ dư nợ
-    - code: 100002
-      message: Ảnh selfie không đúng (facematch thất bại)
-
-  installment:
-    - code: 500027
-      message: challenge_id không hợp lệ hoặc chưa xác thực thành công
-    - code: 500028
-      message: Giao dịch không đủ điều kiện chuyển đổi trả góp
-
-# ─────────────────────────────────────────────
 # SEQUENCE DIAGRAMS - API FLOWS (x-extension)
 # ─────────────────────────────────────────────
 x-mermaid-flows:
@@ -3089,37 +3045,37 @@ x-mermaid-flows:
       participant P as Partner
       participant C as Cake
 
-      Note over P,C: BUOC 1 - PRE-CHECK
+      Note over P,C: BƯỚC 1 - PRE-CHECK
       P->>C: check-profile(phone, full_name, document_id, dob)
       alt reject_code != null
-        C-->>P: REJECT - hien thi thong bao tu choi
+        C-->>P: REJECT - hiển thị thông báo từ chối
       else reject_code = null AND code = 1
         C-->>P: challenge_level=[4], challenge_id
-        Note over P,C: BUOC 2 - CHALLENGE (DTN Cake OTP)
+        Note over P,C: BƯỚC 2 - CHALLENGE (DTN Cake OTP)
         P->>C: challenge-get-otp(challenge_id, phone)
         C-->>P: otp_reference_id, otp_expired_at
         P->>C: challenge-verify-otp(otp_reference_id, otp)
         C-->>P: success
-        Note over P,C: BUOC 3 - TAO HO SO KH
-        P->>C: client-create(thong tin KH day du, metadata)
+        Note over P,C: BƯỚC 3 - TẠO HỒ SƠ KH
+        P->>C: client-create(thông tin KH đầy đủ, metadata)
         C-->>P: request_id
-        Note over P,C: BUOC 4 - eKYC UPLOAD ANH
+        Note over P,C: BƯỚC 4 - eKYC UPLOAD ẢNH
         P->>C: client-update(request_id, selfie, front_nid, back_nid)
         C-->>P: status
         alt status = EKYC_PENDING
-          Note over P: Poll get-status cho den EKYC_SUCCESS
+          Note over P: Poll get-status cho đến EKYC_SUCCESS
           P->>C: get-status(request_id, phone)
           C-->>P: status=EKYC_SUCCESS
         end
-        Note over P,C: BUOC 5 - DANG KY KHOAN VAY
+        Note over P,C: BƯỚC 5 - ĐĂNG KÝ KHOẢN VAY
         P->>C: loan-register(request_id, phone)
         C-->>P: status, loan_code
         alt status = LOAN_REVIEWING
-          Note over P: Poll get-loan-detail cho den LOAN_APPROVE
+          Note over P: Poll get-loan-detail cho đến LOAN_APPROVE
           P->>C: get-loan-detail(loan_code, phone)
           C-->>P: loan_account_status=LOAN_APPROVE
         end
-        Note over P: Chuyen sang luong Contract de ky hop dong
+        Note over P: Chuyển sang luồng Contract để ký hợp đồng
       end
 
   contract_signing: |
@@ -3128,26 +3084,26 @@ x-mermaid-flows:
       participant P as Partner
       participant C as Cake
 
-      Note over P,C: Dieu kien vao: loan_code co status=LOAN_APPROVE
-      Note over P,C: BUOC 1 - LAY URL HOP DONG (goi moi ngay 1 lan)
+      Note over P,C: Điều kiện vào: loan_code có status=LOAN_APPROVE
+      Note over P,C: BƯỚC 1 - LẤY URL HỢP ĐỒNG (gọi mỗi ngày 1 lần)
       P->>C: get-esign(loan_code, phone)
       C-->>P: url(HTML), url_pdf, expired_time
-      Note over P: Hien thi hop dong cho KH xem va ky
+      Note over P: Hiển thị hợp đồng cho KH xem và ký
 
-      Note over P,C: BUOC 2 - GUI OTP KY HOP DONG
+      Note over P,C: BƯỚC 2 - GỬI OTP KÝ HỢP ĐỒNG
       P->>C: get-otp(loan_code, phone)
       C-->>P: otp_count, blocked, otp_period
 
-      Note over P,C: BUOC 3 - KH NHAP OTP XAC NHAN KY
+      Note over P,C: BƯỚC 3 - KH NHẬP OTP XÁC NHẬN KÝ
       P->>C: verify-esign(loan_code, phone, otp)
       alt is_correct_otp = true
-        C-->>P: hop dong duoc ky thanh cong
-        Note over C: Cake gui partner-disburse-request sang Partner
+        C-->>P: hợp đồng được ký thành công
+        Note over C: Cake gửi partner-disburse-request sang Partner
       else OTP sai
-        C-->>P: loi - con remaining_attempts lan thu lai
+        C-->>P: lỗi - còn remaining_attempts lần thử lại
       end
 
-      Note over P,C: KH co the huy hop dong truoc khi ky
+      Note over P,C: KH có thể hủy hợp đồng trước khi ký
       P->>C: contract-cancel(loan_code, phone)
       C-->>P: success
 
@@ -3157,20 +3113,20 @@ x-mermaid-flows:
       participant P as Partner
       participant C as Cake
 
-      Note over P,C: Dieu kien vao: KH da ky hop dong thanh cong
+      Note over P,C: Điều kiện vào: KH đã ký hợp đồng thành công
       C->>P: partner-disburse-request(loan_code, phone, approved_amount)
-      Note over P: Partner thuc hien giai ngan cho KH
-      alt Giai ngan thanh cong
+      Note over P: Partner thực hiện giải ngân cho KH
+      alt Giải ngân thành công
         P->>C: disburse-update(loan_code, partner_disburse_status=1)
-        C-->>P: success - loan chuyen sang LOAN_ACTIVE
-      else Giai ngan that bai
+        C-->>P: success - loan chuyển sang LOAN_ACTIVE
+      else Giải ngân thất bại
         P->>C: disburse-update(loan_code, partner_disburse_status=2)
-        C-->>P: success - loan chuyen sang trang thai loi
+        C-->>P: success - loan chuyển sang trạng thái lỗi
       end
 
-      Note over P,C: Truong hop disburse-update that bai
+      Note over P,C: Trường hợp disburse-update thất bại
       C->>P: partner-disburse-request(retry)
-      Note over P: KHONG giai ngan lai - chi goi lai disburse-update
+      Note over P: KHÔNG giải ngân lại - chỉ gọi lại disburse-update
       P->>C: disburse-update(loan_code, partner_disburse_status=1)
 
   repayment: |
@@ -3179,22 +3135,22 @@ x-mermaid-flows:
       participant P as Partner
       participant C as Cake
 
-      Note over P,C: Dieu kien vao: loan_code co status=LOAN_ACTIVE
+      Note over P,C: Điều kiện vào: loan_code có status=LOAN_ACTIVE
 
-      alt Thanh toan qua Partner (confirm flow)
-        Note over P,C: BUOC 1 - TAO YEU CAU THANH TOAN
+      alt Thanh toán qua Partner (confirm flow)
+        Note over P,C: BƯỚC 1 - TẠO YÊU CẦU THANH TOÁN
         P->>C: repayment-request(loan_code, phone, partner_reference_id, payment_amount)
         C-->>P: order_id
-        Note over P: Partner xu ly thanh toan
-        Note over P,C: BUOC 2 - XAC NHAN THANH TOAN
+        Note over P: Partner xử lý thanh toán
+        Note over P,C: BƯỚC 2 - XÁC NHẬN THANH TOÁN
         P->>C: repayment-confirm(loan_code, order_id, payment_amount)
         C-->>P: success
-      else Thanh toan qua QR VAN
-        Note over P,C: BUOC 1 - TAO QR THANH TOAN
+      else Thanh toán qua QR VAN
+        Note over P,C: BƯỚC 1 - TẠO QR THANH TOÁN
         P->>C: repayment-van(loan_code, phone, partner_reference_id, payment_amount)
         C-->>P: order_id, qr_code, expired_time, bank_account_number
-        Note over P: Hien thi QR cho KH quet
-        Note over P,C: BUOC 2 - POLL TRANG THAI
+        Note over P: Hiển thị QR cho KH quét
+        Note over P,C: BƯỚC 2 - POLL TRẠNG THÁI
         P->>C: repayment-status(loan_code, order_id)
         C-->>P: status(INIT/IN_PROCESS/SUCCESS/FAILED/HOLD)
       end
@@ -3208,19 +3164,19 @@ x-mermaid-flows:
       participant P as Partner
       participant C as Cake
 
-      Note over P,C: BUOC 1 - KIEM TRA DIEU KIEN TAT TOAN
+      Note over P,C: BƯỚC 1 - KIỂM TRA ĐIỀU KIỆN TẤT TOÁN
       P->>C: terminate-review(loan_code, phone)
       C-->>P: is_terminable, terminate_amount
 
       alt is_terminable = false
-        Note over P: Khong du dieu kien tat toan
+        Note over P: Không đủ điều kiện tất toán
       else is_terminable = true
-        Note over P,C: BUOC 2 - TAO YEU CAU TAT TOAN
+        Note over P,C: BƯỚC 2 - TẠO YÊU CẦU TẤT TOÁN
         P->>C: terminate-request(loan_code, phone, partner_reference_id, payment_amount)
         C-->>P: order_id, challenge_level, challenge_id
 
         alt challenge_level = [1] None
-          Note over P,C: BUOC 3 - XAC NHAN NGAY
+          Note over P,C: BƯỚC 3 - XÁC NHẬN NGAY
           P->>C: terminate-confirm(loan_code, order_id, challenge_id)
           C-->>P: success
         else challenge_level = [2] Facematch
@@ -3237,7 +3193,7 @@ x-mermaid-flows:
           C-->>P: success
         end
 
-        Note over P,C: HOAC: Thanh toan qua QR VAN
+        Note over P,C: HOẶC: Thanh toán qua QR VAN
         P->>C: terminate-van(loan_code, partner_reference_id, payment_amount)
         C-->>P: order_id, qr_code, bank_account_number
       end
@@ -3248,14 +3204,14 @@ x-mermaid-flows:
       participant P as Partner
       participant C as Cake
 
-      Note over P,C: Dieu kien vao: loan_code co status=LOAN_ACTIVE (Paylater)
+      Note over P,C: Điều kiện vào: loan_code có status=LOAN_ACTIVE (Paylater)
 
-      opt Lay danh sach goi tra gop truoc
+      opt Lấy danh sách gói trả góp trước
         P->>C: get-installment-offers(loan_code, payment_amount, service_code)
         C-->>P: installment_offers[tenor, fee_rate]
       end
 
-      Note over P,C: BUOC 1 - TAO YEU CAU THANH TOAN DICH VU
+      Note over P,C: BƯỚC 1 - TẠO YÊU CẦU THANH TOÁN DỊCH VỤ
       P->>C: payment-request(loan_code, partner_reference_id, payment_amount, service_code, installment_offer?)
       C-->>P: order_id, payment_fee, challenge_level, challenge_id
 
@@ -3276,11 +3232,11 @@ x-mermaid-flows:
         C-->>P: success
       end
 
-      Note over P,C: BUOC 2 - KIEM TRA TRANG THAI
+      Note over P,C: BƯỚC 2 - KIỂM TRA TRẠNG THÁI
       P->>C: payment-status(loan_code, order_id)
       C-->>P: payment_status, installment_status
 
-      opt Hoan tien
+      opt Hoàn tiền
         P->>C: payment-revert(loan_code, order_id, payment_amount, revert_amount)
         C-->>P: success
       end
@@ -3294,33 +3250,33 @@ x-mermaid-flows:
       participant P as Partner
       participant C as Cake
 
-      Note over P,C: Dieu kien vao: Da co giao dich payment thanh cong
+      Note over P,C: Điều kiện vào: Đã có giao dịch payment thành công
 
-      Note over P,C: BUOC 1 - TIM DON HANG DU DIEU KIEN CHUYEN GIAO
+      Note over P,C: BƯỚC 1 - TÌM ĐƠN HÀNG ĐỦ ĐIỀU KIỆN CHUYỂN ĐỔI
       P->>C: get-installment-eligible(loan_code, phone, limit, cursor)
       C-->>P: items[order_id, payment_amount, ...], cursor
 
-      Note over P,C: BUOC 2 - LAY DANH SACH GOI TRA GOP
+      Note over P,C: BƯỚC 2 - LẤY DANH SÁCH GÓI TRẢ GÓP
       P->>C: get-installment-offering-list(loan_code, order_id)
       C-->>P: items[tenor, ins_fee_type, total_ins_fee_amount_vat, total_amount]
 
-      Note over P: KH chon goi tra gop
+      Note over P: KH chọn gói trả góp
 
-      Note over P,C: BUOC 3 - TAO YEU CAU CHUYEN DOI
+      Note over P,C: BƯỚC 3 - TẠO YÊU CẦU CHUYỂN ĐỔI
       P->>C: installment-request(loan_code, order_id, partner_reference_id, tenor)
       C-->>P: installment_id, challenge_level=[3], challenge_id
 
-      Note over P,C: BUOC 4 - CHALLENGE (luon la SMS OTP)
+      Note over P,C: BƯỚC 4 - CHALLENGE (luôn là SMS OTP)
       P->>C: challenge-get-otp(challenge_id, phone)
       C-->>P: otp_reference_id
       P->>C: challenge-verify-otp(otp_reference_id, otp)
       C-->>P: success
 
-      Note over P,C: BUOC 5 - XAC NHAN CHUYEN DOI
+      Note over P,C: BƯỚC 5 - XÁC NHẬN CHUYỂN ĐỔI
       P->>C: installment-confirm(loan_code, order_id, installment_id, challenge_id)
       C-->>P: installment_id confirmed
 
-      Note over P,C: TRUY VAN SAU KHI CHUYEN DOI
+      Note over P,C: TRUY VẤN SAU KHI CHUYỂN ĐỔI
       P->>C: get-installment-detail(loan_code, installment_id)
       C-->>P: transaction, installment(tenor, schedule, amounts)
       P->>C: get-installment-transactions(loan_code, status=ACTIVE, cursor)
@@ -3332,29 +3288,29 @@ x-mermaid-flows:
       participant P as Partner
       participant C as Cake
 
-      Note over P,C: Sub-flow nay duoc goi tu nhieu luong khac nhau
-      Note over P,C: Tuong ung voi challenge_level tra ve tu API chinh
+      Note over P,C: Sub-flow này được gọi từ nhiều luồng khác nhau
+      Note over P,C: Tương ứng với challenge_level trả về từ API chính
 
       alt challenge_level = [1] None
-        Note over P: Khong can xac thuc them, goi thang API confirm
+        Note over P: Không cần xác thực thêm, gọi thẳng API confirm
       else challenge_level = [2] Facematch
         P->>C: challenge-facematch(challenge_id, phone, selfie_image)
         C-->>P: success
-        Note over P: Goi tiep API confirm voi challenge_id
+        Note over P: Gọi tiếp API confirm với challenge_id
       else challenge_level = [3] SMS OTP
         P->>C: challenge-get-otp(challenge_id, phone)
-        C-->>P: otp_reference_id, otp_expired_at(2 phut)
-        Note over P: KH nhap OTP nhan duoc qua SMS
+        C-->>P: otp_reference_id, otp_expired_at(2 phút)
+        Note over P: KH nhập OTP nhận được qua SMS
         P->>C: challenge-verify-otp(otp_reference_id, challenge_id, otp)
-        alt OTP dung
+        alt OTP đúng
           C-->>P: success, remaining_attempts
-          Note over P: Goi tiep API confirm voi challenge_id
+          Note over P: Gọi tiếp API confirm với challenge_id
         else OTP sai
-          C-->>P: loi 170003, con remaining_attempts lan
-          Note over P: Thu lai hoac get-otp moi
+          C-->>P: lỗi 170003, còn remaining_attempts lần
+          Note over P: Thử lại hoặc get-otp mới
         end
       else challenge_level = [4] DTN Cake OTP
-        Note over P: Chi dung trong check-profile flow
+        Note over P: Chỉ dùng trong check-profile flow
         P->>C: challenge-get-otp(challenge_id, phone)
         C-->>P: otp_reference_id
         P->>C: challenge-verify-otp(otp_reference_id, otp)

@@ -70,6 +70,8 @@ export const sprintManagementAPI = {
   getPageContent: (pageId: string) => apiClient.get(`/sprint-management/page-content/${pageId}`),
   analyze: (data: { pageIds: string[]; prompt: string }) => apiClient.post('/sprint-management/analyze', data),
   getResults: () => apiClient.get('/sprint-management/results'),
+  getTickets: (ticketIds: string[]) => apiClient.get('/sprint-management/tickets', { params: { ids: ticketIds.join(',') } }),
+  reloadTickets: (ticketIds: string[]) => apiClient.post('/sprint-management/tickets/reload', { ticketIds }),
 };
 
 // Jira API

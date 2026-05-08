@@ -12,12 +12,14 @@ const PROVIDERS = [
   { value: 'anthropic', label: 'Anthropic (Claude)' },
   { value: 'openai', label: 'OpenAI' },
   { value: 'custom', label: 'Custom (OpenAI-compatible)' },
+  { value: 'custom_claude', label: 'Custom (Claude-compatible)' },
 ];
 
 const DEFAULT_MODELS: Record<string, string> = {
   anthropic: 'claude-sonnet-4-6',
   openai: 'gpt-4o',
   custom: '',
+  custom_claude: 'claude-sonnet-4-6',
 };
 
 const Config: React.FC = () => {
@@ -52,6 +54,9 @@ const Config: React.FC = () => {
     setError(null);
     setSaved(false);
     try {
+      if (provider === 'custom_claude' && !baseUrl.trim()) {
+        throw new Error('Base URL is required for Custom Claude-compatible provider');
+      }
       await configAPI.saveAI({ provider, apiKey, model, baseUrl });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -92,7 +97,7 @@ const Config: React.FC = () => {
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               placeholder={
-                provider === 'anthropic' ? 'sk-ant-...' :
+                provider === 'anthropic' || provider === 'custom_claude' ? 'sk-ant-...' :
                 provider === 'openai' ? 'sk-...' : 'API Key'
               }
               className="w-full border border-gray-300 rounded-md px-3 py-2 pr-20 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 font-mono"
@@ -122,6 +127,11 @@ const Config: React.FC = () => {
               Options: claude-opus-4-7 · claude-sonnet-4-6 · claude-haiku-4-5-20251001
             </p>
           )}
+          {provider === 'custom_claude' && (
+            <p className="text-xs text-gray-400 mt-1">
+              Use a model name supported by your Claude-compatible endpoint.
+            </p>
+          )}
           {provider === 'openai' && (
             <p className="text-xs text-gray-400 mt-1">
               Options: gpt-4o · gpt-4o-mini · gpt-4-turbo
@@ -129,8 +139,8 @@ const Config: React.FC = () => {
           )}
         </div>
 
-        {/* Base URL — only for custom or openai */}
-        {(provider === 'custom' || provider === 'openai') && (
+        {/* Base URL — only for custom providers or openai */}
+        {(provider === 'custom' || provider === 'custom_claude' || provider === 'openai') && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Base URL {provider === 'openai' && <span className="text-gray-400 font-normal">(optional, default: https://api.openai.com)</span>}
@@ -139,9 +149,14 @@ const Config: React.FC = () => {
               type="text"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="https://your-api-endpoint.com"
+              placeholder={provider === 'custom_claude' ? 'https://your-claude-compatible-endpoint.com' : 'https://your-api-endpoint.com'}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 font-mono"
             />
+            {provider === 'custom_claude' && (
+              <p className="text-xs text-gray-400 mt-1">
+                Endpoint must support Anthropic Messages API paths such as /v1/messages.
+              </p>
+            )}
           </div>
         )}
 

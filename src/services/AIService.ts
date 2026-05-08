@@ -3,7 +3,7 @@ import axios from 'axios';
 import { getConfig } from '../models/AppConfig';
 
 interface AIConfig {
-  provider: 'anthropic' | 'openai' | 'custom';
+  provider: 'anthropic' | 'openai' | 'custom' | 'custom_claude';
   apiKey: string;
   model: string;
   baseUrl?: string;
@@ -13,14 +13,15 @@ export const getAIConfig = async (): Promise<AIConfig | null> => {
   return getConfig('ai_config');
 };
 
-const callAnthropic = async (apiKey: string, model: string, prompt: string): Promise<string> => {
-  const client = new Anthropic({ apiKey });
+const callAnthropic = async (apiKey: string, model: string, prompt: string, baseUrl?: string): Promise<string> => {
+  const client = new Anthropic({ apiKey, baseURL: baseUrl?.trim() || undefined });
   const message = await client.messages.create({
     model: model || 'claude-sonnet-4-6',
-    max_tokens: 1024,
+    max_tokens: 8192,
     messages: [{ role: 'user', content: prompt }],
   });
   console.log('[AI] Anthropic response stop_reason:', message.stop_reason, 'content blocks:', message.content.length);
+  if (message.stop_reason === 'max_tokens') console.warn('[AI] WARNING: response truncated by max_tokens');
   const block = message.content.find((b) => b.type === 'text');
   if (!block || block.type !== 'text') throw new Error('Anthropic returned no text content');
   return block.text;
@@ -36,7 +37,7 @@ const callOpenAI = async (apiKey: string, model: string, baseUrl: string, prompt
         { role: 'system', content: 'You are a helpful assistant. /no_think' },
         { role: 'user', content: prompt },
       ],
-      max_tokens: 2048,
+      max_tokens: 8192,
       // disable thinking for Qwen3 and similar models
       chat_template_kwargs: { enable_thinking: false },
     },
@@ -62,8 +63,11 @@ export const testAIConfig = async (): Promise<{ ok: boolean; provider: string; m
 
   try {
     const prompt = 'Reply with exactly: OK';
-    if (config.provider === 'anthropic') {
-      await callAnthropic(config.apiKey, config.model, prompt);
+    if (config.provider === 'anthropic' || config.provider === 'custom_claude') {
+      if (config.provider === 'custom_claude' && !config.baseUrl?.trim()) {
+        throw new Error('Base URL is required for Custom Claude-compatible provider');
+      }
+      await callAnthropic(config.apiKey, config.model, prompt, config.provider === 'custom_claude' ? config.baseUrl : undefined);
     } else {
       await callOpenAI(config.apiKey, config.model, config.baseUrl || 'https://api.openai.com', prompt);
     }
@@ -77,8 +81,11 @@ export const analyzeWithCustomPrompt = async (prompt: string): Promise<string> =
   const config: AIConfig | null = await getAIConfig();
   if (!config?.apiKey) throw new Error('AI not configured. Go to Settings to configure.');
 
-  if (config.provider === 'anthropic') {
-    return callAnthropic(config.apiKey, config.model, prompt);
+  if (config.provider === 'anthropic' || config.provider === 'custom_claude') {
+    if (config.provider === 'custom_claude' && !config.baseUrl?.trim()) {
+      throw new Error('Base URL is required for Custom Claude-compatible provider');
+    }
+    return callAnthropic(config.apiKey, config.model, prompt, config.provider === 'custom_claude' ? config.baseUrl : undefined);
   }
   return callOpenAI(config.apiKey, config.model, config.baseUrl || 'https://api.openai.com', prompt);
 };
@@ -140,8 +147,11 @@ Respond only with the 4-line analysis. Labels in English, content in Vietnamese,
 
   console.log('[AI] calling provider:', config.provider, 'model:', config.model);
 
-  if (config.provider === 'anthropic') {
-    return callAnthropic(config.apiKey, config.model, prompt);
+  if (config.provider === 'anthropic' || config.provider === 'custom_claude') {
+    if (config.provider === 'custom_claude' && !config.baseUrl?.trim()) {
+      throw new Error('Base URL is required for Custom Claude-compatible provider');
+    }
+    return callAnthropic(config.apiKey, config.model, prompt, config.provider === 'custom_claude' ? config.baseUrl : undefined);
   }
 
   return callOpenAI(config.apiKey, config.model, config.baseUrl || 'https://api.openai.com', prompt);

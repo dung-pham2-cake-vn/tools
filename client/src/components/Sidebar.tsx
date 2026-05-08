@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { sprintManagementAPI } from '@/utils/api';
+import { sprintPageLabel } from './SprintManagementAnalysis';
+import type { LoadedPage } from './SprintManagementAnalysis';
 
 interface NavChild {
   label: string;
@@ -36,8 +39,19 @@ const Sidebar: React.FC = () => {
   const router = useRouter();
   const isUnderSprints = router.pathname.startsWith('/sprints');
   const [sprintsOpen, setSprintsOpen] = useState(isUnderSprints);
+  const [loadedSprintPages, setLoadedSprintPages] = useState<LoadedPage[]>([]);
 
-  const isActive = (path: string) => router.pathname === path;
+  useEffect(() => {
+    const loadLoadedSprintPages = () => sprintManagementAPI.getLoadedPages()
+      .then((res) => setLoadedSprintPages(res.data.data || []))
+      .catch(() => setLoadedSprintPages([]));
+
+    loadLoadedSprintPages();
+    window.addEventListener('sprint-loaded-pages-changed', loadLoadedSprintPages);
+    return () => window.removeEventListener('sprint-loaded-pages-changed', loadLoadedSprintPages);
+  }, [router.asPath]);
+
+  const isActive = (path: string) => router.asPath === path;
 
   return (
     <div className="w-64 bg-gradient-to-b from-blue-900 to-blue-800 text-white h-screen fixed left-0 top-0 p-6 shadow-xl">
@@ -68,17 +82,38 @@ const Sidebar: React.FC = () => {
                 {sprintsOpen && (
                   <div className="mt-1 ml-4 space-y-1 border-l border-blue-600 pl-3">
                     {item.children.map((child) => (
-                      <Link
-                        key={child.path}
-                        href={child.path}
-                        className={`block px-3 py-2 rounded-lg text-sm transition-all ${
-                          isActive(child.path)
-                            ? 'bg-white/20 text-white font-semibold'
-                            : 'text-blue-200 hover:bg-blue-700 hover:text-white'
-                        }`}
-                      >
-                        {child.label}
-                      </Link>
+                      <React.Fragment key={child.path}>
+                        <Link
+                          href={child.path}
+                          className={`block px-3 py-2 rounded-lg text-sm transition-all ${
+                            isActive(child.path)
+                              ? 'bg-white/20 text-white font-semibold'
+                              : 'text-blue-200 hover:bg-blue-700 hover:text-white'
+                          }`}
+                        >
+                          {child.label}
+                        </Link>
+                        {child.path === '/sprints/management' && loadedSprintPages.length > 0 && (
+                          <div className="ml-3 mt-1 space-y-1 border-l border-blue-600/70 pl-2">
+                            {loadedSprintPages.map((page) => {
+                              const path = `/sprints/management/${page.pageId}`;
+                              return (
+                                <Link
+                                  key={page.pageId}
+                                  href={path}
+                                  className={`block px-3 py-1.5 rounded-lg text-xs transition-all ${
+                                    isActive(path)
+                                      ? 'bg-white/20 text-white font-semibold'
+                                      : 'text-blue-200 hover:bg-blue-700 hover:text-white'
+                                  }`}
+                                >
+                                  {sprintPageLabel(page.title)}
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </React.Fragment>
                     ))}
                   </div>
                 )}

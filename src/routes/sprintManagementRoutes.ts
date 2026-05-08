@@ -6,6 +6,8 @@ import {
   getPageContent,
   analyzePages,
   getResults,
+  getCachedTickets,
+  reloadCachedTickets,
 } from '../controllers/SprintManagementController';
 
 const router = Router();
@@ -16,5 +18,7 @@ router.post('/load-page/:pageId', loadPage);
 router.get('/page-content/:pageId', getPageContent);
 router.post('/analyze', analyzePages);
 router.get('/results', getResults);
+router.get('/tickets', getCachedTickets);
+router.post('/tickets/reload', reloadCachedTickets);
 
 export default router;

@@ -9,51 +9,89 @@ interface AIConfig {
   baseUrl?: string;
 }
 
+const DEFAULT_MAX_OUTPUT_TOKENS = 65536; // Increased default max tokens
+
+const getMaxOutputTokens = (): number => {
+  const value = Number(process.env.AI_MAX_OUTPUT_TOKENS);
+  if (Number.isFinite(value) && value > 0) return Math.floor(value);
+  return DEFAULT_MAX_OUTPUT_TOKENS;
+};
+
 export const getAIConfig = async (): Promise<AIConfig | null> => {
   return getConfig('ai_config');
 };
 
 const callAnthropic = async (apiKey: string, model: string, prompt: string, baseUrl?: string): Promise<string> => {
   const client = new Anthropic({ apiKey, baseURL: baseUrl?.trim() || undefined });
-  const message = await client.messages.create({
-    model: model || 'claude-sonnet-4-6',
-    max_tokens: 8192,
-    messages: [{ role: 'user', content: prompt }],
-  });
-  console.log('[AI] Anthropic response stop_reason:', message.stop_reason, 'content blocks:', message.content.length);
-  if (message.stop_reason === 'max_tokens') console.warn('[AI] WARNING: response truncated by max_tokens');
-  const block = message.content.find((b) => b.type === 'text');
-  if (!block || block.type !== 'text') throw new Error('Anthropic returned no text content');
-  return block.text;
+  const maxTokens = getMaxOutputTokens();
+  let responseText = '';
+
+  try {
+    const stream = await client.messages.create({
+      model: model || 'claude-sonnet-4-6',
+      max_tokens: maxTokens,
+      messages: [{ role: 'user', content: prompt }],
+      stream: true, // Enable streaming
+    });
+
+    for await (const chunk of stream) {
+      if (chunk.type === 'text') {
+        responseText += chunk.text;
+      }
+    }
+  } catch (error) {
+    console.error('[AI] Anthropic API error:', error);
+    throw new Error('Failed to call Anthropic API with streaming');
+  }
+
+  if (!responseText) {
+    throw new Error('No content received from Anthropic API');
+  }
+
+  return responseText;
 };
 
 const callOpenAI = async (apiKey: string, model: string, baseUrl: string, prompt: string): Promise<string> => {
   const url = `${baseUrl.replace(/\/$/, '')}/v1/chat/completions`;
-  const response = await axios.post(
-    url,
-    {
-      model: model || 'gpt-4o',
-      messages: [
-        { role: 'system', content: 'You are a helpful assistant. /no_think' },
-        { role: 'user', content: prompt },
-      ],
-      max_tokens: 8192,
-      // disable thinking for Qwen3 and similar models
-      chat_template_kwargs: { enable_thinking: false },
-    },
-    { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' } }
-  );
+  const maxTokens = getMaxOutputTokens();
+  let response;
+
+  try {
+    response = await axios.post(
+      url,
+      {
+        model: model || 'gpt-4o',
+        messages: [
+          { role: 'system', content: 'You are a helpful assistant. /no_think' },
+          { role: 'user', content: prompt },
+        ],
+        max_tokens: maxTokens,
+        chat_template_kwargs: { enable_thinking: false },
+      },
+      { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('[AI] OpenAI API error:', error);
+    throw new Error('Failed to call OpenAI API');
+  }
+
   const msg = response.data.choices?.[0]?.message;
   console.log('[AI] OpenAI message keys:', msg ? Object.keys(msg) : 'null');
   console.log('[AI] OpenAI message.content:', JSON.stringify(msg?.content)?.slice(0, 200));
 
-  // Qwen3 thinking models return content in reasoning_content when thinking, text in content
-  // Some providers put final answer in content, some in reasoning_content
   const text = msg?.content || msg?.reasoning_content || msg?.text;
+  const finishReason = response.data.choices?.[0]?.finish_reason;
+
   if (!text) {
     console.error('[AI] Full message object:', JSON.stringify(msg));
     throw new Error(`No content in response. Message keys: ${msg ? Object.keys(msg).join(', ') : 'null'}`);
   }
+
+  if (finishReason === 'length') {
+    console.warn('[AI] WARNING: response truncated by max_tokens. Retrying with adjusted prompt.');
+    return callOpenAI(apiKey, model, baseUrl, `${prompt}\n\n[CONTINUED]`);
+  }
+
   return text;
 };
 

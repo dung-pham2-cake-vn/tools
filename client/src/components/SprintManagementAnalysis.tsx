@@ -21,6 +21,8 @@ interface CachedSprintTicket {
   name: string;
   type: string;
   status: string;
+  assignee: string;
+  storyPoints: number;
   lastUpdatedAt: string;
   jiraUpdatedAt?: string;
   parentId?: string;
@@ -44,6 +46,7 @@ interface SprintSection {
 
 interface SprintData {
   sections: SprintSection[];
+  contributors?: Record<string, string>;
 }
 
 interface AnalysisResult {
@@ -77,7 +80,11 @@ Format JSON:
       ]
     },
     { "name": "Must have", "emoji": "😍", "items": [ ... ] }
-  ]
+  ],
+  "contributors": {
+    "Nguyễn Văn A": "Software Engineer",
+    "Trần Thị B": "QA Manual Engineer"
+  }
 }
 
 Quy tắc:
@@ -88,6 +95,7 @@ Quy tắc:
 - ticket.type: "Epic", "Story", "Task", "Sub-task" — suy luận từ context, không rõ → "Không rõ"
 - ticket.status: OPEN | IN CODING | IN TESTING | READY4TEST | IN PROGRESS | DRAFT | PO/TM REVIEW
 - tickets = [] nếu không có sub-ticket
+- contributors: object mapping full tên người → role của họ (Software Engineer, QA Manual Engineer, QA Automation Engineer, v.v.), lấy từ danh sách team/contributors trên Confluence
 - Không thêm bất kỳ text nào ngoài JSON`;
 
 export function extractSprintNumber(title: string): number {
@@ -120,6 +128,23 @@ function typeBadgeClass(type: string): string {
   if (t === 'bug' || t === 'defect') return 'bg-red-50 text-red-700 border border-red-100';
   if (t.includes('subtask') || t.includes('sub-task')) return 'bg-blue-50 text-blue-700 border border-blue-100';
   return 'bg-slate-50 text-slate-600 border border-slate-100';
+}
+
+function stripRoleSuffix(name: string): string {
+  return name.replace(/\s*\(.*?\)\s*/g, '').trim();
+}
+
+function extractRoleFromAssignee(rawAssignee: string): string {
+  const match = rawAssignee.match(/\(([^)]+)\)/);
+  return match ? match[1].trim() : '';
+}
+
+function shortName(fullName: string): string {
+  if (!fullName || fullName === '-' || fullName === 'Unassigned') return fullName || 'Unassigned';
+  const clean = stripRoleSuffix(fullName);
+  const parts = clean.split(/\s+/);
+  if (parts.length <= 2) return clean;
+  return `${parts[parts.length - 1]} ${parts[0]}`;
 }
 
 function IssueTypeIcon({ type }: { type: string }) {
@@ -290,6 +315,7 @@ function renderTicketRows({
   const cached = ticketCache[ticket.id];
   const displayTicket = {
     ...ticket,
+    ...cached,
     name: cached?.name || ticket.name,
     type: cached?.type || ticket.type,
     status: cached?.status || ticket.status,
@@ -333,6 +359,12 @@ function renderTicketRows({
           <span className={`text-xs px-2 py-0.5 rounded border font-medium ${statusBadgeClass(displayTicket.status)}`}>
             {displayTicket.status}
           </span>
+        </td>
+        <td className="px-3 py-2 text-xs text-gray-700">
+          {shortName(displayTicket.assignee) || 'Unassigned'}
+        </td>
+        <td className="px-3 py-2 text-xs text-gray-500 font-mono text-center">
+          {displayTicket.storyPoints ? displayTicket.storyPoints : '-'}
         </td>
         <td className="px-3 py-2 text-xs text-gray-500">
           {cached?.lastUpdatedAt ? formatDate(cached.lastUpdatedAt) : '-'}
@@ -406,6 +438,8 @@ function SprintTable({
                   <th className="text-left px-3 py-2 font-semibold">Tên Ticket</th>
                   <th className="text-left px-3 py-2 font-semibold w-[90px]">Loại</th>
                   <th className="text-left px-3 py-2 font-semibold w-[130px]">Trạng thái</th>
+                  <th className="text-left px-3 py-2 font-semibold w-[150px]">Assignee</th>
+                  <th className="text-left px-3 py-2 font-semibold w-[52px]">SP</th>
                   <th className="text-left px-3 py-2 font-semibold w-[170px]">Last update</th>
                   <th className="text-left px-3 py-2 font-semibold w-[90px]"></th>
                 </tr>
@@ -414,7 +448,7 @@ function SprintTable({
                 {data.sections.length > 0 && section.items.map((item) => (
                   <React.Fragment key={item.number}>
                     <tr className="bg-blue-50 border-t border-blue-100">
-                      <td colSpan={6} className="px-3 py-2.5">
+                      <td colSpan={8} className="px-3 py-2.5">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs text-gray-400 font-mono min-w-[18px]">{item.number}.</span>
                           <span className="text-base leading-none">{item.icon}</span>
@@ -440,7 +474,7 @@ function SprintTable({
 
                     {item.tickets.length === 0 ? (
                       <tr className="border-t border-gray-100">
-                        <td colSpan={6} className="px-3 py-1.5 text-xs text-red-500 italic pl-10">
+                        <td colSpan={8} className="px-3 py-1.5 text-xs text-red-500 italic pl-10">
                           Không có sub-ticket
                         </td>
                       </tr>
@@ -468,6 +502,135 @@ function SprintTable({
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function SprintSummaryTable({
+  data,
+  ticketCache,
+}: {
+  data: SprintData;
+  ticketCache: Record<string, CachedSprintTicket>;
+}) {
+  const ROLE_ORDER: Record<string, number> = {
+    'Software Engineer': 1,
+    'Mobile Engineer': 2,
+    'QA Manual Engineer': 3,
+    'QA Automation Engineer': 4,
+    'Tech Product Manager': 5,
+  };
+
+  function normalizeRole(raw: string): string {
+    const t = raw.toLowerCase();
+    if (t.includes('software engineer') || t.includes('software engineer')) return 'Software Engineer';
+    if (t.includes('mobile engineer')) return 'Mobile Engineer';
+    if (t.includes('qa manual')) return 'QA Manual Engineer';
+    if (t.includes('qa automation')) return 'QA Automation Engineer';
+    if (t.includes('tech product manager') || t.includes('product manager') || t.includes('product owner')) return 'Tech Product Manager';
+    return raw;
+  }
+
+  const allTicketIds = new Set<string>();
+  for (const section of data.sections) {
+    for (const item of section.items) {
+      for (const ticket of item.tickets) {
+        allTicketIds.add(ticket.id);
+        const cached = ticketCache[ticket.id];
+        if (cached?.children) {
+          cached.children.forEach((childId) => allTicketIds.add(childId));
+        }
+      }
+    }
+  }
+
+  const assigneeMap = new Map<string, { count: number; points: number; rawAssignee: string }>();
+  for (const ticketId of allTicketIds) {
+    const cached = ticketCache[ticketId];
+    if (!cached) continue;
+    const clean = stripRoleSuffix(cached.assignee) || 'Unassigned';
+    const entry = assigneeMap.get(clean) || { count: 0, points: 0, rawAssignee: cached.assignee || 'Unassigned' };
+    entry.count++;
+    if (cached.type?.toLowerCase() !== 'story') {
+      entry.points += cached.storyPoints || 0;
+    }
+    assigneeMap.set(clean, entry);
+  }
+
+  function resolveRole(_cleanName: string, rawAssignee: string): string {
+    return normalizeRole(extractRoleFromAssignee(rawAssignee));
+  }
+
+  const sorted = Array.from(assigneeMap.entries()).sort((a, b) => {
+    const roleA = resolveRole(a[0], a[1].rawAssignee);
+    const roleB = resolveRole(b[0], b[1].rawAssignee);
+    const orderA = ROLE_ORDER[roleA] ?? 99;
+    const orderB = ROLE_ORDER[roleB] ?? 99;
+    if (orderA !== orderB) return orderA - orderB;
+    return (b[1].points - a[1].points) || a[0].localeCompare(b[0]);
+  });
+
+  const totalTickets = Array.from(assigneeMap.values()).reduce((sum, e) => sum + e.count, 0);
+  const totalPoints = Array.from(assigneeMap.values()).reduce((sum, e) => sum + e.points, 0);
+
+  if (sorted.length === 0) return null;
+
+  const grouped: { role: string; members: typeof sorted }[] = [];
+  for (const entry of sorted) {
+    const role = resolveRole(entry[0], entry[1].rawAssignee);
+    const last = grouped[grouped.length - 1];
+    if (last && last.role === role) {
+      last.members.push(entry);
+    } else {
+      grouped.push({ role, members: [entry] });
+    }
+  }
+
+  return (
+    <div className="mt-6 rounded-xl bg-white shadow-sm border border-gray-100">
+      <div className="px-6 py-4 border-b border-gray-100">
+        <h3 className="font-bold text-gray-900">Summary theo cá nhân</h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="bg-gray-100 text-xs text-gray-500 uppercase tracking-wide">
+              <th className="text-left px-4 py-2.5 font-semibold">Assignee</th>
+              <th className="text-left px-4 py-2.5 font-semibold">Role</th>
+              <th className="text-center px-4 py-2.5 font-semibold">Số ticket</th>
+              <th className="text-center px-4 py-2.5 font-semibold">Tổng SP</th>
+            </tr>
+          </thead>
+          <tbody>
+            {grouped.map((group) => {
+              const groupTickets = group.members.reduce((s, [, m]) => s + m.count, 0);
+              const groupPoints = group.members.reduce((s, [, m]) => s + m.points, 0);
+              return (
+                <React.Fragment key={group.role || '__none__'}>
+                  <tr className="bg-blue-50 border-t border-blue-100">
+                    <td className="px-4 py-2 text-sm font-bold text-blue-800" colSpan={2}>{group.role || 'Khác'}</td>
+                    <td className="px-4 py-2 text-sm font-bold text-blue-800 text-center">{groupTickets}</td>
+                    <td className="px-4 py-2 text-sm font-bold text-blue-800 text-center">{groupPoints}</td>
+                  </tr>
+                  {group.members.map(([assignee, stats]) => (
+                    <tr key={assignee} className="border-t border-gray-100 hover:bg-gray-50">
+                      <td className="px-4 py-2.5 text-sm text-gray-700 font-medium pl-8">{shortName(assignee)}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500">{group.role || '-'}</td>
+                      <td className="px-4 py-2.5 text-sm text-gray-900 text-center font-semibold">{stats.count}</td>
+                      <td className="px-4 py-2.5 text-sm text-gray-900 text-center font-semibold">{stats.points}</td>
+                    </tr>
+                  ))}
+                </React.Fragment>
+              );
+            })}
+            <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
+              <td className="px-4 py-2.5 text-sm text-gray-900" colSpan={2}>Tổng cộng</td>
+              <td className="px-4 py-2.5 text-sm text-gray-900 text-center">{totalTickets}</td>
+              <td className="px-4 py-2.5 text-sm text-gray-900 text-center">{totalPoints}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -636,15 +799,21 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
         ) : (
           <div className="px-6 py-4">
             {latestParsed ? (
-              <SprintTable
-                data={latestParsed}
-                jiraBase={jiraBase}
-                ticketCache={ticketCache}
-                reloadingTicketIds={reloadingTicketIds}
-                onReloadTicket={(ticketId) => handleReloadTickets([ticketId])}
-                formatDate={formatDate}
-                showChildTickets={showChildTickets}
-              />
+              <>
+                <SprintTable
+                  data={latestParsed}
+                  jiraBase={jiraBase}
+                  ticketCache={ticketCache}
+                  reloadingTicketIds={reloadingTicketIds}
+                  onReloadTicket={(ticketId) => handleReloadTickets([ticketId])}
+                  formatDate={formatDate}
+                  showChildTickets={showChildTickets}
+                />
+                <SprintSummaryTable
+                  data={latestParsed}
+                  ticketCache={ticketCache}
+                />
+              </>
             ) : (
               <div className="bg-gray-50 rounded-lg border border-gray-100 px-4 py-3">
                 <p className="text-xs text-amber-600 mb-2">⚠ Không parse được JSON, hiển thị raw:</p>

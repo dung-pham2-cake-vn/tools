@@ -20,7 +20,17 @@ interface RoadmapIssue {
   fields: {
     summary?: string;
     issuelinks?: JiraIssueLink[];
+    customfield_10222?: { value: string } | null;
   };
+}
+
+const ROADMAP_ORDER = ['Now', 'Next', 'Someday'] as const;
+
+function roadmapBadgeClass(value: string) {
+  if (value === 'Now') return 'bg-green-100 text-green-800';
+  if (value === 'Next') return 'bg-blue-100 text-blue-800';
+  if (value === 'Someday') return 'bg-yellow-100 text-yellow-700';
+  return 'bg-gray-100 text-gray-500';
 }
 
 interface JiraSearchResponse {
@@ -89,6 +99,20 @@ export default function RoadmapPage() {
     [activeSegment]
   );
 
+  const groupedIssues = useMemo(() => {
+    const map: Record<string, RoadmapIssue[]> = { Now: [], Next: [], Someday: [], __other__: [] };
+    for (const issue of issues) {
+      const v = issue.fields.customfield_10222?.value || '';
+      if (ROADMAP_ORDER.includes(v as typeof ROADMAP_ORDER[number])) {
+        map[v].push(issue);
+      } else {
+        map.__other__.push(issue);
+      }
+    }
+    return map;
+  }, [issues]);
+
+
   useEffect(() => {
     const fetchRoadmapIssues = async () => {
       try {
@@ -103,7 +127,7 @@ export default function RoadmapPage() {
           const response = await jiraAPI.searchIssues({
             jql,
             maxResults: PAGE_SIZE,
-            fields: ['key', 'summary', 'issuelinks'],
+            fields: ['key', 'summary', 'issuelinks', 'customfield_10222'],
             nextPageToken,
           });
 
@@ -187,50 +211,58 @@ export default function RoadmapPage() {
           {loading ? (
             <div className="py-10 text-center text-gray-500">Loading roadmap tickets...</div>
           ) : issues.length === 0 ? (
-            <div className="py-10 text-center text-gray-500">Khong tim thay ticket nao</div>
+            <div className="py-10 text-center text-gray-500">Không tìm thấy ticket nào</div>
           ) : (
-            <ol className="space-y-5">
-              {issues.map((issue, index) => {
-                const linkedWorkItemUrls = extractLinkedIssueUrls(issue.fields.issuelinks);
-
+            <div className="space-y-8">
+              {([...ROADMAP_ORDER, '__other__'] as const).map((group) => {
+                const groupIssues = groupedIssues[group];
+                if (!groupIssues.length) return null;
+                const label = group === '__other__' ? 'Khác / Chưa set' : group;
                 return (
-                  <li key={issue.id} className="border-b border-slate-100 pb-5 last:border-b-0 last:pb-0">
-                    <div className="text-gray-900">
-                      <span className="font-semibold">{index + 1}. </span>
-                      <span className="mr-2">🟡</span>
-                      <span className="font-semibold">[{activeSegmentMeta.prefix}]</span>{' '}
-                      <a
-                        href={getIssueBrowseUrl(issue.key)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-semibold text-blue-600 hover:text-blue-800"
-                      >
-                        [{issue.key}]
-                      </a>{' '}
-                      <span>{issue.fields.summary || '-'}</span>
+                  <div key={group}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`px-3 py-1 rounded-full text-sm font-bold ${roadmapBadgeClass(group)}`}>{label}</span>
+                      <span className="text-xs text-gray-400">{groupIssues.length} tickets</span>
                     </div>
-
-                    {linkedWorkItemUrls.length > 0 ? (
-                      <div className="mt-2 space-y-1">
-                        {linkedWorkItemUrls.map((url) => (
-                          <a
-                            key={url}
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="block text-sm text-blue-600 hover:text-blue-800"
-                          >
-                            {url}
-                          </a>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="mt-2 text-sm text-gray-400">No linked work items</p>
-                    )}
-                  </li>
+                    <ol className="space-y-4">
+                      {groupIssues.map((issue, index) => {
+                        const linkedWorkItemUrls = extractLinkedIssueUrls(issue.fields.issuelinks);
+                        const hasLinks = linkedWorkItemUrls.length > 0;
+                        return (
+                          <li key={issue.id} className="border-b border-slate-100 pb-4 last:border-b-0 last:pb-0">
+                            <div className="text-gray-900">
+                              <span className="mr-1">🟡</span>
+                              <span className="font-semibold">[{activeSegmentMeta.prefix}]</span>{' '}
+                              <a
+                                href={getIssueBrowseUrl(issue.key)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="font-semibold text-blue-600 hover:text-blue-800"
+                              >
+                                [{issue.key}]
+                              </a>{' '}
+                              <span>{issue.fields.summary || '-'}</span>
+                            </div>
+                            {hasLinks ? (
+                              <div className="mt-1.5 space-y-0.5">
+                                {linkedWorkItemUrls.map((url) => (
+                                  <a key={url} href={url} target="_blank" rel="noreferrer"
+                                    className="block text-sm text-blue-600 hover:text-blue-800">
+                                    {url}
+                                  </a>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="mt-1 text-sm font-medium text-red-500">No linked work items</p>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ol>
+                  </div>
                 );
               })}
-            </ol>
+            </div>
           )}
         </div>
       </>

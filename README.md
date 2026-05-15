@@ -119,6 +119,21 @@ src/
 - **Axios** - HTTP client for Jira API
 - **CORS** - Cross-origin resource sharing
 
+## Jira Custom Fields (cakedigitalbank.atlassian.net)
+
+Các custom field dùng trong JQL và API calls — tra cứu qua `GET /rest/api/3/field`.
+
+| Field ID | Tên | Ghi chú |
+|---|---|---|
+| `customfield_10016` | Story point estimate | SP của issue |
+| `customfield_10222` | Roadmap | Values: `Now`, `Next`, `Someday` — dùng để group Roadmap page |
+| `customfield_10225` | Effort | Effort score |
+| `customfield_10227` | Goal impact | Impact score |
+| `customfield_10235` | Project start | Ngày bắt đầu project |
+| `customfield_10631` | Target Sprint | Sprint mục tiêu |
+
+> Dùng `cf[XXXXX]` trong JQL, ví dụ: `ORDER BY cf[10222] ASC`
+
 ## License
 
 MIT

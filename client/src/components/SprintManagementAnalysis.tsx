@@ -287,6 +287,24 @@ function collectTicketIds(data: SprintData | null): string[] {
   ));
 }
 
+function assigneeKey(rawAssignee: string | undefined): string {
+  return stripRoleSuffix(rawAssignee || '') || 'Unassigned';
+}
+
+function hasMatchingDescendant(
+  ticketId: string,
+  filter: string,
+  cache: Record<string, CachedSprintTicket>,
+  visited = new Set<string>()
+): boolean {
+  if (visited.has(ticketId)) return false;
+  visited.add(ticketId);
+  const cached = cache[ticketId];
+  if (!cached) return false;
+  if (assigneeKey(cached.assignee) === filter) return true;
+  return (cached.children || []).some((cid) => hasMatchingDescendant(cid, filter, cache, visited));
+}
+
 function renderTicketRows({
   jiraBase,
   ticketCache,
@@ -294,6 +312,7 @@ function renderTicketRows({
   onReloadTicket,
   formatDate,
   showChildTickets,
+  filterAssignee,
   ticket,
   depth = 0,
   visited = new Set<string>(),
@@ -304,6 +323,7 @@ function renderTicketRows({
   onReloadTicket: (ticketId: string) => void;
   formatDate: (iso: string) => string;
   showChildTickets: boolean;
+  filterAssignee: string | null;
   ticket: SprintTicket | CachedSprintTicket;
   depth?: number;
   visited?: Set<string>;
@@ -325,6 +345,13 @@ function renderTicketRows({
   const rowKeyPrefix = `${ticket.id}-${depth}`;
   const childVisited = new Set(visited);
   childVisited.add(ticket.id);
+
+  if (filterAssignee !== null) {
+    const selfMatch = assigneeKey(displayTicket.assignee) === filterAssignee;
+    const childMatch = childIds.some((cid) => hasMatchingDescendant(cid, filterAssignee, ticketCache));
+    if (!selfMatch && !childMatch) return [];
+  }
+
   const rowClassName = depth === 0
     ? 'border-t border-gray-100 hover:bg-gray-50 transition-colors'
     : 'border-t border-gray-100 bg-slate-50 hover:bg-slate-100 transition-colors';
@@ -394,6 +421,7 @@ function renderTicketRows({
       onReloadTicket,
       formatDate,
       showChildTickets,
+      filterAssignee,
       ticket: child,
       depth: depth + 1,
       visited: childVisited,
@@ -411,6 +439,7 @@ function SprintTable({
   onReloadTicket,
   formatDate,
   showChildTickets,
+  filterAssignee,
 }: {
   data: SprintData;
   jiraBase: string;
@@ -419,6 +448,7 @@ function SprintTable({
   onReloadTicket: (ticketId: string) => void;
   formatDate: (iso: string) => string;
   showChildTickets: boolean;
+  filterAssignee: string | null;
 }) {
   return (
     <div className="space-y-6">
@@ -489,6 +519,7 @@ function SprintTable({
                               onReloadTicket,
                               formatDate,
                               showChildTickets,
+                              filterAssignee,
                               ticket,
                             })}
                           </React.Fragment>
@@ -509,9 +540,13 @@ function SprintTable({
 function SprintSummaryTable({
   data,
   ticketCache,
+  selectedAssignee,
+  onSelectAssignee,
 }: {
   data: SprintData;
   ticketCache: Record<string, CachedSprintTicket>;
+  selectedAssignee: string | null;
+  onSelectAssignee: (name: string) => void;
 }) {
   const ROLE_ORDER: Record<string, number> = {
     'Software Engineer': 1,
@@ -531,15 +566,18 @@ function SprintSummaryTable({
     return raw;
   }
 
+  function collectDescendants(id: string, visited = new Set<string>()) {
+    if (visited.has(id)) return;
+    visited.add(id);
+    allTicketIds.add(id);
+    ticketCache[id]?.children?.forEach((childId) => collectDescendants(childId, visited));
+  }
+
   const allTicketIds = new Set<string>();
   for (const section of data.sections) {
     for (const item of section.items) {
       for (const ticket of item.tickets) {
-        allTicketIds.add(ticket.id);
-        const cached = ticketCache[ticket.id];
-        if (cached?.children) {
-          cached.children.forEach((childId) => allTicketIds.add(childId));
-        }
+        collectDescendants(ticket.id);
       }
     }
   }
@@ -547,12 +585,12 @@ function SprintSummaryTable({
   const assigneeMap = new Map<string, { count: number; points: number; rawAssignee: string }>();
   for (const ticketId of allTicketIds) {
     const cached = ticketCache[ticketId];
-    if (!cached) continue;
-    const clean = stripRoleSuffix(cached.assignee) || 'Unassigned';
-    const entry = assigneeMap.get(clean) || { count: 0, points: 0, rawAssignee: cached.assignee || 'Unassigned' };
+    const rawAssignee = cached?.assignee || '';
+    const clean = stripRoleSuffix(rawAssignee) || 'Unassigned';
+    const entry = assigneeMap.get(clean) || { count: 0, points: 0, rawAssignee: rawAssignee || 'Unassigned' };
     entry.count++;
-    if (cached.type?.toLowerCase() !== 'story') {
-      entry.points += cached.storyPoints || 0;
+    if ((cached?.type || '').toLowerCase() !== 'story') {
+      entry.points += cached?.storyPoints || 0;
     }
     assigneeMap.set(clean, entry);
   }
@@ -562,6 +600,9 @@ function SprintSummaryTable({
   }
 
   const sorted = Array.from(assigneeMap.entries()).sort((a, b) => {
+    // Unassigned always last
+    if (a[0] === 'Unassigned' && b[0] !== 'Unassigned') return 1;
+    if (b[0] === 'Unassigned' && a[0] !== 'Unassigned') return -1;
     const roleA = resolveRole(a[0], a[1].rawAssignee);
     const roleB = resolveRole(b[0], b[1].rawAssignee);
     const orderA = ROLE_ORDER[roleA] ?? 99;
@@ -588,8 +629,16 @@ function SprintSummaryTable({
 
   return (
     <div className="mt-6 rounded-xl bg-white shadow-sm border border-gray-100">
-      <div className="px-6 py-4 border-b border-gray-100">
+      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
         <h3 className="font-bold text-gray-900">Summary theo cá nhân</h3>
+        {selectedAssignee && (
+          <button
+            onClick={() => onSelectAssignee(selectedAssignee)}
+            className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+          >
+            ✕ Bỏ filter: {shortName(selectedAssignee)}
+          </button>
+        )}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
@@ -612,14 +661,24 @@ function SprintSummaryTable({
                     <td className="px-4 py-2 text-sm font-bold text-blue-800 text-center">{groupTickets}</td>
                     <td className="px-4 py-2 text-sm font-bold text-blue-800 text-center">{groupPoints}</td>
                   </tr>
-                  {group.members.map(([assignee, stats]) => (
-                    <tr key={assignee} className="border-t border-gray-100 hover:bg-gray-50">
-                      <td className="px-4 py-2.5 text-sm text-gray-700 font-medium pl-8">{shortName(assignee)}</td>
-                      <td className="px-4 py-2.5 text-xs text-gray-500">{group.role || '-'}</td>
-                      <td className="px-4 py-2.5 text-sm text-gray-900 text-center font-semibold">{stats.count}</td>
-                      <td className="px-4 py-2.5 text-sm text-gray-900 text-center font-semibold">{stats.points}</td>
-                    </tr>
-                  ))}
+                  {group.members.map(([assignee, stats]) => {
+                    const isSelected = selectedAssignee === assignee;
+                    return (
+                      <tr
+                        key={assignee}
+                        onClick={() => onSelectAssignee(assignee)}
+                        className={`border-t border-gray-100 cursor-pointer transition-colors ${isSelected ? 'bg-blue-100 hover:bg-blue-200' : 'hover:bg-gray-50'}`}
+                      >
+                        <td className={`px-4 py-2.5 text-sm font-medium pl-8 ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>
+                          {shortName(assignee)}
+                          {isSelected && <span className="ml-1.5 text-xs text-blue-500">▶ đang lọc</span>}
+                        </td>
+                        <td className="px-4 py-2.5 text-xs text-gray-500">{group.role || '-'}</td>
+                        <td className="px-4 py-2.5 text-sm text-gray-900 text-center font-semibold">{stats.count}</td>
+                        <td className="px-4 py-2.5 text-sm text-gray-900 text-center font-semibold">{stats.points}</td>
+                      </tr>
+                    );
+                  })}
                 </React.Fragment>
               );
             })}
@@ -635,14 +694,70 @@ function SprintSummaryTable({
   );
 }
 
+function HistoryItem({
+  r,
+  jiraBase,
+  ticketCache,
+  reloadingTicketIds,
+  onReloadTicket,
+  formatDate,
+  showChildTickets,
+}: {
+  r: AnalysisResult;
+  jiraBase: string;
+  ticketCache: Record<string, CachedSprintTicket>;
+  reloadingTicketIds: Set<string>;
+  onReloadTicket: (ticketId: string) => void;
+  formatDate: (iso: string) => string;
+  showChildTickets: boolean;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const parsed = open ? parseSprintJSON(r.result) : null;
+
+  return (
+    <details
+      className="px-4 py-3"
+      onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}
+    >
+      <summary className="cursor-pointer text-sm text-gray-700">
+        {formatDate(r.timestamp)} · {r.pagesTitles?.join(', ') || 'Kết quả'}
+      </summary>
+      {open && (
+        <div className="mt-3">
+          {parsed ? (
+            <SprintTable
+              data={parsed}
+              jiraBase={jiraBase}
+              ticketCache={ticketCache}
+              reloadingTicketIds={reloadingTicketIds}
+              onReloadTicket={onReloadTicket}
+              formatDate={formatDate}
+              showChildTickets={showChildTickets}
+              filterAssignee={null}
+            />
+          ) : (
+            <pre className="whitespace-pre-wrap text-xs text-gray-700 font-mono leading-relaxed">{r.result}</pre>
+          )}
+        </div>
+      )}
+    </details>
+  );
+}
+
 export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
   const [prompt, setPrompt] = useState(DEFAULT_SPRINT_PROMPT);
   const [analyzing, setAnalyzing] = useState(false);
+  const [parsing, setParsing] = useState(false);
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [loadingResults, setLoadingResults] = useState(false);
   const [ticketCache, setTicketCache] = useState<Record<string, CachedSprintTicket>>({});
   const [reloadingTicketIds, setReloadingTicketIds] = useState<Set<string>>(new Set());
   const [showChildTickets, setShowChildTickets] = useState(true);
+  const [selectedAssignee, setSelectedAssignee] = useState<string | null>(null);
+
+  const handleSelectAssignee = (name: string) => {
+    setSelectedAssignee((prev) => (prev === name ? null : name));
+  };
 
   const jiraBase = page.url ? page.url.split('/wiki')[0] : 'https://cakedigitalbank.atlassian.net';
 
@@ -695,6 +810,21 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
       toast.error(`Lỗi: ${err?.response?.data?.error || err.message}`);
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const handleParseByScript = async () => {
+    setParsing(true);
+    try {
+      const res = await sprintManagementAPI.parseByScript({ pageIds: [page.pageId] });
+      const entry: AnalysisResult = res.data.data;
+      setResults((prev) => [entry, ...prev]);
+      await loadTicketCache(collectTicketIds(parseSprintJSON(entry.result)));
+      toast.success('Parse xong');
+    } catch (err: any) {
+      toast.error(`Lỗi: ${err?.response?.data?.error || err.message}`);
+    } finally {
+      setParsing(false);
     }
   };
 
@@ -753,13 +883,22 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
             />
           </div>
 
-          <button
-            onClick={handleAnalyze}
-            disabled={analyzing}
-            className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-sm transition-colors shadow-sm"
-          >
-            {analyzing ? <><span className="animate-spin inline-block">⏳</span> Đang xử lý...</> : '✨ Xử lý với AI'}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleAnalyze}
+              disabled={analyzing || parsing}
+              className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-sm transition-colors shadow-sm"
+            >
+              {analyzing ? <><span className="animate-spin inline-block">⏳</span> Đang xử lý...</> : '✨ Xử lý với AI'}
+            </button>
+            <button
+              onClick={handleParseByScript}
+              disabled={parsing || analyzing}
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-sm transition-colors shadow-sm"
+            >
+              {parsing ? <><span className="animate-spin inline-block">⏳</span> Đang parse...</> : '⚙️ Parse bằng Script'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -808,10 +947,13 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
                   onReloadTicket={(ticketId) => handleReloadTickets([ticketId])}
                   formatDate={formatDate}
                   showChildTickets={showChildTickets}
+                  filterAssignee={selectedAssignee}
                 />
                 <SprintSummaryTable
                   data={latestParsed}
                   ticketCache={ticketCache}
+                  selectedAssignee={selectedAssignee}
+                  onSelectAssignee={handleSelectAssignee}
                 />
               </>
             ) : (
@@ -827,31 +969,18 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
                   Lịch sử phân tích ({historyResults.length})
                 </summary>
                 <div className="divide-y divide-gray-200 border-t border-gray-200">
-                  {historyResults.map((r) => {
-                    const parsed = parseSprintJSON(r.result);
-                    return (
-                      <details key={r.id} className="px-4 py-3">
-                        <summary className="cursor-pointer text-sm text-gray-700">
-                          {formatDate(r.timestamp)} · {r.pagesTitles?.join(', ') || 'Kết quả'}
-                        </summary>
-                        <div className="mt-3">
-                          {parsed ? (
-                            <SprintTable
-                              data={parsed}
-                              jiraBase={jiraBase}
-                              ticketCache={ticketCache}
-                              reloadingTicketIds={reloadingTicketIds}
-                              onReloadTicket={(ticketId) => handleReloadTickets([ticketId])}
-                              formatDate={formatDate}
-                              showChildTickets={showChildTickets}
-                            />
-                          ) : (
-                            <pre className="whitespace-pre-wrap text-xs text-gray-700 font-mono leading-relaxed">{r.result}</pre>
-                          )}
-                        </div>
-                      </details>
-                    );
-                  })}
+                  {historyResults.map((r) => (
+                    <HistoryItem
+                      key={r.id}
+                      r={r}
+                      jiraBase={jiraBase}
+                      ticketCache={ticketCache}
+                      reloadingTicketIds={reloadingTicketIds}
+                      onReloadTicket={(ticketId) => handleReloadTickets([ticketId])}
+                      formatDate={formatDate}
+                      showChildTickets={showChildTickets}
+                    />
+                  ))}
                 </div>
               </details>
             )}

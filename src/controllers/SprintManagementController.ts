@@ -209,6 +209,234 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+// ── Script-based parser (no AI) ──────────────────────────────────────────────
+
+interface ScriptSprintTicket {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+}
+
+interface ScriptSprintItem {
+  number: number;
+  icon: '🟢' | '🟡' | '🔴';
+  teams: string[];
+  prNumber: string;
+  title: string;
+  tickets: ScriptSprintTicket[];
+}
+
+interface ScriptSprintSection {
+  name: string;
+  emoji: string;
+  items: ScriptSprintItem[];
+}
+
+interface ScriptSprintData {
+  sections: ScriptSprintSection[];
+}
+
+const SECTION_CONFIG: { name: string; emoji: string }[] = [
+  { name: 'Core', emoji: '😤' },
+  { name: 'Must have', emoji: '😍' },
+];
+const ALL_KNOWN_SECTIONS = ['Core', 'Must have', 'Nice to have', 'Backlog', 'Business Planning'];
+
+const NAMED_ENTITIES: Record<string, string> = {
+  nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'",
+  ndash: '–', mdash: '—', ldquo: '“', rdquo: '”', lsquo: '‘', rsquo: '’',
+  hellip: '…', bull: '•', loz: '◆', trade: '™', copy: '©', reg: '®',
+  // Latin-1 lower
+  agrave: 'à', aacute: 'á', acirc: 'â', atilde: 'ã', auml: 'ä', aring: 'å', aelig: 'æ',
+  ccedil: 'ç',
+  egrave: 'è', eacute: 'é', ecirc: 'ê', euml: 'ë',
+  igrave: 'ì', iacute: 'í', icirc: 'î', iuml: 'ï',
+  ntilde: 'ñ',
+  ograve: 'ò', oacute: 'ó', ocirc: 'ô', otilde: 'õ', ouml: 'ö',
+  ugrave: 'ù', uacute: 'ú', ucirc: 'û', uuml: 'ü',
+  yacute: 'ý',
+  // Latin-1 upper
+  Agrave: 'À', Aacute: 'Á', Acirc: 'Â', Atilde: 'Ã', Auml: 'Ä', Aring: 'Å', AElig: 'Æ',
+  Ccedil: 'Ç',
+  Egrave: 'È', Eacute: 'É', Ecirc: 'Ê', Euml: 'Ë',
+  Igrave: 'Ì', Iacute: 'Í', Icirc: 'Î', Iuml: 'Ï',
+  Ntilde: 'Ñ',
+  Ograve: 'Ò', Oacute: 'Ó', Ocirc: 'Ô', Otilde: 'Õ', Ouml: 'Ö',
+  Ugrave: 'Ù', Uacute: 'Ú', Ucirc: 'Û', Uuml: 'Ü',
+  Yacute: 'Ý',
+};
+
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&([a-zA-Z]+);/g, (match, name) => NAMED_ENTITIES[name] ?? match);
+}
+
+function htmlToStructuredText(rawHtml: string): string {
+  const decoded = decodeHtmlEntities(rawHtml);
+  return decoded
+    // Confluence emoticons → emoji (must happen before tag stripping)
+    .replace(/<ac:(?:emoticon|emoji)[^>]*ac:name="green[^"]*"[^>]*\/?>/gi, '🟢')
+    .replace(/<ac:(?:emoticon|emoji)[^>]*ac:name="yellow[^"]*"[^>]*\/?>/gi, '🟡')
+    .replace(/<ac:(?:emoticon|emoji)[^>]*ac:name="red[^"]*"[^>]*\/?>/gi, '🔴')
+    // Confluence status macros
+    .replace(/<ac:structured-macro[^>]*ac:name="status"[^>]*>[\s\S]*?<ac:parameter[^>]*ac:name="colour"[^>]*>Green<\/ac:parameter>[\s\S]*?<\/ac:structured-macro>/gi, '🟢')
+    .replace(/<ac:structured-macro[^>]*ac:name="status"[^>]*>[\s\S]*?<ac:parameter[^>]*ac:name="colour"[^>]*>Yellow<\/ac:parameter>[\s\S]*?<\/ac:structured-macro>/gi, '🟡')
+    .replace(/<ac:structured-macro[^>]*ac:name="status"[^>]*>[\s\S]*?<ac:parameter[^>]*ac:name="colour"[^>]*>Red<\/ac:parameter>[\s\S]*?<\/ac:structured-macro>/gi, '🔴')
+    // Jira macro key → inject ticket ID into text stream
+    .replace(/<ac:parameter[^>]*ac:name="key"[^>]*>([A-Z][A-Z0-9]+-\d+)<\/ac:parameter>/gi, ' $1 ')
+    // Block-level elements → newline so sections/items end up on separate lines
+    .replace(/<\/?(tr|td|th|p|div|h[1-6]|li|br)\b[^>]*>/gi, '\n')
+    // Strip remaining tags
+    .replace(/<[^>]*>/g, ' ')
+    // Remove UUIDs (Jira macro serverId noise)
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '')
+    // Remove "System Jira" noise from macros
+    .replace(/\bSystem\s+Jira\b/gi, '')
+    // Normalise whitespace per-line
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
+}
+
+function parseItemsFromText(sectionText: string): ScriptSprintItem[] {
+  const items: ScriptSprintItem[] = [];
+  // Split by emoji — each chunk starting with an emoji is one item
+  const chunks = sectionText.split(/(?=[🟢🟡🔴])/u).filter((c) => /^[🟢🟡🔴]/u.test(c.trim()));
+
+  for (let idx = 0; idx < chunks.length; idx++) {
+    const chunk = chunks[idx].replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+    const icon = (chunk.match(/^[🟢🟡🔴]/u)?.[0] || '🟢') as '🟢' | '🟡' | '🔴';
+
+    // Teams: [Lend+DOP+Prec] or [Adhoc] etc.
+    const teamsMatch = chunk.match(/\[([^\]]+)\]/);
+    const teams = teamsMatch
+      ? teamsMatch[1].split(/[+,\s]+/).map((t) => t.trim()).filter(Boolean)
+      : [];
+
+    // PR number (PR-NNN, distinct from Jira keys which have letters in project part)
+    const prMatch = chunk.match(/\bPR-(\d+)\b/i);
+
+    // Ticket IDs: uppercase project key + hyphen + digits, but skip PR-NNN
+    const KEY_RE = /\b([A-Z][A-Z0-9]+-\d+)\b/g;
+    const ticketIds: string[] = [];
+    let km;
+    while ((km = KEY_RE.exec(chunk)) !== null) {
+      if (/^PR$/i.test(km[1].split('-')[0])) continue;
+      ticketIds.push(km[1]);
+    }
+
+    // Title: strip structural prefix, keep actual description
+    const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    let title = chunk
+      .replace(/^[🟢🟡🔴]\s*/u, '')          // remove icon
+      .replace(/^\[[^\]]*\]\s*/u, '')          // remove first [bracket] = teams
+      .replace(/^\[PR-\d+\]\s*/iu, '')         // remove [PR-NNN] if immediately after
+      .replace(/^PR-\d+\s*/iu, '')             // remove bare PR-NNN if immediately after
+      .replace(/^[^\p{L}\p{N}\[（(]+/u, '');    // strip any non-letter/digit/bracket prefix (◆, –, -, etc.)
+    title = title.replace(/\bPR-\d+\b/gi, '');
+    if (ticketIds.length) {
+      title = title.replace(new RegExp(`\\b(${ticketIds.map(escapeRe).join('|')})\\b`, 'g'), '');
+    }
+    title = title.replace(/\s+/g, ' ').trim();
+
+    items.push({
+      number: idx + 1,
+      icon,
+      teams,
+      prNumber: prMatch ? `PR-${prMatch[1]}` : '',
+      title,
+      tickets: ticketIds.map((id) => ({ id, name: '', type: 'Task', status: 'OPEN' })),
+    });
+  }
+
+  return items;
+}
+
+function parseSprintByScript(rawHtml: string): ScriptSprintData {
+  const text = htmlToStructuredText(rawHtml);
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+
+  // Build a regex that matches any known section name at the start of a line
+  const sectionNameRe = new RegExp(
+    `^(${ALL_KNOWN_SECTIONS.map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?:\\s|\\(|$)`
+  );
+
+  const boundaries: { name: string; lineIdx: number }[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(sectionNameRe);
+    if (m) boundaries.push({ name: m[1], lineIdx: i });
+  }
+
+  const sections: ScriptSprintSection[] = [];
+
+  for (let i = 0; i < boundaries.length; i++) {
+    const { name, lineIdx } = boundaries[i];
+    const config = SECTION_CONFIG.find((s) => name.startsWith(s.name));
+    if (!config) continue; // Skip Nice to have, Backlog, etc.
+
+    const endLineIdx = boundaries[i + 1]?.lineIdx ?? lines.length;
+    const sectionText = lines.slice(lineIdx + 1, endLineIdx).join('\n');
+    const items = parseItemsFromText(sectionText);
+
+    if (items.length > 0) {
+      sections.push({ name: config.name, emoji: config.emoji, items });
+    }
+  }
+
+  // Fallback: if no section boundaries found, treat entire content as Must have
+  if (sections.length === 0) {
+    const items = parseItemsFromText(lines.join('\n'));
+    if (items.length > 0) {
+      sections.push({ name: 'Must have', emoji: '😍', items });
+    }
+  }
+
+  return { sections };
+}
+
+export const parsePagesByScript = async (req: Request, res: Response): Promise<void> => {
+  const { pageIds } = req.body;
+  try {
+    const allPages: any[] = (await getConfig('sprint_mgmt_pages')) || [];
+    const selectedPages = allPages.filter((p) => pageIds.includes(p.pageId));
+    if (!selectedPages.length) {
+      res.status(400).json({ success: false, error: 'No loaded pages selected' });
+      return;
+    }
+
+    const combined = selectedPages
+      .map((p) => parseSprintByScript(p.content))
+      .reduce<ScriptSprintData>(
+        (acc, cur) => ({ sections: [...acc.sections, ...cur.sections] }),
+        { sections: [] }
+      );
+
+    const result = JSON.stringify(combined, null, 2);
+
+    const results: any[] = (await getConfig('sprint_mgmt_results')) || [];
+    const entry = {
+      id: Date.now().toString(),
+      prompt: '[script-parse]',
+      result,
+      pageIds,
+      pagesTitles: selectedPages.map((p) => p.title),
+      timestamp: new Date().toISOString(),
+    };
+    results.unshift(entry);
+    await setConfig('sprint_mgmt_results', results.slice(0, 20));
+    res.json({ success: true, data: entry });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export const getConfluenceChildren = async (req: Request, res: Response): Promise<void> => {
   try {
     const pages = await jiraService.getConfluenceChildPages(ROOT_PAGE_ID);

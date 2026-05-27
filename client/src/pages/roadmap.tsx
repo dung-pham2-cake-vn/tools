@@ -225,13 +225,13 @@ export default function RoadmapPage() {
                       <span className="text-xs text-gray-400">{groupIssues.length} tickets</span>
                     </div>
                     <ol className="space-y-4">
-                      {groupIssues.map((issue, index) => {
+                      {groupIssues.map((issue) => {
                         const linkedWorkItemUrls = extractLinkedIssueUrls(issue.fields.issuelinks);
                         const hasLinks = linkedWorkItemUrls.length > 0;
                         return (
                           <li key={issue.id} className="border-b border-slate-100 pb-4 last:border-b-0 last:pb-0">
                             <div className="text-gray-900">
-                              <span className="mr-1">🟡</span>
+                              <span className="mr-1">🟡</span>{' '}
                               <span className="font-semibold">[{activeSegmentMeta.prefix}]</span>{' '}
                               <a
                                 href={getIssueBrowseUrl(issue.key)}

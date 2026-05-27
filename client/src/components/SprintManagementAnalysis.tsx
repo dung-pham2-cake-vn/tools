@@ -16,7 +16,7 @@ interface SprintTicket {
   status: string;
 }
 
-interface CachedSprintTicket {
+export interface CachedSprintTicket {
   id: string;
   name: string;
   type: string;
@@ -27,9 +27,10 @@ interface CachedSprintTicket {
   jiraUpdatedAt?: string;
   parentId?: string;
   children?: string[];
+  fixVersions?: string[];
 }
 
-interface SprintItem {
+export interface SprintItem {
   number: number;
   icon: '🟢' | '🟡' | '🔴';
   teams: string[];
@@ -106,6 +107,155 @@ export function extractSprintNumber(title: string): number {
 export function sprintPageLabel(title: string): string {
   const sprintNumber = extractSprintNumber(title);
   return sprintNumber > 0 ? `Sprint ${sprintNumber}` : title;
+}
+
+const HIDDEN_STATUSES = new Set(['REQUEST BOT TO DELETE', 'WILL NOT DO']);
+function isHiddenStatus(status: string): boolean {
+  return HIDDEN_STATUSES.has(status.toUpperCase().replace(/\s+/g, ' ').trim());
+}
+
+type StatusCategory = 'todo' | 'in-progress' | 'done' | 'other';
+
+const TODO_STATUSES = new Set(['open', 'in coding', 'wait4dev']);
+const IN_PROGRESS_STATUSES = new Set(['test failed', 'ready4test', 'in testing', 'in progress']);
+const DONE_STATUSES = new Set(['po/tm review', 'will not do', 'done', 'ready4release', 'released', 'request bot to delete', 'test passed', 'invalid']);
+
+function getStatusCategory(status: string): StatusCategory {
+  const s = status.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (TODO_STATUSES.has(s)) return 'todo';
+  if (IN_PROGRESS_STATUSES.has(s)) return 'in-progress';
+  if (DONE_STATUSES.has(s)) return 'done';
+  return 'other';
+}
+
+// ─── PO Status ───────────────────────────────────────────────────────────────
+
+export type PoStatus = 'na' | 'need-uat' | 'sent-uat' | 'need-confirm' | 'confirmed';
+
+export const PO_STATUS_CONFIG: Record<PoStatus, { label: string; cls: string }> = {
+  na: { label: 'N/A', cls: 'bg-gray-100 text-gray-500 border-gray-200' },
+  'need-uat': { label: 'Need UAT', cls: 'bg-red-50 text-red-700 border-red-300' },
+  'sent-uat': { label: 'Sent UAT', cls: 'bg-yellow-50 text-yellow-700 border-yellow-300' },
+  'need-confirm': { label: 'Need confirm', cls: 'bg-red-50 text-red-700 border-red-300' },
+  confirmed: { label: 'Confirmed', cls: 'bg-emerald-50 text-emerald-700 border-emerald-300' },
+};
+
+export function getItemStorageKey(pageId: string, item: SprintItem): string {
+  const slug = item.prNumber ? `pr-${item.prNumber}` : `n-${item.number}`;
+  return `smpo-${pageId}-${slug}`;
+}
+
+export function collectItemStoryFlags(
+  item: SprintItem,
+  cache: Record<string, CachedSprintTicket>
+): { hasReleased: boolean; hasReady4Release: boolean; hasPOTMReview: boolean } {
+  const visited = new Set<string>();
+  const walk = (id: string) => {
+    if (!id || visited.has(id)) return;
+    visited.add(id);
+    (cache[id]?.children || []).forEach(walk);
+  };
+  item.tickets.forEach((t) => walk(t.id));
+
+  let hasReleased = false;
+  let hasReady4Release = false;
+  let hasPOTMReview = false;
+
+  for (const id of visited) {
+    const t = cache[id];
+    if (!t || t.type?.toLowerCase() !== 'story') continue;
+    const s = (t.status || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (s === 'released') hasReleased = true;
+    if (s === 'ready4release') hasReady4Release = true;
+    if (s === 'po/tm review') hasPOTMReview = true;
+  }
+  return { hasReleased, hasReady4Release, hasPOTMReview };
+}
+
+export function derivePoStatus(
+  flags: { hasReleased: boolean; hasReady4Release: boolean; hasPOTMReview: boolean },
+  stored: PoStatus | null
+): PoStatus {
+  if (flags.hasReleased) return stored === 'confirmed' ? 'confirmed' : 'need-confirm';
+  if (flags.hasReady4Release) return 'na';
+  if (flags.hasPOTMReview) return stored === 'sent-uat' ? 'sent-uat' : 'need-uat';
+  return stored ?? 'na';
+}
+
+function PoStatusBadge({
+  item,
+  ticketCache,
+  pageId,
+}: {
+  item: SprintItem;
+  ticketCache: Record<string, CachedSprintTicket>;
+  pageId: string;
+}) {
+  const key = getItemStorageKey(pageId, item);
+  const [stored, setStored] = useState<PoStatus | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(key);
+      if (v && v in PO_STATUS_CONFIG) setStored(v as PoStatus);
+    } catch {}
+  }, [key]);
+
+  const flags = collectItemStoryFlags(item, ticketCache);
+
+  useEffect(() => {
+    if (flags.hasReady4Release && stored !== null) {
+      try { localStorage.removeItem(key); } catch {}
+      setStored(null);
+    }
+  }, [flags.hasReady4Release, stored, key]);
+
+  const effective = derivePoStatus(flags, stored);
+  const cfg = PO_STATUS_CONFIG[effective];
+
+  const pick = (status: PoStatus) => {
+    try {
+      if (status === 'na') {
+        localStorage.removeItem(key);
+        setStored(null);
+      } else {
+        localStorage.setItem(key, status);
+        setStored(status);
+      }
+    } catch {}
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative ml-auto shrink-0" onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen((p) => !p)}
+        className={`flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded border cursor-pointer select-none ${cfg.cls}`}
+      >
+        PO: {cfg.label}
+        <span className="opacity-40 text-[10px]">▾</span>
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-7 z-50 bg-white rounded-lg shadow-xl border border-gray-200 py-1 min-w-[150px]">
+            {(Object.entries(PO_STATUS_CONFIG) as [PoStatus, { label: string; cls: string }][]).map(([s, c]) => (
+              <button
+                key={s}
+                onClick={() => pick(s)}
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-50"
+              >
+                <span className={`inline-flex px-1.5 py-0.5 rounded border font-medium ${c.cls}`}>{c.label}</span>
+                {effective === s && <span className="ml-auto text-gray-400">✓</span>}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 function statusBadgeClass(status: string): string {
@@ -295,14 +445,32 @@ function hasMatchingDescendant(
   ticketId: string,
   filter: string,
   cache: Record<string, CachedSprintTicket>,
+  hideClosedStatuses: boolean,
   visited = new Set<string>()
 ): boolean {
   if (visited.has(ticketId)) return false;
   visited.add(ticketId);
   const cached = cache[ticketId];
   if (!cached) return false;
+  if (hideClosedStatuses && isHiddenStatus(cached.status)) return false;
   if (assigneeKey(cached.assignee) === filter) return true;
-  return (cached.children || []).some((cid) => hasMatchingDescendant(cid, filter, cache, visited));
+  return (cached.children || []).some((cid) => hasMatchingDescendant(cid, filter, cache, hideClosedStatuses, visited));
+}
+
+function hasMatchingStatusDescendant(
+  ticketId: string,
+  category: StatusCategory,
+  cache: Record<string, CachedSprintTicket>,
+  hideClosedStatuses: boolean,
+  visited = new Set<string>()
+): boolean {
+  if (visited.has(ticketId)) return false;
+  visited.add(ticketId);
+  const cached = cache[ticketId];
+  if (!cached) return false;
+  if (hideClosedStatuses && isHiddenStatus(cached.status)) return false;
+  if (getStatusCategory(cached.status) === category) return true;
+  return (cached.children || []).some((cid) => hasMatchingStatusDescendant(cid, category, cache, hideClosedStatuses, visited));
 }
 
 function renderTicketRows({
@@ -313,6 +481,8 @@ function renderTicketRows({
   formatDate,
   showChildTickets,
   filterAssignee,
+  filterStatusCategory,
+  hideClosedStatuses,
   ticket,
   depth = 0,
   visited = new Set<string>(),
@@ -324,6 +494,8 @@ function renderTicketRows({
   formatDate: (iso: string) => string;
   showChildTickets: boolean;
   filterAssignee: string | null;
+  filterStatusCategory: StatusCategory | null;
+  hideClosedStatuses: boolean;
   ticket: SprintTicket | CachedSprintTicket;
   depth?: number;
   visited?: Set<string>;
@@ -346,9 +518,19 @@ function renderTicketRows({
   const childVisited = new Set(visited);
   childVisited.add(ticket.id);
 
+  if (hideClosedStatuses && isHiddenStatus(displayTicket.status)) {
+    return [];
+  }
+
   if (filterAssignee !== null) {
     const selfMatch = assigneeKey(displayTicket.assignee) === filterAssignee;
-    const childMatch = childIds.some((cid) => hasMatchingDescendant(cid, filterAssignee, ticketCache));
+    const childMatch = childIds.some((cid) => hasMatchingDescendant(cid, filterAssignee, ticketCache, hideClosedStatuses));
+    if (!selfMatch && !childMatch) return [];
+  }
+
+  if (filterStatusCategory !== null) {
+    const selfMatch = getStatusCategory(displayTicket.status) === filterStatusCategory;
+    const childMatch = childIds.some((cid) => hasMatchingStatusDescendant(cid, filterStatusCategory, ticketCache, hideClosedStatuses));
     if (!selfMatch && !childMatch) return [];
   }
 
@@ -390,20 +572,14 @@ function renderTicketRows({
         <td className="px-3 py-2 text-xs text-gray-700">
           {shortName(displayTicket.assignee) || 'Unassigned'}
         </td>
+        <td className="px-3 py-2 text-xs text-gray-500">
+          {cached?.fixVersions?.length ? cached.fixVersions.join(', ') : '-'}
+        </td>
         <td className="px-3 py-2 text-xs text-gray-500 font-mono text-center">
           {displayTicket.storyPoints ? displayTicket.storyPoints : '-'}
         </td>
         <td className="px-3 py-2 text-xs text-gray-500">
           {cached?.lastUpdatedAt ? formatDate(cached.lastUpdatedAt) : '-'}
-        </td>
-        <td className="px-3 py-2">
-          <button
-            onClick={() => onReloadTicket(ticket.id)}
-            disabled={isReloading}
-            className="px-2 py-1 text-xs font-medium rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-          >
-            {isReloading ? '...' : 'Reload'}
-          </button>
         </td>
       </tr>
     ),
@@ -422,6 +598,8 @@ function renderTicketRows({
       formatDate,
       showChildTickets,
       filterAssignee,
+      filterStatusCategory,
+      hideClosedStatuses,
       ticket: child,
       depth: depth + 1,
       visited: childVisited,
@@ -440,6 +618,9 @@ function SprintTable({
   formatDate,
   showChildTickets,
   filterAssignee,
+  filterStatusCategory = null,
+  hideClosedStatuses,
+  pageId = '',
 }: {
   data: SprintData;
   jiraBase: string;
@@ -449,6 +630,9 @@ function SprintTable({
   formatDate: (iso: string) => string;
   showChildTickets: boolean;
   filterAssignee: string | null;
+  filterStatusCategory?: StatusCategory | null;
+  hideClosedStatuses: boolean;
+  pageId?: string;
 }) {
   return (
     <div className="space-y-6">
@@ -469,9 +653,9 @@ function SprintTable({
                   <th className="text-left px-3 py-2 font-semibold w-[90px]">Loại</th>
                   <th className="text-left px-3 py-2 font-semibold w-[130px]">Trạng thái</th>
                   <th className="text-left px-3 py-2 font-semibold w-[150px]">Assignee</th>
+                  <th className="text-left px-3 py-2 font-semibold w-[140px]">Fix Version</th>
                   <th className="text-left px-3 py-2 font-semibold w-[52px]">SP</th>
                   <th className="text-left px-3 py-2 font-semibold w-[170px]">Last update</th>
-                  <th className="text-left px-3 py-2 font-semibold w-[90px]"></th>
                 </tr>
               </thead>
               <tbody>
@@ -498,6 +682,7 @@ function SprintTable({
                             </a>
                           )}
                           <span className="font-semibold text-gray-900 text-sm">{item.title}</span>
+                          <PoStatusBadge item={item} ticketCache={ticketCache} pageId={pageId} />
                         </div>
                       </td>
                     </tr>
@@ -520,6 +705,8 @@ function SprintTable({
                               formatDate,
                               showChildTickets,
                               filterAssignee,
+                              filterStatusCategory,
+                              hideClosedStatuses,
                               ticket,
                             })}
                           </React.Fragment>
@@ -542,11 +729,19 @@ function SprintSummaryTable({
   ticketCache,
   selectedAssignee,
   onSelectAssignee,
+  hideClosedStatuses,
+  filterStatusCategory,
+  onSelectStatusFilter,
+  onClearFilters,
 }: {
   data: SprintData;
   ticketCache: Record<string, CachedSprintTicket>;
   selectedAssignee: string | null;
   onSelectAssignee: (name: string) => void;
+  hideClosedStatuses: boolean;
+  filterStatusCategory: StatusCategory | null;
+  onSelectStatusFilter: (assignee: string, category: StatusCategory) => void;
+  onClearFilters: () => void;
 }) {
   const ROLE_ORDER: Record<string, number> = {
     'Software Engineer': 1,
@@ -558,7 +753,7 @@ function SprintSummaryTable({
 
   function normalizeRole(raw: string): string {
     const t = raw.toLowerCase();
-    if (t.includes('software engineer') || t.includes('software engineer')) return 'Software Engineer';
+    if (t.includes('software engineer')) return 'Software Engineer';
     if (t.includes('mobile engineer')) return 'Mobile Engineer';
     if (t.includes('qa manual')) return 'QA Manual Engineer';
     if (t.includes('qa automation')) return 'QA Automation Engineer';
@@ -582,16 +777,22 @@ function SprintSummaryTable({
     }
   }
 
-  const assigneeMap = new Map<string, { count: number; points: number; rawAssignee: string }>();
+  const assigneeMap = new Map<string, { count: number; points: number; rawAssignee: string; todo: number; inProgress: number; done: number; other: number }>();
   for (const ticketId of allTicketIds) {
     const cached = ticketCache[ticketId];
+    if (hideClosedStatuses && cached && isHiddenStatus(cached.status)) continue;
     const rawAssignee = cached?.assignee || '';
     const clean = stripRoleSuffix(rawAssignee) || 'Unassigned';
-    const entry = assigneeMap.get(clean) || { count: 0, points: 0, rawAssignee: rawAssignee || 'Unassigned' };
+    const entry = assigneeMap.get(clean) || { count: 0, points: 0, rawAssignee: rawAssignee || 'Unassigned', todo: 0, inProgress: 0, done: 0, other: 0 };
     entry.count++;
     if ((cached?.type || '').toLowerCase() !== 'story') {
       entry.points += cached?.storyPoints || 0;
     }
+    const cat = getStatusCategory(cached?.status || '');
+    if (cat === 'todo') entry.todo++;
+    else if (cat === 'in-progress') entry.inProgress++;
+    else if (cat === 'done') entry.done++;
+    else entry.other++;
     assigneeMap.set(clean, entry);
   }
 
@@ -600,7 +801,6 @@ function SprintSummaryTable({
   }
 
   const sorted = Array.from(assigneeMap.entries()).sort((a, b) => {
-    // Unassigned always last
     if (a[0] === 'Unassigned' && b[0] !== 'Unassigned') return 1;
     if (b[0] === 'Unassigned' && a[0] !== 'Unassigned') return -1;
     const roleA = resolveRole(a[0], a[1].rawAssignee);
@@ -613,6 +813,10 @@ function SprintSummaryTable({
 
   const totalTickets = Array.from(assigneeMap.values()).reduce((sum, e) => sum + e.count, 0);
   const totalPoints = Array.from(assigneeMap.values()).reduce((sum, e) => sum + e.points, 0);
+  const totalTodo = Array.from(assigneeMap.values()).reduce((sum, e) => sum + e.todo, 0);
+  const totalInProgress = Array.from(assigneeMap.values()).reduce((sum, e) => sum + e.inProgress, 0);
+  const totalDone = Array.from(assigneeMap.values()).reduce((sum, e) => sum + e.done, 0);
+  const totalOther = Array.from(assigneeMap.values()).reduce((sum, e) => sum + e.other, 0);
 
   if (sorted.length === 0) return null;
 
@@ -627,16 +831,23 @@ function SprintSummaryTable({
     }
   }
 
+  const catCellClass = (cat: StatusCategory, assignee: string) => {
+    const isActive = selectedAssignee === assignee && filterStatusCategory === cat;
+    const baseHover = cat === 'todo' ? 'hover:bg-yellow-50' : cat === 'in-progress' ? 'hover:bg-blue-50' : cat === 'done' ? 'hover:bg-emerald-50' : 'hover:bg-orange-50';
+    const activeClass = cat === 'todo' ? 'bg-yellow-100 font-bold' : cat === 'in-progress' ? 'bg-blue-100 font-bold' : cat === 'done' ? 'bg-emerald-100 font-bold' : 'bg-orange-100 font-bold';
+    return `px-4 py-2.5 text-sm text-center cursor-pointer transition-colors ${isActive ? activeClass : baseHover}`;
+  };
+
   return (
     <div className="mt-6 rounded-xl bg-white shadow-sm border border-gray-100">
       <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
         <h3 className="font-bold text-gray-900">Summary theo cá nhân</h3>
-        {selectedAssignee && (
+        {(selectedAssignee || filterStatusCategory) && (
           <button
-            onClick={() => onSelectAssignee(selectedAssignee)}
+            onClick={onClearFilters}
             className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
           >
-            ✕ Bỏ filter: {shortName(selectedAssignee)}
+            ✕ Bỏ filter{selectedAssignee ? `: ${shortName(selectedAssignee)}` : ''}{filterStatusCategory ? ` (${filterStatusCategory})` : ''}
           </button>
         )}
       </div>
@@ -646,20 +857,32 @@ function SprintSummaryTable({
             <tr className="bg-gray-100 text-xs text-gray-500 uppercase tracking-wide">
               <th className="text-left px-4 py-2.5 font-semibold">Assignee</th>
               <th className="text-left px-4 py-2.5 font-semibold">Role</th>
-              <th className="text-center px-4 py-2.5 font-semibold">Số ticket</th>
               <th className="text-center px-4 py-2.5 font-semibold">Tổng SP</th>
+              <th className="text-center px-4 py-2.5 font-semibold">Tổng ticket</th>
+              <th className="text-center px-4 py-2.5 font-semibold text-yellow-700">Todo</th>
+              <th className="text-center px-4 py-2.5 font-semibold text-blue-700">In-progress</th>
+              <th className="text-center px-4 py-2.5 font-semibold text-emerald-700">Done</th>
+              <th className="text-center px-4 py-2.5 font-semibold text-orange-700">Other</th>
             </tr>
           </thead>
           <tbody>
             {grouped.map((group) => {
               const groupTickets = group.members.reduce((s, [, m]) => s + m.count, 0);
               const groupPoints = group.members.reduce((s, [, m]) => s + m.points, 0);
+              const groupTodo = group.members.reduce((s, [, m]) => s + m.todo, 0);
+              const groupInProgress = group.members.reduce((s, [, m]) => s + m.inProgress, 0);
+              const groupDone = group.members.reduce((s, [, m]) => s + m.done, 0);
+              const groupOther = group.members.reduce((s, [, m]) => s + m.other, 0);
               return (
                 <React.Fragment key={group.role || '__none__'}>
                   <tr className="bg-blue-50 border-t border-blue-100">
                     <td className="px-4 py-2 text-sm font-bold text-blue-800" colSpan={2}>{group.role || 'Khác'}</td>
-                    <td className="px-4 py-2 text-sm font-bold text-blue-800 text-center">{groupTickets}</td>
                     <td className="px-4 py-2 text-sm font-bold text-blue-800 text-center">{groupPoints}</td>
+                    <td className="px-4 py-2 text-sm font-bold text-blue-800 text-center">{groupTickets}</td>
+                    <td className="px-4 py-2 text-sm font-bold text-blue-800 text-center">{groupTodo || '-'}</td>
+                    <td className="px-4 py-2 text-sm font-bold text-blue-800 text-center">{groupInProgress || '-'}</td>
+                    <td className="px-4 py-2 text-sm font-bold text-blue-800 text-center">{groupDone || '-'}</td>
+                    <td className="px-4 py-2 text-sm font-bold text-blue-800 text-center">{groupOther || '-'}</td>
                   </tr>
                   {group.members.map(([assignee, stats]) => {
                     const isSelected = selectedAssignee === assignee;
@@ -667,15 +890,30 @@ function SprintSummaryTable({
                       <tr
                         key={assignee}
                         onClick={() => onSelectAssignee(assignee)}
-                        className={`border-t border-gray-100 cursor-pointer transition-colors ${isSelected ? 'bg-blue-100 hover:bg-blue-200' : 'hover:bg-gray-50'}`}
+                        className={`border-t border-gray-100 cursor-pointer transition-colors ${isSelected && !filterStatusCategory ? 'bg-blue-100 hover:bg-blue-200' : 'hover:bg-gray-50'}`}
                       >
                         <td className={`px-4 py-2.5 text-sm font-medium pl-8 ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>
                           {shortName(assignee)}
-                          {isSelected && <span className="ml-1.5 text-xs text-blue-500">▶ đang lọc</span>}
+                          {isSelected && !filterStatusCategory && <span className="ml-1.5 text-xs text-blue-500">▶ đang lọc</span>}
                         </td>
                         <td className="px-4 py-2.5 text-xs text-gray-500">{group.role || '-'}</td>
+                        <td className="px-4 py-2.5 text-sm text-gray-900 text-center font-semibold">{stats.points || '-'}</td>
                         <td className="px-4 py-2.5 text-sm text-gray-900 text-center font-semibold">{stats.count}</td>
-                        <td className="px-4 py-2.5 text-sm text-gray-900 text-center font-semibold">{stats.points}</td>
+                        {(['todo', 'in-progress', 'done', 'other'] as StatusCategory[]).map((cat) => {
+                          const cnt = cat === 'todo' ? stats.todo : cat === 'in-progress' ? stats.inProgress : cat === 'done' ? stats.done : stats.other;
+                          return (
+                            <td
+                              key={cat}
+                              className={catCellClass(cat, assignee)}
+                              onClick={(e) => { e.stopPropagation(); onSelectStatusFilter(assignee, cat); }}
+                            >
+                              {cnt || '-'}
+                              {selectedAssignee === assignee && filterStatusCategory === cat && (
+                                <span className="ml-1 text-xs opacity-60">▶</span>
+                              )}
+                            </td>
+                          );
+                        })}
                       </tr>
                     );
                   })}
@@ -684,8 +922,12 @@ function SprintSummaryTable({
             })}
             <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
               <td className="px-4 py-2.5 text-sm text-gray-900" colSpan={2}>Tổng cộng</td>
-              <td className="px-4 py-2.5 text-sm text-gray-900 text-center">{totalTickets}</td>
               <td className="px-4 py-2.5 text-sm text-gray-900 text-center">{totalPoints}</td>
+              <td className="px-4 py-2.5 text-sm text-gray-900 text-center">{totalTickets}</td>
+              <td className="px-4 py-2.5 text-sm text-gray-900 text-center">{totalTodo || '-'}</td>
+              <td className="px-4 py-2.5 text-sm text-gray-900 text-center">{totalInProgress || '-'}</td>
+              <td className="px-4 py-2.5 text-sm text-gray-900 text-center">{totalDone || '-'}</td>
+              <td className="px-4 py-2.5 text-sm text-gray-900 text-center">{totalOther || '-'}</td>
             </tr>
           </tbody>
         </table>
@@ -702,6 +944,7 @@ function HistoryItem({
   onReloadTicket,
   formatDate,
   showChildTickets,
+  hideClosedStatuses,
 }: {
   r: AnalysisResult;
   jiraBase: string;
@@ -710,6 +953,7 @@ function HistoryItem({
   onReloadTicket: (ticketId: string) => void;
   formatDate: (iso: string) => string;
   showChildTickets: boolean;
+  hideClosedStatuses: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const parsed = open ? parseSprintJSON(r.result) : null;
@@ -734,6 +978,7 @@ function HistoryItem({
               formatDate={formatDate}
               showChildTickets={showChildTickets}
               filterAssignee={null}
+              hideClosedStatuses={hideClosedStatuses}
             />
           ) : (
             <pre className="whitespace-pre-wrap text-xs text-gray-700 font-mono leading-relaxed">{r.result}</pre>
@@ -753,10 +998,24 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
   const [ticketCache, setTicketCache] = useState<Record<string, CachedSprintTicket>>({});
   const [reloadingTicketIds, setReloadingTicketIds] = useState<Set<string>>(new Set());
   const [showChildTickets, setShowChildTickets] = useState(true);
+  const [hideClosedStatuses, setHideClosedStatuses] = useState(true);
   const [selectedAssignee, setSelectedAssignee] = useState<string | null>(null);
+  const [filterStatusCategory, setFilterStatusCategory] = useState<StatusCategory | null>(null);
 
   const handleSelectAssignee = (name: string) => {
     setSelectedAssignee((prev) => (prev === name ? null : name));
+    setFilterStatusCategory(null);
+  };
+
+  const handleSelectStatusFilter = (assignee: string, category: StatusCategory) => {
+    const isSame = selectedAssignee === assignee && filterStatusCategory === category;
+    setSelectedAssignee(isSame ? null : assignee);
+    setFilterStatusCategory(isSame ? null : category);
+  };
+
+  const handleClearFilters = () => {
+    setSelectedAssignee(null);
+    setFilterStatusCategory(null);
   };
 
   const jiraBase = page.url ? page.url.split('/wiki')[0] : 'https://cakedigitalbank.atlassian.net';
@@ -854,7 +1113,7 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
   const historyResults = results.slice(1);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-48">
       <div className="rounded-xl bg-white shadow-sm border border-gray-100">
         <div className="px-6 py-4 border-b border-gray-100">
           <h2 className="font-bold text-gray-900 flex items-center gap-2">
@@ -920,6 +1179,12 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
                   {showChildTickets ? 'Thu gọn ticket con' : 'Hiện ticket con'}
                 </button>
                 <button
+                  onClick={() => setHideClosedStatuses((prev) => !prev)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${hideClosedStatuses ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}
+                >
+                  {hideClosedStatuses ? 'Đang ẩn WND/RBD' : 'Hiện WND/RBD'}
+                </button>
+                <button
                   onClick={() => handleReloadTickets(latestTicketIds)}
                   disabled={latestTicketIds.length === 0 || reloadingTicketIds.size > 0}
                   className="px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50"
@@ -948,12 +1213,19 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
                   formatDate={formatDate}
                   showChildTickets={showChildTickets}
                   filterAssignee={selectedAssignee}
+                  filterStatusCategory={filterStatusCategory}
+                  hideClosedStatuses={hideClosedStatuses}
+                  pageId={page.pageId}
                 />
                 <SprintSummaryTable
                   data={latestParsed}
                   ticketCache={ticketCache}
                   selectedAssignee={selectedAssignee}
                   onSelectAssignee={handleSelectAssignee}
+                  hideClosedStatuses={hideClosedStatuses}
+                  filterStatusCategory={filterStatusCategory}
+                  onSelectStatusFilter={handleSelectStatusFilter}
+                  onClearFilters={handleClearFilters}
                 />
               </>
             ) : (
@@ -979,6 +1251,7 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
                       onReloadTicket={(ticketId) => handleReloadTickets([ticketId])}
                       formatDate={formatDate}
                       showChildTickets={showChildTickets}
+                      hideClosedStatuses={hideClosedStatuses}
                     />
                   ))}
                 </div>

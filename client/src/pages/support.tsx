@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supportAPI } from '../utils/api';
+import { supportAPI, jiraAPI } from '../utils/api';
 import AdfRenderer from '../components/AdfRenderer';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
@@ -67,6 +67,110 @@ function groupTickets(tickets: Ticket[]): { label: string; items: Ticket[] }[] {
     { label: 'Closed — Analyzed', items: closedDone },
   ].filter((g) => g.items.length > 0);
 }
+
+function workingDaysSince(createdIso: string): number {
+  if (!createdIso) return 0;
+  const start = new Date(createdIso);
+  const today = new Date();
+  start.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  if (start > today) return 0;
+  let count = 0;
+  const cursor = new Date(start);
+  while (cursor <= today) {
+    const day = cursor.getDay();
+    if (day !== 0 && day !== 6) count++;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return count;
+}
+
+function workingDaysClass(days: number): string {
+  if (days > 10) return 'text-red-600 font-semibold';
+  if (days > 5) return 'text-orange-500 font-medium';
+  return 'text-gray-600';
+}
+
+const JIRA_BASE = 'https://cakedigitalbank.atlassian.net';
+
+const cmdClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+  if (!e.metaKey && !e.ctrlKey) e.preventDefault();
+};
+
+interface JiraRawIssue {
+  id: string;
+  key: string;
+  fields: Record<string, any>;
+}
+
+async function fetchAllJiraPages(jql: string, fields: string[]): Promise<JiraRawIssue[]> {
+  const all: JiraRawIssue[] = [];
+  let nextPageToken: string | undefined;
+  for (;;) {
+    const res = await jiraAPI.searchIssues({ jql, maxResults: 100, fields, nextPageToken });
+    const data = res.data.data as { issues: JiraRawIssue[]; nextPageToken?: string; isLast?: boolean };
+    const page = data.issues || [];
+    all.push(...page);
+    if (!page.length || data.isLast || !data.nextPageToken) break;
+    nextPageToken = data.nextPageToken;
+  }
+  return all;
+}
+
+function adfText(node: any): string {
+  if (!node) return '';
+  if (typeof node === 'string') return node;
+  if (Array.isArray(node)) return node.map(adfText).join(' ');
+  if (node.text) return node.text;
+  if (node.content) return adfText(node.content);
+  return '';
+}
+
+function issueCommentsText(issue: JiraRawIssue): string {
+  const comments: any[] = issue.fields?.comment?.comments || [];
+  return comments.map((c: any) => adfText(c.body) + ' ' + (typeof c.body === 'string' ? c.body : '')).join(' ');
+}
+
+type Urgency = '🔴' | '🟢' | '🟡';
+
+function calcSvkUrgency(svk: JiraRawIssue, linkedPl: JiraRawIssue[], workingDays: number): Urgency {
+  const title = (svk.fields?.summary || '').toLowerCase();
+  const allText = [issueCommentsText(svk), ...linkedPl.map(issueCommentsText)].join(' ');
+
+  const reducedPriority = /giảm.*ưu tiên|không.*khẩn|không.*gấp|low priority|hạ.*ưu tiên/i.test(allText);
+  const hasMerge = /đã merge|has been merged|merged|hotfix.*deploy|đã deploy|deploy.*done/i.test(allText);
+  const hasVerify = /đã verify|verified|verify.*xong|confirm.*fix|đã confirm/i.test(allText);
+  if (hasMerge && !hasVerify) return '🟢';
+
+  if (!reducedPriority) {
+    if (workingDays >= 5) return '🔴';
+    if (/gấp|urgent|ảnh hưởng nhiều|nhiều kh\b|nhiều khách|dpd.*tăng|tăng.*dpd|cần xử lý gấp/i.test(title)) return '🔴';
+  }
+
+  return '🟡';
+}
+
+function checkIsRecurrence(linkedPl: JiraRawIssue[]): boolean {
+  if (linkedPl.length < 2) return false;
+  const CLOSED_TERMS = ['done', 'invalid', 'test passed', 'closed', 'cancelled'];
+  const isClosed = (pl: JiraRawIssue) => CLOSED_TERMS.some(t => (pl.fields?.status?.name || '').toLowerCase().includes(t));
+  return linkedPl.some(isClosed) && linkedPl.some(pl => !isClosed(pl));
+}
+
+interface SvkRow {
+  svk: JiraRawIssue;
+  linkedPlKeys: string[];
+  linkedPlIssues: JiraRawIssue[];
+  workingDays: number;
+  urgency: Urgency;
+  isRecurrence: boolean;
+}
+
+const SVK_JQL = `project = SVK AND "Request Type" IN ("Lending Onboarding DOP","Lending Onboarding API","Lending Onboarding Appcake","Lending Disburse","Lending Payment Installment","Lending Repayment","Lending Get Detail","Lending Termination","Lending Core","Lending Portal Support","Lending Risk Support","Lending Others") AND status NOT IN (Done,Cancelled,Ready4Test,"Waiting for customer") ORDER BY created DESC`;
+
+const PL_BROAD_JQL = `project in (PL,PLO,DOP) AND created >= -30d AND issueLinkType = "causes" AND status NOT IN (Invalid,"Test Passed")`;
+
+const URGENCY_ORDER: Record<Urgency, number> = { '🔴': 0, '🟡': 1, '🟢': 2 };
 
 function statusBadge(status: string): string {
   const s = status.toLowerCase();
@@ -404,6 +508,9 @@ const SavedTicketsTab: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(['Closed — Analyzed']));
+  const [scanning, setScanning] = useState(false);
+  const [scanMsg, setScanMsg] = useState<string | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
 
   const toggleGroup = (label: string) =>
     setCollapsed((prev) => {
@@ -412,13 +519,30 @@ const SavedTicketsTab: React.FC = () => {
       return next;
     });
 
-  useEffect(() => {
+  const loadTickets = () =>
     supportAPI
       .getTickets()
       .then((res) => setTickets(res.data))
       .catch((err) => setError(err?.message || 'Failed to load'))
       .finally(() => setLoading(false));
-  }, []);
+
+  useEffect(() => { loadTickets(); }, []);
+
+  const handleQuickScan = async () => {
+    setScanning(true);
+    setScanMsg(null);
+    setScanError(null);
+    try {
+      const res = await supportAPI.scan('Scan Un-closed');
+      setScanMsg(`✓ ${res.data.message} — Total: ${res.data.total}, Open: ${res.data.open}, Recently closed: ${res.data.recentlyClosed}`);
+      const ticketsRes = await supportAPI.getTickets();
+      setTickets(ticketsRes.data);
+    } catch (err: any) {
+      setScanError(err?.response?.data?.message || err?.message || 'Scan failed');
+    } finally {
+      setScanning(false);
+    }
+  };
 
   const handleAnalyzeSaved = (id: string, note: string) => {
     setTickets((prev) => prev.map((t) => (t._id === id ? { ...t, analyzeNote: note } : t)));
@@ -446,8 +570,19 @@ const SavedTicketsTab: React.FC = () => {
       )}
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="px-4 py-3 border-b bg-gray-50 text-sm font-medium text-gray-600">
-          {tickets.length} tickets
+        <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between gap-3 flex-wrap">
+          <span className="text-sm font-medium text-gray-600">{tickets.length} tickets</span>
+          <div className="flex items-center gap-3 flex-wrap">
+            {scanMsg && <span className="text-xs text-green-600">{scanMsg}</span>}
+            {scanError && <span className="text-xs text-red-600">✗ {scanError}</span>}
+            <button
+              onClick={handleQuickScan}
+              disabled={scanning}
+              className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 disabled:opacity-50"
+            >
+              {scanning ? 'Scanning...' : '↻ Scan Un-closed'}
+            </button>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
@@ -462,68 +597,80 @@ const SavedTicketsTab: React.FC = () => {
                 <th className="px-4 py-3 text-left">Sprint</th>
                 <th className="px-4 py-3 text-left">Created</th>
                 <th className="px-4 py-3 text-left">Updated</th>
+                <th className="px-4 py-3 text-center">Days WD</th>
                 <th className="px-4 py-3 text-center">Analyze</th>
               </tr>
             </thead>
             <tbody>
-              {groupTickets(tickets).map(({ label, items }) => (
-                <React.Fragment key={label}>
-                  <tr
-                    className="bg-gray-100 border-t-2 border-gray-300 cursor-pointer select-none hover:bg-gray-200"
-                    onClick={() => toggleGroup(label)}
-                  >
-                    <td colSpan={10} className="px-4 py-2">
-                      <span className="text-xs mr-2 text-gray-500">
-                        {collapsed.has(label) ? '▶' : '▼'}
-                      </span>
-                      <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">
-                        {label}
-                      </span>
-                      <span className="ml-2 text-xs text-gray-400">{items.length} tickets</span>
-                    </td>
-                  </tr>
-                  {!collapsed.has(label) && items.map((t) => (
-
-                    <tr key={t._id} className="hover:bg-gray-50 border-b border-gray-100">
-                      <td className="px-4 py-3 font-mono whitespace-nowrap text-gray-800">
-                        {t.key}
-                      </td>
-                      <td className="px-4 py-3 max-w-xs">
-                        <button
-                          onClick={() => setSelected(t)}
-                          className="text-left text-gray-900 hover:text-blue-600 hover:underline truncate block max-w-xs"
-                        >
-                          {t.title}
-                        </button>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">{t.type}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${statusBadge(t.status)}`}>
-                          {t.status}
+              {groupTickets(tickets).map(({ label, items }) => {
+                const isWorkingGroup = label === 'Working';
+                return (
+                  <React.Fragment key={label}>
+                    <tr
+                      className="bg-gray-100 border-t-2 border-gray-300 cursor-pointer select-none hover:bg-gray-200"
+                      onClick={() => toggleGroup(label)}
+                    >
+                      <td colSpan={11} className="px-4 py-2">
+                        <span className="text-xs mr-2 text-gray-500">
+                          {collapsed.has(label) ? '▶' : '▼'}
                         </span>
-                      </td>
-                      <td className={`px-4 py-3 whitespace-nowrap font-medium ${priorityColor[t.priority] || ''}`}>
-                        {t.priority}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">{t.assignee || '—'}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">{t.sprint || '—'}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
-                        {t.created ? new Date(t.created).toLocaleDateString() : '—'}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
-                        {t.updated ? new Date(t.updated).toLocaleDateString() : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {t.analyzeNote?.trim() ? (
-                          <span title={t.analyzeNote} className="text-green-500 text-base">✓</span>
-                        ) : (
-                          <span className="text-gray-300 text-base">○</span>
-                        )}
+                        <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">
+                          {label}
+                        </span>
+                        <span className="ml-2 text-xs text-gray-400">{items.length} tickets</span>
                       </td>
                     </tr>
-                  ))}
-                </React.Fragment>
-              ))}
+                    {!collapsed.has(label) && items.map((t) => (
+                      <tr key={t._id} className="hover:bg-gray-50 border-b border-gray-100">
+                        <td className="px-4 py-3 font-mono whitespace-nowrap">
+                          <a href={t.hyperlink} target="_blank" rel="noopener noreferrer" onClick={cmdClick} className="text-blue-600 hover:underline cursor-default">
+                            {t.key}
+                          </a>
+                        </td>
+                        <td className="px-4 py-3 max-w-xs">
+                          <button
+                            onClick={() => setSelected(t)}
+                            className="text-left text-gray-900 hover:text-blue-600 hover:underline truncate block max-w-xs"
+                          >
+                            {t.title}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">{t.type}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${statusBadge(t.status)}`}>
+                            {t.status}
+                          </span>
+                        </td>
+                        <td className={`px-4 py-3 whitespace-nowrap font-medium ${priorityColor[t.priority] || ''}`}>
+                          {t.priority}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">{t.assignee || '—'}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">{t.sprint || '—'}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
+                          {t.created ? new Date(t.created).toLocaleDateString() : '—'}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500">
+                          {t.updated ? new Date(t.updated).toLocaleDateString() : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-center text-xs whitespace-nowrap">
+                          {isWorkingGroup && t.created ? (
+                            <span className={workingDaysClass(workingDaysSince(t.created))}>
+                              {workingDaysSince(t.created)}d
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {t.analyzeNote?.trim() ? (
+                            <span title={t.analyzeNote} className="text-green-500 text-base">✓</span>
+                          ) : (
+                            <span className="text-gray-300 text-base">○</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -532,11 +679,223 @@ const SavedTicketsTab: React.FC = () => {
   );
 };
 
+// ── SVK Tickets tab ──────────────────────────────────────────────────────────
+const PL_FIELDS = ['summary', 'status', 'comment', 'description', 'assignee', 'issuelinks', 'customfield_10020'];
+
+function plSprintName(pl: JiraRawIssue): string {
+  const sprints: any[] = pl.fields?.customfield_10020 || [];
+  if (!sprints.length) return '—';
+  const active = sprints.find((s: any) => s.state === 'active') || sprints[sprints.length - 1];
+  return active?.name || '—';
+}
+
+const SVKTicketsTab: React.FC = () => {
+  const [rows, setRows] = useState<SvkRow[]>([]);
+  const [scanning, setScanning] = useState(false);
+  const [scanStep, setScanStep] = useState<string | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scanned, setScanned] = useState(false);
+
+  const handleScan = async () => {
+    setScanning(true);
+    setScanError(null);
+    setScanned(false);
+    try {
+      setScanStep('Bước 1: Lấy SVK tickets...');
+      const svkIssues = await fetchAllJiraPages(SVK_JQL, ['summary', 'status', 'priority', 'created', 'description', 'issuelinks', 'comment']);
+
+      const svkPlMap = new Map<string, Set<string>>();
+      const allPlKeys = new Set<string>();
+      for (const svk of svkIssues) {
+        const linked = new Set<string>();
+        for (const link of (svk.fields?.issuelinks || [])) {
+          const issue = link.inwardIssue || link.outwardIssue;
+          if (issue?.key && /^(PL|PLO|DOP)-\d+$/.test(issue.key)) {
+            linked.add(issue.key);
+            allPlKeys.add(issue.key);
+          }
+        }
+        svkPlMap.set(svk.key, linked);
+      }
+
+      const plMap = new Map<string, JiraRawIssue>();
+
+      if (allPlKeys.size > 0) {
+        setScanStep('Bước 2: Lấy PL tickets liên quan...');
+        const plBroad = await fetchAllJiraPages(PL_BROAD_JQL, PL_FIELDS);
+        for (const pl of plBroad) plMap.set(pl.key, pl);
+
+        const missing = [...allPlKeys].filter(k => !plMap.has(k));
+        if (missing.length > 0) {
+          setScanStep(`Bước 3: Lấy ${missing.length} PL ticket bổ sung...`);
+          const missingIssues = await fetchAllJiraPages(`issueKey in (${missing.join(',')})`, PL_FIELDS);
+          for (const pl of missingIssues) plMap.set(pl.key, pl);
+        }
+      }
+
+      const newRows: SvkRow[] = svkIssues.map(svk => {
+        const plKeys = [...(svkPlMap.get(svk.key) || [])];
+        const linkedPlIssues = plKeys.map(k => plMap.get(k)).filter(Boolean) as JiraRawIssue[];
+        const workingDays = workingDaysSince(svk.fields?.created || '');
+        return {
+          svk,
+          linkedPlKeys: plKeys,
+          linkedPlIssues,
+          workingDays,
+          urgency: calcSvkUrgency(svk, linkedPlIssues, workingDays),
+          isRecurrence: checkIsRecurrence(linkedPlIssues),
+        };
+      }).sort((a, b) => URGENCY_ORDER[a.urgency] - URGENCY_ORDER[b.urgency] || b.workingDays - a.workingDays);
+
+      setRows(newRows);
+      setScanned(true);
+    } catch (err: any) {
+      setScanError(err?.response?.data?.error || err?.message || 'Scan failed');
+    } finally {
+      setScanning(false);
+      setScanStep(null);
+    }
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { handleScan(); }, []);
+
+  const redCount = rows.filter(r => r.urgency === '🔴').length;
+  const yellowCount = rows.filter(r => r.urgency === '🟡').length;
+  const greenCount = rows.filter(r => r.urgency === '🟢').length;
+
+  return (
+    <>
+      <div className="bg-white rounded-lg shadow p-4 mb-4 flex items-center gap-4 flex-wrap">
+        <button
+          onClick={handleScan}
+          disabled={scanning}
+          className="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 font-medium text-sm"
+        >
+          {scanning ? 'Scanning...' : '↻ Scan Un-closed'}
+        </button>
+        {scanning && scanStep && <span className="text-sm text-blue-600">{scanStep}</span>}
+        {scanned && !scanning && (
+          <span className="text-sm text-green-600 font-medium">
+            ✓ {rows.length} tickets — 🔴 {redCount} · 🟡 {yellowCount} · 🟢 {greenCount}
+          </span>
+        )}
+        {scanError && <span className="text-sm text-red-600">✗ {scanError}</span>}
+      </div>
+
+      {rows.length > 0 && (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                <tr>
+                  <th className="px-3 py-3 text-center w-[60px]">Độ khẩn</th>
+                  <th className="px-3 py-3 text-left w-[100px]">Ticket SVK</th>
+                  <th className="px-3 py-3 text-left w-[100px]">PL Linked</th>
+                  <th className="px-3 py-3 text-center w-[75px]">Ngày tuổi</th>
+                  <th className="px-3 py-3 text-left w-[140px]">PL Assignee</th>
+                  <th className="px-3 py-3 text-left w-[120px]">PL Sprint</th>
+                  <th className="px-3 py-3 text-left">Tiêu đề</th>
+                  <th className="px-3 py-3 text-left w-[130px]">TT SVK</th>
+                  <th className="px-3 py-3 text-left w-[140px]">TT PL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(row => (
+                  <tr key={row.svk.key} className="border-t border-gray-100 hover:bg-gray-50 align-top">
+                    <td className="px-3 py-3 text-center text-lg">{row.urgency}</td>
+                    <td className="px-3 py-3 font-mono text-xs whitespace-nowrap">
+                      <a href={`https://internal.support.cake.vn/servicedesk/customer/portal/1/${row.svk.key}`} target="_blank" rel="noopener noreferrer" onClick={cmdClick} className="text-blue-600 hover:underline cursor-default">
+                        {row.svk.key}
+                      </a>
+                    </td>
+                    <td className="px-3 py-3">
+                      {row.linkedPlKeys.length === 0 ? (
+                        <span className="text-gray-400 text-xs">—</span>
+                      ) : (
+                        <div className="space-y-1">
+                          {row.linkedPlKeys.map(key => (
+                            <a key={key} href={`${JIRA_BASE}/browse/${key}`} target="_blank" rel="noopener noreferrer" onClick={cmdClick} className="block font-mono text-xs text-blue-600 hover:underline cursor-default">
+                              {key}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-3 text-center text-xs whitespace-nowrap">
+                      <span className={workingDaysClass(row.workingDays)}>{row.workingDays}d</span>
+                    </td>
+                    <td className="px-3 py-3">
+                      {row.linkedPlKeys.length === 0 ? (
+                        <span className="text-gray-400 text-xs">—</span>
+                      ) : (
+                        <div className="space-y-1">
+                          {row.linkedPlKeys.map(key => {
+                            const pl = row.linkedPlIssues.find(p => p.key === key);
+                            return <span key={key} className="block text-xs text-gray-700">{pl?.fields?.assignee?.displayName || '—'}</span>;
+                          })}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-3">
+                      {row.linkedPlKeys.length === 0 ? (
+                        <span className="text-gray-400 text-xs">—</span>
+                      ) : (
+                        <div className="space-y-1">
+                          {row.linkedPlKeys.map(key => {
+                            const pl = row.linkedPlIssues.find(p => p.key === key);
+                            return <span key={key} className="block text-xs text-gray-500">{pl ? plSprintName(pl) : '—'}</span>;
+                          })}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="flex items-start gap-2 flex-wrap">
+                        <span className="text-gray-900 text-sm">{row.svk.fields?.summary}</span>
+                        {row.isRecurrence && (
+                          <span className="shrink-0 text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium">♻ Tái phát</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusBadge(row.svk.fields?.status?.name || '')}`}>
+                        {row.svk.fields?.status?.name}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3">
+                      {row.linkedPlKeys.length === 0 ? (
+                        <span className="text-gray-400 text-xs">—</span>
+                      ) : (
+                        <div className="space-y-1">
+                          {row.linkedPlKeys.map(key => {
+                            const pl = row.linkedPlIssues.find(p => p.key === key);
+                            return pl ? (
+                              <span key={key} className={`block px-1.5 py-0.5 rounded text-xs font-medium w-fit ${statusBadge(pl.fields?.status?.name || '')}`}>
+                                {pl.fields?.status?.name}
+                              </span>
+                            ) : (
+                              <span key={key} className="block text-xs text-gray-400">—</span>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
 // ── Page ──────────────────────────────────────────────────────────────────────
-type Tab = 'scan' | 'saved';
+type Tab = 'svk' | 'pl' | 'scan';
 
 const Support: React.FC = () => {
-  const [tab, setTab] = useState<Tab>('saved');
+  const [tab, setTab] = useState<Tab>('svk');
 
   return (
     <div className="p-6">
@@ -544,7 +903,7 @@ const Support: React.FC = () => {
 
       {/* sub-menu */}
       <div className="flex gap-1 mb-6 border-b border-gray-200">
-        {([['saved', 'Saved Tickets'], ['scan', 'Scan']] as [Tab, string][]).map(([key, label]) => (
+        {([['svk', 'SVK Tickets'], ['pl', 'PL Tickets'], ['scan', 'Scan']] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -559,7 +918,7 @@ const Support: React.FC = () => {
         ))}
       </div>
 
-      {tab === 'scan' ? <ScanTab /> : <SavedTicketsTab />}
+      {tab === 'svk' ? <SVKTicketsTab /> : tab === 'scan' ? <ScanTab /> : <SavedTicketsTab />}
     </div>
   );
 };

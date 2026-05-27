@@ -17,6 +17,7 @@ interface SprintTicketCacheItem {
   jiraUpdatedAt?: string;
   parentId?: string;
   children?: string[];
+  fixVersions?: string[];
 }
 
 function uniqueTicketIds(rawIds: unknown): string[] {
@@ -76,6 +77,9 @@ function writeIssueToCache(
     jiraUpdatedAt: fields.updated || cache[issue.key]?.jiraUpdatedAt,
     parentId: parentId || readParentId(issue) || cache[issue.key]?.parentId,
     children: children || cache[issue.key]?.children || [],
+    fixVersions: Array.isArray(fields.fixVersions)
+      ? fields.fixVersions.map((v: any) => v.name).filter(Boolean)
+      : cache[issue.key]?.fixVersions || [],
   };
 }
 
@@ -114,7 +118,7 @@ async function reloadTicketsFromJira(ids: string[]): Promise<Record<string, Spri
   const rootIds = uniqueTicketIds(ids);
   const result = await jiraService.searchIssuesWithOptions(buildTicketJql(rootIds), {
     maxResults: Math.max(ids.length, 50),
-    fields: ['summary', 'status', 'issuetype', 'updated', 'subtasks', 'parent', 'assignee'],
+    fields: ['summary', 'status', 'issuetype', 'updated', 'subtasks', 'parent', 'assignee', 'fixVersions'],
   });
   const now = new Date().toISOString();
   const seenIds = new Set<string>();
@@ -163,7 +167,7 @@ async function reloadTicketsFromJira(ids: string[]): Promise<Record<string, Spri
 
     const childResult = await jiraService.searchIssuesWithOptions(buildParentJql(parentIds), {
       maxResults: Math.max(parentIds.length * 50, 50),
-      fields: ['summary', 'status', 'issuetype', 'updated', 'parent', 'subtasks', 'assignee'],
+      fields: ['summary', 'status', 'issuetype', 'updated', 'parent', 'subtasks', 'assignee', 'fixVersions'],
     });
     const childIssues = childResult.issues || [];
     if (!childIssues.length) break;
@@ -179,7 +183,7 @@ async function reloadTicketsFromJira(ids: string[]): Promise<Record<string, Spri
 
     const missingResult = await jiraService.searchIssuesWithOptions(buildTicketJql(missingIds), {
       maxResults: Math.max(missingIds.length, 50),
-      fields: ['summary', 'status', 'issuetype', 'updated', 'parent', 'subtasks', 'assignee'],
+      fields: ['summary', 'status', 'issuetype', 'updated', 'parent', 'subtasks', 'assignee', 'fixVersions'],
     });
     recordIssues(missingResult.issues || []);
   }

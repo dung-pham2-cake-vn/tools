@@ -441,68 +441,36 @@ function assigneeKey(rawAssignee: string | undefined): string {
   return stripRoleSuffix(rawAssignee || '') || 'Unassigned';
 }
 
-function hasMatchingDescendant(
-  ticketId: string,
-  filter: string,
-  cache: Record<string, CachedSprintTicket>,
-  hideClosedStatuses: boolean,
-  visited = new Set<string>()
-): boolean {
-  if (visited.has(ticketId)) return false;
-  visited.add(ticketId);
-  const cached = cache[ticketId];
-  if (!cached) return false;
-  if (hideClosedStatuses && isHiddenStatus(cached.status)) return false;
-  if (assigneeKey(cached.assignee) === filter) return true;
-  return (cached.children || []).some((cid) => hasMatchingDescendant(cid, filter, cache, hideClosedStatuses, visited));
-}
-
-function hasMatchingStatusDescendant(
-  ticketId: string,
-  category: StatusCategory,
-  cache: Record<string, CachedSprintTicket>,
-  hideClosedStatuses: boolean,
-  visited = new Set<string>()
-): boolean {
-  if (visited.has(ticketId)) return false;
-  visited.add(ticketId);
-  const cached = cache[ticketId];
-  if (!cached) return false;
-  if (hideClosedStatuses && isHiddenStatus(cached.status)) return false;
-  if (getStatusCategory(cached.status) === category) return true;
-  return (cached.children || []).some((cid) => hasMatchingStatusDescendant(cid, category, cache, hideClosedStatuses, visited));
-}
+// ─── Ticket row renderer ──────────────────────────────────────────────────────
 
 function renderTicketRows({
   jiraBase,
   ticketCache,
-  reloadingTicketIds,
-  onReloadTicket,
   formatDate,
   showChildTickets,
-  filterAssignee,
+  filterAssignees,
   filterStatusCategory,
   hideClosedStatuses,
+  collapsedTicketIds,
+  onToggleTicket,
   ticket,
   depth = 0,
   visited = new Set<string>(),
 }: {
   jiraBase: string;
   ticketCache: Record<string, CachedSprintTicket>;
-  reloadingTicketIds: Set<string>;
-  onReloadTicket: (ticketId: string) => void;
   formatDate: (iso: string) => string;
   showChildTickets: boolean;
-  filterAssignee: string | null;
+  filterAssignees: string[] | null;
   filterStatusCategory: StatusCategory | null;
   hideClosedStatuses: boolean;
+  collapsedTicketIds: Set<string>;
+  onToggleTicket: (id: string) => void;
   ticket: SprintTicket | CachedSprintTicket;
   depth?: number;
   visited?: Set<string>;
 }): React.ReactNode[] {
-  if (!ticket?.id || visited.has(ticket.id)) {
-    return [];
-  }
+  if (!ticket?.id || visited.has(ticket.id)) return [];
 
   const cached = ticketCache[ticket.id];
   const displayTicket = {
@@ -512,26 +480,45 @@ function renderTicketRows({
     type: cached?.type || ticket.type,
     status: cached?.status || ticket.status,
   };
-  const isReloading = reloadingTicketIds.has(ticket.id);
   const childIds = cached?.children || [];
   const rowKeyPrefix = `${ticket.id}-${depth}`;
   const childVisited = new Set(visited);
   childVisited.add(ticket.id);
 
+  const recurseChildren = (resetDepth: boolean): React.ReactNode[] => {
+    const childRows: React.ReactNode[] = [];
+    childIds.forEach((childId) => {
+      const child = ticketCache[childId];
+      if (!child) return;
+      childRows.push(...renderTicketRows({
+        jiraBase, ticketCache, formatDate, showChildTickets,
+        filterAssignees, filterStatusCategory, hideClosedStatuses,
+        collapsedTicketIds, onToggleTicket,
+        ticket: child,
+        depth: resetDepth ? 0 : depth + 1,
+        visited: childVisited,
+      }));
+    });
+    return childRows;
+  };
+
+  const isCollapsed = collapsedTicketIds.has(ticket.id);
+  const hasChildren = childIds.length > 0;
+
   if (hideClosedStatuses && isHiddenStatus(displayTicket.status)) {
-    return [];
+    // Hidden from display but still recurse to surface matching children
+    return (filterAssignees !== null || filterStatusCategory !== null) ? recurseChildren(true) : [];
   }
 
-  if (filterAssignee !== null) {
-    const selfMatch = assigneeKey(displayTicket.assignee) === filterAssignee;
-    const childMatch = childIds.some((cid) => hasMatchingDescendant(cid, filterAssignee, ticketCache, hideClosedStatuses));
-    if (!selfMatch && !childMatch) return [];
-  }
+  // When a filter is active: only render self if directly matches; skip otherwise and recurse
+  if (filterAssignees !== null || filterStatusCategory !== null) {
+    const selfMatchAssignee = filterAssignees === null || filterAssignees.includes(assigneeKey(displayTicket.assignee));
+    const selfMatchStatus = filterStatusCategory === null || getStatusCategory(displayTicket.status) === filterStatusCategory;
 
-  if (filterStatusCategory !== null) {
-    const selfMatch = getStatusCategory(displayTicket.status) === filterStatusCategory;
-    const childMatch = childIds.some((cid) => hasMatchingStatusDescendant(cid, filterStatusCategory, ticketCache, hideClosedStatuses));
-    if (!selfMatch && !childMatch) return [];
+    if (!selfMatchAssignee || !selfMatchStatus) {
+      return recurseChildren(true);
+    }
+    // Self matches: render self, then also recurse children (they may also match)
   }
 
   const rowClassName = depth === 0
@@ -542,7 +529,17 @@ function renderTicketRows({
     (
       <tr key={rowKeyPrefix} className={rowClassName}>
         <td className="px-3 py-2" style={{ paddingLeft: `${32 + depth * 24}px` }}>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            {hasChildren ? (
+              <button
+                onClick={() => onToggleTicket(ticket.id)}
+                className="text-gray-400 hover:text-gray-600 text-[10px] w-3 shrink-0 select-none"
+              >
+                {isCollapsed ? '▶' : '▼'}
+              </button>
+            ) : (
+              <span className="w-3 shrink-0" />
+            )}
             <IssueTypeIcon type={displayTicket.type} />
             <a
               href={`${jiraBase}/browse/${ticket.id}`}
@@ -585,159 +582,169 @@ function renderTicketRows({
     ),
   ];
 
-  if (!showChildTickets) return rows;
+  if (!showChildTickets || isCollapsed) return rows;
 
-  childIds.forEach((childId) => {
-    const child = ticketCache[childId];
-    if (!child) return;
-    rows.push(...renderTicketRows({
-      jiraBase,
-      ticketCache,
-      reloadingTicketIds,
-      onReloadTicket,
-      formatDate,
-      showChildTickets,
-      filterAssignee,
-      filterStatusCategory,
-      hideClosedStatuses,
-      ticket: child,
-      depth: depth + 1,
-      visited: childVisited,
-    }));
-  });
+  rows.push(...recurseChildren(false));
 
   return rows;
 }
 
-function SprintTable({
-  data,
+// ─── Sprint section table (single section) ────────────────────────────────────
+
+function SprintSectionTable({
+  section,
   jiraBase,
   ticketCache,
-  reloadingTicketIds,
-  onReloadTicket,
   formatDate,
   showChildTickets,
-  filterAssignee,
-  filterStatusCategory = null,
+  filterAssignees,
+  filterStatusCategory,
   hideClosedStatuses,
-  pageId = '',
+  pageId,
 }: {
-  data: SprintData;
+  section: SprintSection;
   jiraBase: string;
   ticketCache: Record<string, CachedSprintTicket>;
-  reloadingTicketIds: Set<string>;
-  onReloadTicket: (ticketId: string) => void;
   formatDate: (iso: string) => string;
   showChildTickets: boolean;
-  filterAssignee: string | null;
-  filterStatusCategory?: StatusCategory | null;
+  filterAssignees: string[] | null;
+  filterStatusCategory: StatusCategory | null;
   hideClosedStatuses: boolean;
-  pageId?: string;
+  pageId: string;
 }) {
-  return (
-    <div className="space-y-6">
-      {data.sections.map((section) => (
-        <div key={section.name}>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-base">{section.emoji}</span>
-            <h3 className="font-bold text-gray-900">{section.name}</h3>
-            <span className="text-xs text-gray-400">({section.items.length} items)</span>
-          </div>
+  const [collapsedItems, setCollapsedItems] = useState<Set<string>>(new Set());
+  const [collapsedTicketIds, setCollapsedTicketIds] = useState<Set<string>>(new Set());
 
-          <div className="rounded-lg border border-gray-200 overflow-hidden">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="bg-gray-100 text-xs text-gray-500 uppercase tracking-wide">
-                  <th className="text-left px-3 py-2 font-semibold w-[110px]">Ticket ID</th>
-                  <th className="text-left px-3 py-2 font-semibold">Tên Ticket</th>
-                  <th className="text-left px-3 py-2 font-semibold w-[90px]">Loại</th>
-                  <th className="text-left px-3 py-2 font-semibold w-[130px]">Trạng thái</th>
-                  <th className="text-left px-3 py-2 font-semibold w-[150px]">Assignee</th>
-                  <th className="text-left px-3 py-2 font-semibold w-[140px]">Fix Version</th>
-                  <th className="text-left px-3 py-2 font-semibold w-[52px]">SP</th>
-                  <th className="text-left px-3 py-2 font-semibold w-[170px]">Last update</th>
+  const toggleItem = (key: string) => {
+    setCollapsedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const onToggleTicket = (id: string) => {
+    setCollapsedTicketIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const itemKey = (item: SprintItem) => item.prNumber || String(item.number);
+
+  return (
+    <div>
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 px-1">Danh sách ticket</p>
+      <div className="rounded-lg border border-gray-200 overflow-hidden">
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr className="bg-gray-100 text-xs text-gray-500 uppercase tracking-wide">
+            <th className="text-left px-3 py-2 font-semibold w-[110px]">Ticket ID</th>
+            <th className="text-left px-3 py-2 font-semibold">Tên Ticket</th>
+            <th className="text-left px-3 py-2 font-semibold w-[90px]">Loại</th>
+            <th className="text-left px-3 py-2 font-semibold w-[130px]">Trạng thái</th>
+            <th className="text-left px-3 py-2 font-semibold w-[150px]">Assignee</th>
+            <th className="text-left px-3 py-2 font-semibold w-[140px]">Fix Version</th>
+            <th className="text-left px-3 py-2 font-semibold w-[52px]">SP</th>
+            <th className="text-left px-3 py-2 font-semibold w-[170px]">Last update</th>
+          </tr>
+        </thead>
+        <tbody>
+          {section.items.map((item) => {
+            const key = itemKey(item);
+            const collapsed = collapsedItems.has(key);
+            return (
+              <React.Fragment key={item.number}>
+                <tr className="bg-blue-50 border-t border-blue-100">
+                  <td colSpan={8} className="px-3 py-2.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => toggleItem(key)}
+                        className="text-gray-400 hover:text-gray-600 text-xs font-mono w-4 shrink-0 select-none"
+                        title={collapsed ? 'Mở rộng' : 'Thu gọn'}
+                      >
+                        {collapsed ? '▶' : '▼'}
+                      </button>
+                      <span className="text-xs text-gray-400 font-mono min-w-[18px]">{item.number}.</span>
+                      <span className="text-base leading-none">{item.icon}</span>
+                      {item.teams.length > 0 && (
+                        <span className="font-bold text-blue-700 text-sm">
+                          [{item.teams.join('+')}]
+                        </span>
+                      )}
+                      {item.prNumber && (
+                        <a
+                          href={`${jiraBase}/browse/${item.prNumber}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-mono font-semibold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded hover:underline hover:text-blue-700"
+                        >
+                          {item.prNumber}
+                        </a>
+                      )}
+                      <span className="font-semibold text-gray-900 text-sm">{item.title}</span>
+                      <PoStatusBadge item={item} ticketCache={ticketCache} pageId={pageId} />
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {data.sections.length > 0 && section.items.map((item) => (
-                  <React.Fragment key={item.number}>
-                    <tr className="bg-blue-50 border-t border-blue-100">
-                      <td colSpan={8} className="px-3 py-2.5">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs text-gray-400 font-mono min-w-[18px]">{item.number}.</span>
-                          <span className="text-base leading-none">{item.icon}</span>
-                          {item.teams.length > 0 && (
-                            <span className="font-bold text-blue-700 text-sm">
-                              [{item.teams.join('+')}]
-                            </span>
-                          )}
-                          {item.prNumber && (
-                            <a
-                              href={`${jiraBase}/browse/${item.prNumber}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs font-mono font-semibold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded hover:underline hover:text-blue-700"
-                            >
-                              {item.prNumber}
-                            </a>
-                          )}
-                          <span className="font-semibold text-gray-900 text-sm">{item.title}</span>
-                          <PoStatusBadge item={item} ticketCache={ticketCache} pageId={pageId} />
-                        </div>
+
+                {!collapsed && (
+                  item.tickets.length === 0 ? (
+                    <tr className="border-t border-gray-100">
+                      <td colSpan={8} className="px-3 py-1.5 text-xs text-red-500 italic pl-10">
+                        Không có sub-ticket
                       </td>
                     </tr>
-
-                    {item.tickets.length === 0 ? (
-                      <tr className="border-t border-gray-100">
-                        <td colSpan={8} className="px-3 py-1.5 text-xs text-red-500 italic pl-10">
-                          Không có sub-ticket
-                        </td>
-                      </tr>
-                    ) : (
-                      item.tickets.map((ticket, ti) => {
-                        return (
-                          <React.Fragment key={ticket.id || ti}>
-                            {renderTicketRows({
-                              jiraBase,
-                              ticketCache,
-                              reloadingTicketIds,
-                              onReloadTicket,
-                              formatDate,
-                              showChildTickets,
-                              filterAssignee,
-                              filterStatusCategory,
-                              hideClosedStatuses,
-                              ticket,
-                            })}
-                          </React.Fragment>
-                        );
-                      })
-                    )}
-                  </React.Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))}
+                  ) : (
+                    item.tickets.map((ticket, ti) => (
+                      <React.Fragment key={ticket.id || ti}>
+                        {renderTicketRows({
+                          jiraBase,
+                          ticketCache,
+                          formatDate,
+                          showChildTickets,
+                          filterAssignees,
+                          filterStatusCategory,
+                          hideClosedStatuses,
+                          collapsedTicketIds,
+                          onToggleTicket,
+                          ticket,
+                        })}
+                      </React.Fragment>
+                    ))
+                  )
+                )}
+              </React.Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+      </div>
     </div>
   );
 }
 
+// ─── Summary table (per section) ─────────────────────────────────────────────
+
 function SprintSummaryTable({
-  data,
+  sections,
   ticketCache,
-  selectedAssignee,
+  filterAssignees,
   onSelectAssignee,
+  onSelectRole,
   hideClosedStatuses,
   filterStatusCategory,
   onSelectStatusFilter,
   onClearFilters,
 }: {
-  data: SprintData;
+  sections: SprintSection[];
   ticketCache: Record<string, CachedSprintTicket>;
-  selectedAssignee: string | null;
+  filterAssignees: string[] | null;
   onSelectAssignee: (name: string) => void;
+  onSelectRole: (assignees: string[]) => void;
   hideClosedStatuses: boolean;
   filterStatusCategory: StatusCategory | null;
   onSelectStatusFilter: (assignee: string, category: StatusCategory) => void;
@@ -761,6 +768,7 @@ function SprintSummaryTable({
     return raw;
   }
 
+  const allTicketIds = new Set<string>();
   function collectDescendants(id: string, visited = new Set<string>()) {
     if (visited.has(id)) return;
     visited.add(id);
@@ -768,8 +776,7 @@ function SprintSummaryTable({
     ticketCache[id]?.children?.forEach((childId) => collectDescendants(childId, visited));
   }
 
-  const allTicketIds = new Set<string>();
-  for (const section of data.sections) {
+  for (const section of sections) {
     for (const item of section.items) {
       for (const ticket of item.tickets) {
         collectDescendants(ticket.id);
@@ -820,6 +827,8 @@ function SprintSummaryTable({
 
   if (sorted.length === 0) return null;
 
+  const [open, setOpen] = useState(false);
+
   const grouped: { role: string; members: typeof sorted }[] = [];
   for (const entry of sorted) {
     const role = resolveRole(entry[0], entry[1].rawAssignee);
@@ -831,27 +840,43 @@ function SprintSummaryTable({
     }
   }
 
+  const isAssigneeFiltered = (assignee: string) => filterAssignees?.includes(assignee) ?? false;
+  const isRoleFiltered = (members: typeof sorted) => filterAssignees !== null && members.every(([name]) => filterAssignees.includes(name)) && members.length === filterAssignees.length;
+
   const catCellClass = (cat: StatusCategory, assignee: string) => {
-    const isActive = selectedAssignee === assignee && filterStatusCategory === cat;
+    const isActive = isAssigneeFiltered(assignee) && filterStatusCategory === cat;
     const baseHover = cat === 'todo' ? 'hover:bg-yellow-50' : cat === 'in-progress' ? 'hover:bg-blue-50' : cat === 'done' ? 'hover:bg-emerald-50' : 'hover:bg-orange-50';
     const activeClass = cat === 'todo' ? 'bg-yellow-100 font-bold' : cat === 'in-progress' ? 'bg-blue-100 font-bold' : cat === 'done' ? 'bg-emerald-100 font-bold' : 'bg-orange-100 font-bold';
     return `px-4 py-2.5 text-sm text-center cursor-pointer transition-colors ${isActive ? activeClass : baseHover}`;
   };
 
+  const filterLabel = filterAssignees
+    ? filterAssignees.length === 1
+      ? shortName(filterAssignees[0])
+      : `${filterAssignees.length} người`
+    : null;
+
   return (
-    <div className="mt-6 rounded-xl bg-white shadow-sm border border-gray-100">
-      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-        <h3 className="font-bold text-gray-900">Summary theo cá nhân</h3>
-        {(selectedAssignee || filterStatusCategory) && (
-          <button
-            onClick={onClearFilters}
-            className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+    <div className="rounded-xl bg-white shadow-sm border border-gray-100">
+      <button
+        type="button"
+        onClick={() => setOpen((p) => !p)}
+        className="w-full px-6 py-3 flex items-center justify-between border-b border-gray-100 hover:bg-gray-50 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-gray-400 text-xs font-mono">{open ? '▼' : '▶'}</span>
+          <h3 className="font-bold text-gray-900 text-sm">Summary theo cá nhân</h3>
+        </div>
+        {(filterAssignees || filterStatusCategory) && (
+          <span
+            onClick={(e) => { e.stopPropagation(); onClearFilters(); }}
+            className="text-xs text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
           >
-            ✕ Bỏ filter{selectedAssignee ? `: ${shortName(selectedAssignee)}` : ''}{filterStatusCategory ? ` (${filterStatusCategory})` : ''}
-          </button>
+            ✕ Bỏ filter{filterLabel ? `: ${filterLabel}` : ''}{filterStatusCategory ? ` (${filterStatusCategory})` : ''}
+          </span>
         )}
-      </div>
-      <div className="overflow-x-auto">
+      </button>
+      {open && <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="bg-gray-100 text-xs text-gray-500 uppercase tracking-wide">
@@ -867,16 +892,25 @@ function SprintSummaryTable({
           </thead>
           <tbody>
             {grouped.map((group) => {
+              const groupMemberNames = group.members.map(([name]) => name);
               const groupTickets = group.members.reduce((s, [, m]) => s + m.count, 0);
               const groupPoints = group.members.reduce((s, [, m]) => s + m.points, 0);
               const groupTodo = group.members.reduce((s, [, m]) => s + m.todo, 0);
               const groupInProgress = group.members.reduce((s, [, m]) => s + m.inProgress, 0);
               const groupDone = group.members.reduce((s, [, m]) => s + m.done, 0);
               const groupOther = group.members.reduce((s, [, m]) => s + m.other, 0);
+              const groupSelected = isRoleFiltered(group.members);
               return (
                 <React.Fragment key={group.role || '__none__'}>
-                  <tr className="bg-blue-50 border-t border-blue-100">
-                    <td className="px-4 py-2 text-sm font-bold text-blue-800" colSpan={2}>{group.role || 'Khác'}</td>
+                  <tr
+                    className={`border-t border-blue-100 cursor-pointer transition-colors ${groupSelected ? 'bg-blue-200 hover:bg-blue-300' : 'bg-blue-50 hover:bg-blue-100'}`}
+                    onClick={() => onSelectRole(groupMemberNames)}
+                    title="Lọc theo role này"
+                  >
+                    <td className="px-4 py-2 text-sm font-bold text-blue-800" colSpan={2}>
+                      {group.role || 'Khác'}
+                      {groupSelected && <span className="ml-2 text-xs font-normal text-blue-600">▶ đang lọc</span>}
+                    </td>
                     <td className="px-4 py-2 text-sm font-bold text-blue-800 text-center">{groupPoints}</td>
                     <td className="px-4 py-2 text-sm font-bold text-blue-800 text-center">{groupTickets}</td>
                     <td className="px-4 py-2 text-sm font-bold text-blue-800 text-center">{groupTodo || '-'}</td>
@@ -885,7 +919,7 @@ function SprintSummaryTable({
                     <td className="px-4 py-2 text-sm font-bold text-blue-800 text-center">{groupOther || '-'}</td>
                   </tr>
                   {group.members.map(([assignee, stats]) => {
-                    const isSelected = selectedAssignee === assignee;
+                    const isSelected = isAssigneeFiltered(assignee);
                     return (
                       <tr
                         key={assignee}
@@ -908,7 +942,7 @@ function SprintSummaryTable({
                               onClick={(e) => { e.stopPropagation(); onSelectStatusFilter(assignee, cat); }}
                             >
                               {cnt || '-'}
-                              {selectedAssignee === assignee && filterStatusCategory === cat && (
+                              {isSelected && filterStatusCategory === cat && (
                                 <span className="ml-1 text-xs opacity-60">▶</span>
                               )}
                             </td>
@@ -931,68 +965,16 @@ function SprintSummaryTable({
             </tr>
           </tbody>
         </table>
-      </div>
+      </div>}
     </div>
   );
 }
 
-function HistoryItem({
-  r,
-  jiraBase,
-  ticketCache,
-  reloadingTicketIds,
-  onReloadTicket,
-  formatDate,
-  showChildTickets,
-  hideClosedStatuses,
-}: {
-  r: AnalysisResult;
-  jiraBase: string;
-  ticketCache: Record<string, CachedSprintTicket>;
-  reloadingTicketIds: Set<string>;
-  onReloadTicket: (ticketId: string) => void;
-  formatDate: (iso: string) => string;
-  showChildTickets: boolean;
-  hideClosedStatuses: boolean;
-}) {
-  const [open, setOpen] = React.useState(false);
-  const parsed = open ? parseSprintJSON(r.result) : null;
-
-  return (
-    <details
-      className="px-4 py-3"
-      onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}
-    >
-      <summary className="cursor-pointer text-sm text-gray-700">
-        {formatDate(r.timestamp)} · {r.pagesTitles?.join(', ') || 'Kết quả'}
-      </summary>
-      {open && (
-        <div className="mt-3">
-          {parsed ? (
-            <SprintTable
-              data={parsed}
-              jiraBase={jiraBase}
-              ticketCache={ticketCache}
-              reloadingTicketIds={reloadingTicketIds}
-              onReloadTicket={onReloadTicket}
-              formatDate={formatDate}
-              showChildTickets={showChildTickets}
-              filterAssignee={null}
-              hideClosedStatuses={hideClosedStatuses}
-            />
-          ) : (
-            <pre className="whitespace-pre-wrap text-xs text-gray-700 font-mono leading-relaxed">{r.result}</pre>
-          )}
-        </div>
-      )}
-    </details>
-  );
-}
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
-  const [prompt, setPrompt] = useState(DEFAULT_SPRINT_PROMPT);
-  const [analyzing, setAnalyzing] = useState(false);
   const [parsing, setParsing] = useState(false);
+  const [reloadingPage, setReloadingPage] = useState(false);
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [loadingResults, setLoadingResults] = useState(false);
   const [ticketCache, setTicketCache] = useState<Record<string, CachedSprintTicket>>({});
@@ -1000,14 +982,29 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
   const [showChildTickets, setShowChildTickets] = useState(true);
   const [hideClosedStatuses, setHideClosedStatuses] = useState(true);
   const [selectedAssignee, setSelectedAssignee] = useState<string | null>(null);
+  const [selectedRoleAssignees, setSelectedRoleAssignees] = useState<string[] | null>(null);
   const [filterStatusCategory, setFilterStatusCategory] = useState<StatusCategory | null>(null);
 
+  // Computed filter: role takes precedence over single assignee
+  const filterAssignees: string[] | null = selectedRoleAssignees ?? (selectedAssignee ? [selectedAssignee] : null);
+
   const handleSelectAssignee = (name: string) => {
+    setSelectedRoleAssignees(null);
     setSelectedAssignee((prev) => (prev === name ? null : name));
     setFilterStatusCategory(null);
   };
 
+  const handleSelectRole = (assignees: string[]) => {
+    setSelectedAssignee(null);
+    setFilterStatusCategory(null);
+    setSelectedRoleAssignees((prev) => {
+      if (prev && prev.length === assignees.length && prev.every((a) => assignees.includes(a))) return null;
+      return assignees;
+    });
+  };
+
   const handleSelectStatusFilter = (assignee: string, category: StatusCategory) => {
+    setSelectedRoleAssignees(null);
     const isSame = selectedAssignee === assignee && filterStatusCategory === category;
     setSelectedAssignee(isSame ? null : assignee);
     setFilterStatusCategory(isSame ? null : category);
@@ -1015,6 +1012,7 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
 
   const handleClearFilters = () => {
     setSelectedAssignee(null);
+    setSelectedRoleAssignees(null);
     setFilterStatusCategory(null);
   };
 
@@ -1024,16 +1022,12 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
     new Date(iso).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
 
   const loadTicketCache = useCallback(async (ticketIds: string[]) => {
-    if (!ticketIds.length) {
-      setTicketCache({});
-      return;
-    }
-
+    if (!ticketIds.length) { setTicketCache({}); return; }
     try {
       const res = await sprintManagementAPI.getTickets(ticketIds);
       setTicketCache((prev) => ({ ...prev, ...(res.data.data || {}) }));
     } catch {
-      // non-critical; AI data is still visible without Jira cache
+      // non-critical
     }
   }, []);
 
@@ -1053,22 +1047,17 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
     }
   }, [loadTicketCache, page.pageId]);
 
-  useEffect(() => {
-    loadResults();
-  }, [loadResults]);
+  useEffect(() => { loadResults(); }, [loadResults]);
 
-  const handleAnalyze = async () => {
-    setAnalyzing(true);
+  const handleReloadPage = async () => {
+    setReloadingPage(true);
     try {
-      const res = await sprintManagementAPI.analyze({ pageIds: [page.pageId], prompt });
-      const entry: AnalysisResult = res.data.data;
-      setResults((prev) => [entry, ...prev]);
-      await loadTicketCache(collectTicketIds(parseSprintJSON(entry.result)));
-      toast.success('Phân tích xong');
+      await sprintManagementAPI.loadPage(page.pageId);
+      toast.success('Đã reload từ Confluence');
     } catch (err: any) {
       toast.error(`Lỗi: ${err?.response?.data?.error || err.message}`);
     } finally {
-      setAnalyzing(false);
+      setReloadingPage(false);
     }
   };
 
@@ -1090,7 +1079,6 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
   const handleReloadTickets = async (ticketIds: string[]) => {
     const ids = Array.from(new Set(ticketIds.filter(Boolean)));
     if (!ids.length) return;
-
     setReloadingTicketIds((prev) => new Set([...prev, ...ids]));
     try {
       const res = await sprintManagementAPI.reloadTickets(ids);
@@ -1110,57 +1098,65 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
   const latestResult = results[0] || null;
   const latestParsed = latestResult ? parseSprintJSON(latestResult.result) : null;
   const latestTicketIds = collectTicketIds(latestParsed);
-  const historyResults = results.slice(1);
+
+  // Split sections by name for structured rendering
+  const getSection = (name: string) => latestParsed?.sections.find((s) => s.name === name) ?? null;
+  const coreSection = getSection('Core');
+  const mustHaveSection = getSection('Must have');
+  const niceToHaveSection = getSection('Nice to have');
+
+  const commonSectionProps = {
+    jiraBase,
+    ticketCache,
+    formatDate,
+    showChildTickets,
+    filterAssignees,
+    filterStatusCategory,
+    hideClosedStatuses,
+    pageId: page.pageId,
+  };
+
+  const commonSummaryProps = {
+    ticketCache,
+    filterAssignees,
+    onSelectAssignee: handleSelectAssignee,
+    onSelectRole: handleSelectRole,
+    hideClosedStatuses,
+    filterStatusCategory,
+    onSelectStatusFilter: handleSelectStatusFilter,
+    onClearFilters: handleClearFilters,
+  };
 
   return (
     <div className="space-y-6 pb-48">
+      {/* Step 1: Confluence + Parse */}
       <div className="rounded-xl bg-white shadow-sm border border-gray-100">
         <div className="px-6 py-4 border-b border-gray-100">
           <h2 className="font-bold text-gray-900 flex items-center gap-2">
             <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold">1</span>
-            Kiểm tra Tickets với AI
+            Dữ liệu Confluence
             <span className="text-xs text-gray-400 font-normal ml-1">({page.title})</span>
           </h2>
         </div>
-
-        <div className="px-6 py-4 space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">AI Prompt</p>
-              <button
-                onClick={() => setPrompt(DEFAULT_SPRINT_PROMPT)}
-                className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
-              >
-                ↺ Reset
-              </button>
-            </div>
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              rows={10}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-xs font-mono text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y bg-gray-50"
-            />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleAnalyze}
-              disabled={analyzing || parsing}
-              className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-sm transition-colors shadow-sm"
-            >
-              {analyzing ? <><span className="animate-spin inline-block">⏳</span> Đang xử lý...</> : '✨ Xử lý với AI'}
-            </button>
-            <button
-              onClick={handleParseByScript}
-              disabled={parsing || analyzing}
-              className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-sm transition-colors shadow-sm"
-            >
-              {parsing ? <><span className="animate-spin inline-block">⏳</span> Đang parse...</> : '⚙️ Parse bằng Script'}
-            </button>
-          </div>
+        <div className="px-6 py-4 flex items-center gap-3">
+          <button
+            onClick={handleReloadPage}
+            disabled={reloadingPage || parsing}
+            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-sm transition-colors shadow-sm"
+          >
+            {reloadingPage ? <><span className="animate-spin inline-block">⏳</span> Đang reload...</> : '☁️ Reload từ Confluence'}
+          </button>
+          <button
+            onClick={handleParseByScript}
+            disabled={parsing || reloadingPage}
+            className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-sm transition-colors shadow-sm"
+          >
+            {parsing ? <><span className="animate-spin inline-block">⏳</span> Đang parse...</> : '⚙️ Parse bằng Script'}
+          </button>
         </div>
       </div>
 
+      {/* Step 2: Parsed data */}
       <div className="rounded-xl bg-white shadow-sm border border-gray-100">
         <div className="px-6 py-4 border-b border-gray-100">
           <div className="flex items-center justify-between gap-3">
@@ -1198,64 +1194,50 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
 
         {loadingResults ? (
           <div className="py-8 text-center text-gray-400 text-sm">Đang tải...</div>
-        ) : results.length === 0 ? (
-          <div className="py-8 text-center text-gray-400 text-sm">Chưa có dữ liệu phân tích cho page này.</div>
+        ) : !latestParsed ? (
+          <div className="py-8 text-center text-gray-400 text-sm">
+            {results.length === 0
+              ? 'Chưa có dữ liệu cho page này. Bấm "Parse bằng Script" để bắt đầu.'
+              : 'Không parse được JSON.'}
+          </div>
         ) : (
-          <div className="px-6 py-4">
-            {latestParsed ? (
-              <>
-                <SprintTable
-                  data={latestParsed}
-                  jiraBase={jiraBase}
-                  ticketCache={ticketCache}
-                  reloadingTicketIds={reloadingTicketIds}
-                  onReloadTicket={(ticketId) => handleReloadTickets([ticketId])}
-                  formatDate={formatDate}
-                  showChildTickets={showChildTickets}
-                  filterAssignee={selectedAssignee}
-                  filterStatusCategory={filterStatusCategory}
-                  hideClosedStatuses={hideClosedStatuses}
-                  pageId={page.pageId}
-                />
-                <SprintSummaryTable
-                  data={latestParsed}
-                  ticketCache={ticketCache}
-                  selectedAssignee={selectedAssignee}
-                  onSelectAssignee={handleSelectAssignee}
-                  hideClosedStatuses={hideClosedStatuses}
-                  filterStatusCategory={filterStatusCategory}
-                  onSelectStatusFilter={handleSelectStatusFilter}
-                  onClearFilters={handleClearFilters}
-                />
-              </>
-            ) : (
-              <div className="bg-gray-50 rounded-lg border border-gray-100 px-4 py-3">
-                <p className="text-xs text-amber-600 mb-2">⚠ Không parse được JSON, hiển thị raw:</p>
-                <pre className="whitespace-pre-wrap text-xs text-gray-700 font-mono leading-relaxed">{latestResult?.result}</pre>
+          <div className="px-6 py-4 space-y-8">
+            {/* Core section */}
+            {coreSection && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-base">{coreSection.emoji}</span>
+                  <h3 className="font-bold text-gray-900">{coreSection.name}</h3>
+                  <span className="text-xs text-gray-400">({coreSection.items.length} items)</span>
+                </div>
+                <SprintSectionTable section={coreSection} {...commonSectionProps} />
               </div>
             )}
 
-            {historyResults.length > 0 && (
-              <details className="mt-6 rounded-lg border border-gray-200 bg-gray-50">
-                <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-gray-700">
-                  Lịch sử phân tích ({historyResults.length})
-                </summary>
-                <div className="divide-y divide-gray-200 border-t border-gray-200">
-                  {historyResults.map((r) => (
-                    <HistoryItem
-                      key={r.id}
-                      r={r}
-                      jiraBase={jiraBase}
-                      ticketCache={ticketCache}
-                      reloadingTicketIds={reloadingTicketIds}
-                      onReloadTicket={(ticketId) => handleReloadTickets([ticketId])}
-                      formatDate={formatDate}
-                      showChildTickets={showChildTickets}
-                      hideClosedStatuses={hideClosedStatuses}
-                    />
-                  ))}
+            {/* Must have: summary above table */}
+            {mustHaveSection && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">{mustHaveSection.emoji}</span>
+                  <h3 className="font-bold text-gray-900">{mustHaveSection.name}</h3>
+                  <span className="text-xs text-gray-400">({mustHaveSection.items.length} items)</span>
                 </div>
-              </details>
+                <SprintSummaryTable sections={[mustHaveSection]} {...commonSummaryProps} />
+                <SprintSectionTable section={mustHaveSection} {...commonSectionProps} />
+              </div>
+            )}
+
+            {/* Nice to have: summary above table */}
+            {niceToHaveSection && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">{niceToHaveSection.emoji}</span>
+                  <h3 className="font-bold text-gray-900">{niceToHaveSection.name}</h3>
+                  <span className="text-xs text-gray-400">({niceToHaveSection.items.length} items)</span>
+                </div>
+                <SprintSummaryTable sections={[niceToHaveSection]} {...commonSummaryProps} />
+                <SprintSectionTable section={niceToHaveSection} {...commonSectionProps} />
+              </div>
             )}
           </div>
         )}

@@ -244,6 +244,7 @@ interface ScriptSprintData {
 const SECTION_CONFIG: { name: string; emoji: string }[] = [
   { name: 'Core', emoji: '😤' },
   { name: 'Must have', emoji: '😍' },
+  { name: 'Nice to have', emoji: '🎁' },
 ];
 const ALL_KNOWN_SECTIONS = ['Core', 'Must have', 'Nice to have', 'Backlog', 'Business Planning'];
 

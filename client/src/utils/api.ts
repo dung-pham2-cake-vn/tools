@@ -72,6 +72,7 @@ export const sprintManagementAPI = {
   parseByScript: (data: { pageIds: string[] }) => apiClient.post('/sprint-management/parse', data),
   getResults: () => apiClient.get('/sprint-management/results'),
   getTickets: (ticketIds: string[]) => apiClient.get('/sprint-management/tickets', { params: { ids: ticketIds.join(',') } }),
+  getAllTickets: () => apiClient.get('/sprint-management/tickets'),
   reloadTickets: (ticketIds: string[]) => apiClient.post('/sprint-management/tickets/reload', { ticketIds }),
 };
 

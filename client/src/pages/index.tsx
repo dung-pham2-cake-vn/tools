@@ -562,6 +562,102 @@ function SprintOverviewCard({
   );
 }
 
+// ─── Sprint ticket health types + loader ─────────────────────────────────────
+
+interface SprintHealthIssue {
+  key: string;
+  summary: string;
+  statusName: string;
+  assigneeName: string;
+}
+
+interface SprintHealthResult {
+  draftStories: SprintHealthIssue[];
+  unassignedStories: SprintHealthIssue[];
+}
+
+async function loadSprintTicketHealth(): Promise<SprintHealthResult> {
+  const jql = 'project IN (PL, PLO, DOP) AND Sprint IN openSprints() AND issuetype = Story ORDER BY project';
+  const res = await jiraAPI.searchIssues({ jql, maxResults: 200, fields: ['summary', 'status', 'assignee'] });
+  const issues: any[] = ((res.data.data as { issues?: any[] })?.issues) || [];
+  const mapped: SprintHealthIssue[] = issues.map((issue: any) => ({
+    key: issue.key as string,
+    summary: issue.fields?.summary || '',
+    statusName: issue.fields?.normalizedStatusName || '',
+    assigneeName: issue.fields?.normalizedAssigneeName || '',
+  }));
+  return {
+    draftStories: mapped.filter((i) => i.statusName.toLowerCase() === 'draft'),
+    unassignedStories: mapped.filter((i) => !i.assigneeName),
+  };
+}
+
+// ─── SprintTicketHealthTable ──────────────────────────────────────────────────
+
+function HealthIssueTable({ issues, emptyMsg }: { issues: SprintHealthIssue[]; emptyMsg: string }) {
+  if (issues.length === 0) {
+    return <p className="text-sm text-green-600 font-medium">{emptyMsg}</p>;
+  }
+  return (
+    <div className="rounded-lg border border-gray-200 overflow-hidden">
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr className="bg-gray-100 text-xs text-gray-500 uppercase tracking-wide">
+            <th className="text-left px-3 py-2 font-semibold w-[110px]">Ticket</th>
+            <th className="text-left px-3 py-2 font-semibold">Tên</th>
+            <th className="text-left px-3 py-2 font-semibold w-[130px]">Status</th>
+            <th className="text-left px-3 py-2 font-semibold w-[150px]">Assignee</th>
+          </tr>
+        </thead>
+        <tbody>
+          {issues.map((issue) => (
+            <tr key={issue.key} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
+              <td className="px-3 py-2">
+                <a
+                  href={`${JIRA_BASE}/browse/${issue.key}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline font-mono text-xs font-semibold"
+                >
+                  {issue.key}
+                </a>
+              </td>
+              <td className="px-3 py-2 text-sm text-gray-700">{issue.summary || '—'}</td>
+              <td className="px-3 py-2">
+                <span className="text-xs px-2 py-0.5 rounded border font-medium bg-amber-50 text-amber-700 border-amber-200">
+                  {issue.statusName || '—'}
+                </span>
+              </td>
+              <td className="px-3 py-2 text-xs text-gray-500">{issue.assigneeName || <span className="text-red-500">Chưa gán</span>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SprintTicketHealthPanel({ result, loading }: { result: SprintHealthResult | null; loading: boolean }) {
+  if (loading) return <div className="py-6 text-center text-gray-500 text-sm">Đang tải...</div>;
+  if (!result) return <div className="py-6 text-center text-gray-400 text-sm">Không có dữ liệu</div>;
+  return (
+    <div className="pt-4 space-y-5">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
+          Draft ({result.draftStories.length})
+        </p>
+        <HealthIssueTable issues={result.draftStories} emptyMsg="✅ Không có story Draft" />
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
+          Chưa gán assignee ({result.unassignedStories.length})
+        </p>
+        <HealthIssueTable issues={result.unassignedStories} emptyMsg="✅ Tất cả story đã có assignee" />
+      </div>
+    </div>
+  );
+}
+
 // ─── DevTicketTable ───────────────────────────────────────────────────────────
 
 const JIRA_BASE = 'https://cakedigitalbank.atlassian.net';
@@ -756,6 +852,8 @@ export default function Dashboard() {
   const [activeSprintName, setActiveSprintName] = useState('');
   const [devReloadingIds, setDevReloadingIds] = useState<Set<string>>(new Set());
   const [devReloadingAll, setDevReloadingAll] = useState(false);
+  const [sprintHealth, setSprintHealth] = useState<SprintHealthResult | null>(null);
+  const [sprintHealthLoading, setSprintHealthLoading] = useState(true);
 
   const loadSmData = useCallback(async (activeSprintName: string) => {
     setSmLoading(true);
@@ -778,7 +876,13 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const reports = await loadSprintAlignmentReports();
+        const [reports] = await Promise.all([
+          loadSprintAlignmentReports(),
+          loadSprintTicketHealth().then((result) => {
+            setSprintHealth(result);
+            setSprintHealthLoading(false);
+          }).catch(() => setSprintHealthLoading(false)),
+        ]);
         setSprintReports(reports);
         setSprintLoading(false);
         const detectedSprintName =
@@ -880,6 +984,11 @@ export default function Dashboard() {
   const sprintStatus: TaskStatus = sprintLoading ? 'loading' : sprintSummary.isAligned ? 'ok' : 'error';
   const devStatus: TaskStatus = smLoading ? 'loading' : devTickets.length === 0 ? 'ok' : 'error';
   const uatStatus: TaskStatus = smLoading ? 'loading' : needUatItems.length === 0 ? 'ok' : 'error';
+  const healthStatus: TaskStatus = sprintHealthLoading
+    ? 'loading'
+    : !sprintHealth || (sprintHealth.draftStories.length === 0 && sprintHealth.unassignedStories.length === 0)
+    ? 'ok'
+    : 'error';
 
   return (
     <div className="space-y-6">
@@ -898,6 +1007,10 @@ export default function Dashboard() {
       />
 
       <div className="space-y-3">
+        <TaskItem title="Ngày 1 trở đi ticket đúng sprint" status={healthStatus}>
+          <SprintTicketHealthPanel result={sprintHealth} loading={sprintHealthLoading} />
+        </TaskItem>
+
         <TaskItem title="Ngày 7 trở đi xong hết subtask dev" status={devStatus}>
           <DevTicketTable
             tickets={devTickets}

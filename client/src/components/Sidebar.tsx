@@ -30,16 +30,54 @@ const navItems: NavItem[] = [
     ],
   },
   { label: 'Tasks', path: '/tasks', icon: '📋' },
-  { label: 'Jira', path: '/jira', icon: '🔗' },
+  { label: 'Ticket tồn đọng', path: '/carryover', icon: '⏳' },
+  {
+    label: 'Jira',
+    path: '/jira',
+    icon: '🔗',
+    children: [
+      { label: 'Backlog', path: '/jira/backlog' },
+      { label: 'PO Tickets', path: '/jira/po-tickets' },
+    ],
+  },
   { label: 'Support', path: '/support', icon: '🛠️' },
   { label: 'Settings', path: '/config', icon: '⚙️' },
 ];
 
+const UTC7_MS = 7 * 60 * 60 * 1000;
+
+function toUtc7DateStr(value: string | null): string | null {
+  if (!value) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Date(d.getTime() + UTC7_MS).toISOString().slice(0, 10);
+}
+
+function getTodayUtc7(): string {
+  return toUtc7DateStr(new Date().toISOString()) || '';
+}
+
 const Sidebar: React.FC = () => {
   const router = useRouter();
-  const isUnderSprints = router.pathname.startsWith('/sprints');
-  const [sprintsOpen, setSprintsOpen] = useState(isUnderSprints);
+  const isUnder = (basePath: string) =>
+    router.pathname === basePath || router.pathname.startsWith(`${basePath}/`);
+  const [openPaths, setOpenPaths] = useState<Set<string>>(() => {
+    const s = new Set<string>();
+    navItems.forEach((it) => {
+      if (it.children && isUnder(it.path)) s.add(it.path);
+    });
+    return s;
+  });
+  const toggleOpen = (p: string) =>
+    setOpenPaths((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
   const [loadedSprintPages, setLoadedSprintPages] = useState<LoadedPage[]>([]);
+  const [activeSprintNums, setActiveSprintNums] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     const loadLoadedSprintPages = () => sprintManagementAPI.getLoadedPages()
@@ -50,6 +88,24 @@ const Sidebar: React.FC = () => {
     window.addEventListener('sprint-loaded-pages-changed', loadLoadedSprintPages);
     return () => window.removeEventListener('sprint-loaded-pages-changed', loadLoadedSprintPages);
   }, [router.asPath]);
+
+  useEffect(() => {
+    sprintManagementAPI.getActiveSprints()
+      .then((res) => {
+        const today = getTodayUtc7();
+        const nums = new Set<number>();
+        for (const s of (res.data.data || [])) {
+          const start = toUtc7DateStr(s.startDate);
+          const end = toUtc7DateStr(s.endDate);
+          if (start && end && today >= start && today <= end) {
+            const m = s.name?.match(/[Ss]print\s*(\d+)/);
+            if (m) nums.add(parseInt(m[1], 10));
+          }
+        }
+        setActiveSprintNums(nums);
+      })
+      .catch(() => {});
+  }, []);
 
   const isActive = (path: string) => router.asPath === path;
 
@@ -63,12 +119,14 @@ const Sidebar: React.FC = () => {
       <nav className="space-y-1">
         {navItems.map((item) => {
           if (item.children) {
+            const isUnderItem = isUnder(item.path);
+            const isOpen = openPaths.has(item.path);
             return (
               <div key={item.path}>
                 <button
-                  onClick={() => setSprintsOpen((prev) => !prev)}
+                  onClick={() => toggleOpen(item.path)}
                   className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all ${
-                    isUnderSprints
+                    isUnderItem
                       ? 'bg-white text-blue-900 font-semibold shadow-lg'
                       : 'text-blue-100 hover:bg-blue-700'
                   }`}
@@ -77,9 +135,9 @@ const Sidebar: React.FC = () => {
                     <span className="text-xl">{item.icon}</span>
                     <span>{item.label}</span>
                   </span>
-                  <span className="text-xs">{sprintsOpen ? '▾' : '▸'}</span>
+                  <span className="text-xs">{isOpen ? '▾' : '▸'}</span>
                 </button>
-                {sprintsOpen && (
+                {isOpen && (
                   <div className="mt-1 ml-4 space-y-1 border-l border-blue-600 pl-3">
                     {item.children.map((child) => (
                       <React.Fragment key={child.path}>
@@ -95,8 +153,15 @@ const Sidebar: React.FC = () => {
                         </Link>
                         {child.path === '/sprints/management' && loadedSprintPages.length > 0 && (
                           <div className="ml-3 mt-1 space-y-1 border-l border-blue-600/70 pl-2">
-                            {loadedSprintPages.map((page) => {
+                            {[...loadedSprintPages].sort((a, b) => {
+                              const na = a.title.match(/[Ss]print\s*(\d+)/);
+                              const nb = b.title.match(/[Ss]print\s*(\d+)/);
+                              return (nb ? parseInt(nb[1], 10) : 0) - (na ? parseInt(na[1], 10) : 0);
+                            }).map((page) => {
                               const path = `/sprints/management/${page.pageId}`;
+                              const sprintNumMatch = page.title.match(/[Ss]print\s*(\d+)/);
+                              const sprintNum = sprintNumMatch ? parseInt(sprintNumMatch[1], 10) : -1;
+                              const isCurrent = sprintNum > 0 && activeSprintNums.has(sprintNum);
                               return (
                                 <Link
                                   key={page.pageId}
@@ -104,10 +169,13 @@ const Sidebar: React.FC = () => {
                                   className={`block px-3 py-1.5 rounded-lg text-xs transition-all ${
                                     isActive(path)
                                       ? 'bg-white/20 text-white font-semibold'
+                                      : isCurrent
+                                      ? 'text-white font-bold hover:bg-blue-700'
                                       : 'text-blue-200 hover:bg-blue-700 hover:text-white'
                                   }`}
                                 >
                                   {sprintPageLabel(page.title)}
+                                  {isCurrent && <span className="ml-1 text-[10px] text-blue-300">●</span>}
                                 </Link>
                               );
                             })}

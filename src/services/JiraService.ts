@@ -217,6 +217,33 @@ export class JiraService {
     }
   }
 
+  async getIssueTransitions(issueKey: string): Promise<Array<{ id: string; name: string; to?: { name?: string } }>> {
+    try {
+      const response = await this.axiosInstance.get(`/issue/${issueKey}/transitions`);
+      return (response.data?.transitions || []) as Array<{ id: string; name: string; to?: { name?: string } }>;
+    } catch (error) {
+      console.error(`Error fetching transitions for ${issueKey}:`, this.formatAxiosError(error));
+      throw error;
+    }
+  }
+
+  async transitionIssueByTargetStatus(issueKey: string, targetStatusName: string): Promise<void> {
+    const transitions = await this.getIssueTransitions(issueKey);
+    const target = targetStatusName.trim().toLowerCase();
+    const match = transitions.find((t) => (t.to?.name || t.name || '').trim().toLowerCase() === target)
+      || transitions.find((t) => (t.name || '').trim().toLowerCase() === target);
+    if (!match) {
+      const available = transitions.map((t) => `${t.name} -> ${t.to?.name || '?'}`).join(', ');
+      throw new Error(`No transition to "${targetStatusName}" available for ${issueKey}. Available: ${available || '(none)'}`);
+    }
+    try {
+      await this.axiosInstance.post(`/issue/${issueKey}/transitions`, { transition: { id: match.id } });
+    } catch (error) {
+      console.error(`Error transitioning ${issueKey} to ${targetStatusName}:`, this.formatAxiosError(error));
+      throw error;
+    }
+  }
+
   async searchIssues(jql: string) {
     try {
       return await this.searchIssuesWithOptions(jql);

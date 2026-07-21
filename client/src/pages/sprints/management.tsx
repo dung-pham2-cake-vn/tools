@@ -33,6 +33,7 @@ export default function SprintManagementPage() {
   const [loadedPages, setLoadedPages] = useState<LoadedPage[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [loadingPageIds, setLoadingPageIds] = useState<Set<string>>(new Set());
+  const [unlinkingPageIds, setUnlinkingPageIds] = useState<Set<string>>(new Set());
   const [contentModal, setContentModal] = useState<PageContentModal | null>(null);
   const [loadingModalId, setLoadingModalId] = useState<string | null>(null);
 
@@ -107,7 +108,7 @@ export default function SprintManagementPage() {
     setLoadingPageIds((prev) => new Set(prev).add(pageId));
     try {
       await sprintManagementAPI.loadPage(pageId);
-      toast.success('Load thành công');
+      toast.success('Đã link thành công');
       const newLoadedPages = await refreshLoadedPages();
       const loadedMap = new Map(newLoadedPages.map((p) => [p.pageId, p]));
       setConfluencePages((prev) =>
@@ -118,9 +119,29 @@ export default function SprintManagementPage() {
         )
       );
     } catch (err: any) {
-      toast.error(`Load thất bại: ${err?.response?.data?.error || err.message}`);
+      toast.error(`Link thất bại: ${err?.response?.data?.error || err.message}`);
     } finally {
       setLoadingPageIds((prev) => {
+        const next = new Set(prev);
+        next.delete(pageId);
+        return next;
+      });
+    }
+  };
+
+  const handleUnlinkPage = async (pageId: string) => {
+    setUnlinkingPageIds((prev) => new Set(prev).add(pageId));
+    try {
+      await sprintManagementAPI.unlinkPage(pageId);
+      toast.success('Đã unlink');
+      await refreshLoadedPages();
+      setConfluencePages((prev) =>
+        prev.map((p) => p.id === pageId ? { ...p, loaded: false, loadedAt: null } : p)
+      );
+    } catch (err: any) {
+      toast.error(`Unlink thất bại: ${err?.response?.data?.error || err.message}`);
+    } finally {
+      setUnlinkingPageIds((prev) => {
         const next = new Set(prev);
         next.delete(pageId);
         return next;
@@ -271,20 +292,38 @@ export default function SprintManagementPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <button
-                        onClick={() => handleLoadPage(page.id)}
-                        disabled={isLoading}
-                        className="px-2.5 py-1 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                      >
-                        {isLoading ? '⏳' : page.loaded ? '↺ Reload' : '↓ Load'}
-                      </button>
-                      {page.loaded && (
+                      {page.loaded ? (
+                        <>
+                          <button
+                            onClick={() => handleLoadPage(page.id)}
+                            disabled={isLoading}
+                            title="Reload nội dung từ Confluence"
+                            className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                          >
+                            {isLoading ? '⏳' : '↺'}
+                          </button>
+                          <button
+                            onClick={() => handleOpenContent(page.id, page.title)}
+                            disabled={loadingModalId === page.id}
+                            className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                          >
+                            {loadingModalId === page.id ? '⏳' : '🔍'}
+                          </button>
+                          <button
+                            onClick={() => handleUnlinkPage(page.id)}
+                            disabled={unlinkingPageIds.has(page.id)}
+                            className="px-2.5 py-1 text-xs font-medium bg-red-50 text-red-600 border border-red-200 rounded hover:bg-red-100 disabled:opacity-50 transition-colors"
+                          >
+                            {unlinkingPageIds.has(page.id) ? '⏳' : 'Unlink'}
+                          </button>
+                        </>
+                      ) : (
                         <button
-                          onClick={() => handleOpenContent(page.id, page.title)}
-                          disabled={loadingModalId === page.id}
-                          className="px-2.5 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                          onClick={() => handleLoadPage(page.id)}
+                          disabled={isLoading}
+                          className="px-2.5 py-1 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
                         >
-                          {loadingModalId === page.id ? '⏳' : '🔍'}
+                          {isLoading ? '⏳' : 'Link'}
                         </button>
                       )}
                     </div>

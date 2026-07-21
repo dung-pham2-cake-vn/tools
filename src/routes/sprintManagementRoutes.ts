@@ -9,13 +9,17 @@ import {
   getResults,
   getCachedTickets,
   reloadCachedTickets,
+  unlinkPage,
+  getActiveSprints,
 } from '../controllers/SprintManagementController';
 
 const router = Router();
 
 router.get('/confluence-children', getConfluenceChildren);
 router.get('/loaded-pages', getLoadedPages);
+router.get('/active-sprints', getActiveSprints);
 router.post('/load-page/:pageId', loadPage);
+router.delete('/pages/:pageId', unlinkPage);
 router.get('/page-content/:pageId', getPageContent);
 router.post('/analyze', analyzePages);
 router.post('/parse', parsePagesByScript);

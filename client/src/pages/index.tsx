@@ -658,6 +658,247 @@ function SprintTicketHealthPanel({ result, loading }: { result: SprintHealthResu
   );
 }
 
+// ─── Fix Version review types + loader ───────────────────────────────────────
+
+interface FixVersionIssue {
+  key: string;
+  summary: string;
+  statusName: string;
+  assigneeName: string;
+}
+
+interface FixVersionReviewResult {
+  poReviewIssues: FixVersionIssue[];
+  notDoneIssues: FixVersionIssue[];
+}
+
+const PO_REVIEW_JQL =
+  'project in (PL, "Product: DOP", "Platform: LOS") AND type in (Epic, Task, Story) AND fixversion = earliestUnreleasedVersion() AND status in ("PO/TM Review", "Will Not Do", Done, Ready4Release, Released, "Request Bot To Delete") AND status = "PO/TM Review" ORDER BY resolution DESC, status ASC';
+
+const FIX_VER_NOT_DONE_JQL =
+  'project IN (PL, "Product: DOP", "Platform: LOS") AND type IN (Epic, Task, Story) AND fixversion = earliestUnreleasedVersion() AND status NOT IN ("PO/TM Review", "Will Not Do", Done, Ready4Release, Released, "Request Bot To Delete") ORDER BY resolution DESC, status ASC';
+
+function mapFixVerIssue(issue: any): FixVersionIssue {
+  return {
+    key: issue.key as string,
+    summary: issue.fields?.summary || '',
+    statusName: issue.fields?.normalizedStatusName || '',
+    assigneeName: issue.fields?.normalizedAssigneeName || '',
+  };
+}
+
+async function loadFixVersionReview(): Promise<FixVersionReviewResult> {
+  const [poRes, ndRes] = await Promise.all([
+    jiraAPI.searchIssues({ jql: PO_REVIEW_JQL, maxResults: 200, fields: ['summary', 'status', 'assignee'] }),
+    jiraAPI.searchIssues({ jql: FIX_VER_NOT_DONE_JQL, maxResults: 200, fields: ['summary', 'status', 'assignee'] }),
+  ]);
+  const poIssues: any[] = ((poRes.data.data as { issues?: any[] })?.issues) || [];
+  const ndIssues: any[] = ((ndRes.data.data as { issues?: any[] })?.issues) || [];
+  return {
+    poReviewIssues: poIssues.map(mapFixVerIssue),
+    notDoneIssues: ndIssues.map(mapFixVerIssue),
+  };
+}
+
+// ─── PO Review Table (with bulk transition) ──────────────────────────────────
+
+function PoReviewTable({
+  issues,
+  onTransitioned,
+}: {
+  issues: FixVersionIssue[];
+  onTransitioned: () => void;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [submitting, setSubmitting] = useState(false);
+
+  const allChecked = issues.length > 0 && selected.size === issues.length;
+
+  const toggle = (key: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (allChecked) setSelected(new Set());
+    else setSelected(new Set(issues.map((i) => i.key)));
+  };
+
+  const handleBulkTransition = async () => {
+    if (selected.size === 0) return;
+    const keys = Array.from(selected);
+    const confirmed = window.confirm(
+      `Đổi status sang Ready4Release cho ${keys.length} ticket?\n\n${keys.join(', ')}\n\nThao tác này gọi Jira trực tiếp.`
+    );
+    if (!confirmed) return;
+    setSubmitting(true);
+    const results: { key: string; ok: boolean; error?: string }[] = [];
+    for (const key of keys) {
+      try {
+        await jiraAPI.transitionIssue(key, 'Ready4Release');
+        results.push({ key, ok: true });
+      } catch (err: any) {
+        results.push({ key, ok: false, error: err?.response?.data?.error || err.message });
+      }
+    }
+    setSubmitting(false);
+    const okCount = results.filter((r) => r.ok).length;
+    const failCount = results.length - okCount;
+    if (failCount === 0) {
+      toast.success(`Đã chuyển ${okCount} ticket sang Ready4Release`);
+    } else {
+      const failKeys = results.filter((r) => !r.ok).map((r) => `${r.key}: ${r.error}`).join('\n');
+      toast.error(`${okCount} OK, ${failCount} lỗi:\n${failKeys}`);
+    }
+    setSelected(new Set());
+    onTransitioned();
+  };
+
+  if (issues.length === 0) {
+    return <p className="text-sm text-green-600 font-medium">✅ Không có ticket PO Review</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-gray-400">{issues.length} ticket · chọn để chuyển Ready4Release</p>
+        <button
+          onClick={handleBulkTransition}
+          disabled={submitting || selected.size === 0}
+          className="px-3 py-1.5 text-xs font-medium rounded border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+        >
+          {submitting ? 'Đang chuyển...' : `Chuyển ${selected.size} ticket → Ready4Release`}
+        </button>
+      </div>
+      <div className="rounded-lg border border-gray-200 overflow-hidden">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="bg-gray-100 text-xs text-gray-500 uppercase tracking-wide">
+              <th className="px-3 py-2 w-[40px]">
+                <input type="checkbox" checked={allChecked} onChange={toggleAll} />
+              </th>
+              <th className="text-left px-3 py-2 font-semibold w-[110px]">Ticket</th>
+              <th className="text-left px-3 py-2 font-semibold">Tên</th>
+              <th className="text-left px-3 py-2 font-semibold w-[130px]">Status</th>
+              <th className="text-left px-3 py-2 font-semibold w-[150px]">Assignee</th>
+            </tr>
+          </thead>
+          <tbody>
+            {issues.map((issue) => (
+              <tr key={issue.key} className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-3 py-2 text-center">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(issue.key)}
+                    onChange={() => toggle(issue.key)}
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  <a
+                    href={`${JIRA_BASE}/browse/${issue.key}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline font-mono text-xs font-semibold"
+                  >
+                    {issue.key}
+                  </a>
+                </td>
+                <td className="px-3 py-2 text-sm text-gray-700">{issue.summary || '—'}</td>
+                <td className="px-3 py-2">
+                  <span className="text-xs px-2 py-0.5 rounded border font-medium bg-amber-50 text-amber-700 border-amber-200">
+                    {issue.statusName || '—'}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-xs text-gray-500">
+                  {issue.assigneeName || <span className="text-red-500">Chưa gán</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function FixVersionNotDoneTable({ issues }: { issues: FixVersionIssue[] }) {
+  if (issues.length === 0) {
+    return <p className="text-sm text-green-600 font-medium">✅ Tất cả ticket Fix Version đã Done</p>;
+  }
+  return (
+    <div className="rounded-lg border border-gray-200 overflow-hidden">
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr className="bg-gray-100 text-xs text-gray-500 uppercase tracking-wide">
+            <th className="text-left px-3 py-2 font-semibold w-[110px]">Ticket</th>
+            <th className="text-left px-3 py-2 font-semibold">Tên</th>
+            <th className="text-left px-3 py-2 font-semibold w-[130px]">Status</th>
+            <th className="text-left px-3 py-2 font-semibold w-[150px]">Assignee</th>
+          </tr>
+        </thead>
+        <tbody>
+          {issues.map((issue) => (
+            <tr key={issue.key} className="border-t border-gray-100 hover:bg-gray-50">
+              <td className="px-3 py-2">
+                <a
+                  href={`${JIRA_BASE}/browse/${issue.key}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline font-mono text-xs font-semibold"
+                >
+                  {issue.key}
+                </a>
+              </td>
+              <td className="px-3 py-2 text-sm text-gray-700">{issue.summary || '—'}</td>
+              <td className="px-3 py-2">
+                <span className="text-xs px-2 py-0.5 rounded border font-medium bg-amber-50 text-amber-700 border-amber-200">
+                  {issue.statusName || '—'}
+                </span>
+              </td>
+              <td className="px-3 py-2 text-xs text-gray-500">
+                {issue.assigneeName || <span className="text-red-500">Chưa gán</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function FixVersionReviewPanel({
+  result,
+  loading,
+  onReload,
+}: {
+  result: FixVersionReviewResult | null;
+  loading: boolean;
+  onReload: () => void;
+}) {
+  if (loading) return <div className="py-6 text-center text-gray-500 text-sm">Đang tải...</div>;
+  if (!result) return <div className="py-6 text-center text-gray-400 text-sm">Không có dữ liệu</div>;
+  return (
+    <div className="pt-4 space-y-6">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
+          Check tickets PO review ({result.poReviewIssues.length})
+        </p>
+        <PoReviewTable issues={result.poReviewIssues} onTransitioned={onReload} />
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
+          Check fix ver not done ({result.notDoneIssues.length})
+        </p>
+        <FixVersionNotDoneTable issues={result.notDoneIssues} />
+      </div>
+    </div>
+  );
+}
+
 // ─── DevTicketTable ───────────────────────────────────────────────────────────
 
 const JIRA_BASE = 'https://cakedigitalbank.atlassian.net';
@@ -854,6 +1095,20 @@ export default function Dashboard() {
   const [devReloadingAll, setDevReloadingAll] = useState(false);
   const [sprintHealth, setSprintHealth] = useState<SprintHealthResult | null>(null);
   const [sprintHealthLoading, setSprintHealthLoading] = useState(true);
+  const [fixVerReview, setFixVerReview] = useState<FixVersionReviewResult | null>(null);
+  const [fixVerReviewLoading, setFixVerReviewLoading] = useState(true);
+
+  const reloadFixVerReview = useCallback(async () => {
+    setFixVerReviewLoading(true);
+    try {
+      const result = await loadFixVersionReview();
+      setFixVerReview(result);
+    } catch (err: any) {
+      toast.error(`Tải PO Review thất bại: ${err?.response?.data?.error || err.message}`);
+    } finally {
+      setFixVerReviewLoading(false);
+    }
+  }, []);
 
   const loadSmData = useCallback(async (activeSprintName: string) => {
     setSmLoading(true);
@@ -882,6 +1137,10 @@ export default function Dashboard() {
             setSprintHealth(result);
             setSprintHealthLoading(false);
           }).catch(() => setSprintHealthLoading(false)),
+          loadFixVersionReview().then((result) => {
+            setFixVerReview(result);
+            setFixVerReviewLoading(false);
+          }).catch(() => setFixVerReviewLoading(false)),
         ]);
         setSprintReports(reports);
         setSprintLoading(false);
@@ -989,6 +1248,11 @@ export default function Dashboard() {
     : !sprintHealth || (sprintHealth.draftStories.length === 0 && sprintHealth.unassignedStories.length === 0)
     ? 'ok'
     : 'error';
+  const fixVerStatus: TaskStatus = fixVerReviewLoading
+    ? 'loading'
+    : !fixVerReview || (fixVerReview.poReviewIssues.length === 0 && fixVerReview.notDoneIssues.length === 0)
+    ? 'ok'
+    : 'error';
 
   return (
     <div className="space-y-6">
@@ -1059,6 +1323,14 @@ export default function Dashboard() {
               </div>
             </div>
           )}
+        </TaskItem>
+
+        <TaskItem title="Ngày 13 trở đi kiểm tra status PO và Fix version" status={fixVerStatus}>
+          <FixVersionReviewPanel
+            result={fixVerReview}
+            loading={fixVerReviewLoading}
+            onReload={reloadFixVerReview}
+          />
         </TaskItem>
 
         <TaskItem title="Cập nhật sprint và fix version" status={sprintStatus}>

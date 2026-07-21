@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002/api';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -60,13 +60,18 @@ export const configAPI = {
   saveAI: (data: { provider: string; apiKey: string; model: string; baseUrl?: string }) =>
     apiClient.put('/config/ai', data),
   testAI: () => apiClient.post('/config/ai/test'),
+  getTeamCapacity: () => apiClient.get('/config/team-capacity'),
+  saveTeamCapacity: (data: { qa: number; backend: number; web: number; mobile: number }) =>
+    apiClient.put('/config/team-capacity', data),
 };
 
 // Sprint Management API
 export const sprintManagementAPI = {
   getConfluenceChildren: () => apiClient.get('/sprint-management/confluence-children'),
   getLoadedPages: () => apiClient.get('/sprint-management/loaded-pages'),
+  getActiveSprints: () => apiClient.get('/sprint-management/active-sprints'),
   loadPage: (pageId: string) => apiClient.post(`/sprint-management/load-page/${pageId}`),
+  unlinkPage: (pageId: string) => apiClient.delete(`/sprint-management/pages/${pageId}`),
   getPageContent: (pageId: string) => apiClient.get(`/sprint-management/page-content/${pageId}`),
   analyze: (data: { pageIds: string[]; prompt: string }) => apiClient.post('/sprint-management/analyze', data),
   parseByScript: (data: { pageIds: string[] }) => apiClient.post('/sprint-management/parse', data),
@@ -99,4 +104,7 @@ export const jiraAPI = {
   getProjectVersions: (projectKeyOrId: string) => apiClient.get(`/jira/projects/${projectKeyOrId}/versions`),
   syncTask: (jiraKey: string) => apiClient.post(`/jira/sync/${jiraKey}`),
   createIssue: (data: any) => apiClient.post('/jira/create', data),
+  transitionIssue: (issueKey: string, targetStatus: string) =>
+    apiClient.post(`/jira/transition/${issueKey}`, { targetStatus }),
+  getIssueTransitions: (issueKey: string) => apiClient.get(`/jira/issue/${issueKey}/transitions`),
 };

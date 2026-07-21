@@ -94,6 +94,31 @@ export class JiraController {
     }
   }
 
+  async transitionIssue(req: Request, res: Response): Promise<void> {
+    try {
+      const { issueKey } = req.params;
+      const { targetStatus } = req.body as { targetStatus?: string };
+      if (!targetStatus) {
+        res.status(400).json({ success: false, error: 'targetStatus is required' });
+        return;
+      }
+      await jiraService.transitionIssueByTargetStatus(issueKey, targetStatus);
+      res.status(200).json({ success: true, data: { issueKey, targetStatus } });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async getIssueTransitions(req: Request, res: Response): Promise<void> {
+    try {
+      const { issueKey } = req.params;
+      const transitions = await jiraService.getIssueTransitions(issueKey);
+      res.status(200).json({ success: true, data: { transitions } });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
   async createJiraIssue(req: Request, res: Response): Promise<void> {
     try {
       const issueData = req.body;

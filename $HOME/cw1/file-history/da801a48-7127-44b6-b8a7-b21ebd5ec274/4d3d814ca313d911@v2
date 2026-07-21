@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
-import { sprintManagementAPI, configAPI } from '@/utils/api';
+import { sprintManagementAPI } from '@/utils/api';
 
 export interface LoadedPage {
   pageId: string;
@@ -129,34 +128,6 @@ function getStatusCategory(status: string): StatusCategory {
   return 'other';
 }
 
-// ─── Ticket type category (cho bộ lọc theo loại ticket) ───────────────────────
-export type TypeCategory = 'backend' | 'mobile' | 'web' | 'qa' | 'task';
-
-export const TYPE_CATEGORY_ORDER: TypeCategory[] = ['backend', 'mobile', 'web', 'qa', 'task'];
-export const TYPE_CATEGORY_LABELS: Record<TypeCategory, string> = {
-  backend: 'Backend',
-  mobile: 'Mobile',
-  web: 'Web',
-  qa: 'QA',
-  task: 'Task lẻ',
-};
-
-function getTypeCategory(type: string): TypeCategory | null {
-  const t = (type || '').toLowerCase().replace(/[\s_]/g, '-');
-  if (t.includes('backend')) return 'backend';
-  if (t.includes('mobile')) return 'mobile';
-  if (t.includes('web')) return 'web';
-  if (t.includes('qa')) return 'qa';
-  if (t === 'task') return 'task';
-  return null;
-}
-
-function matchTypeCategories(type: string, filter: Set<TypeCategory>): boolean {
-  if (filter.size === 0) return true;
-  const cat = getTypeCategory(type);
-  return cat !== null && filter.has(cat);
-}
-
 // ─── PO Status ───────────────────────────────────────────────────────────────
 
 export type PoStatus = 'na' | 'need-uat' | 'sent-uat' | 'need-confirm' | 'confirmed';
@@ -223,27 +194,6 @@ function PoStatusBadge({
   const key = getItemStorageKey(pageId, item);
   const [stored, setStored] = useState<PoStatus | null>(null);
   const [open, setOpen] = useState(false);
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
-
-  const toggleOpen = () => {
-    setOpen((prev) => {
-      const next = !prev;
-      if (next && btnRef.current) {
-        const r = btnRef.current.getBoundingClientRect();
-        const menuH = 200; // ước lượng chiều cao menu
-        const openUp = r.bottom + menuH > window.innerHeight && r.top > menuH;
-        setMenuStyle({
-          position: 'fixed',
-          right: Math.max(8, window.innerWidth - r.right),
-          ...(openUp
-            ? { bottom: window.innerHeight - r.top + 4 }
-            : { top: r.bottom + 4 }),
-        });
-      }
-      return next;
-    });
-  };
 
   useEffect(() => {
     try {
@@ -280,22 +230,17 @@ function PoStatusBadge({
   return (
     <div className="relative ml-auto shrink-0" onClick={(e) => e.stopPropagation()}>
       <button
-        ref={btnRef}
-        onClick={toggleOpen}
+        onClick={() => setOpen((p) => !p)}
         className={`flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded border cursor-pointer select-none ${cfg.cls}`}
       >
         PO: {cfg.label}
         <span className="opacity-40 text-[10px]">▾</span>
       </button>
 
-      {open && createPortal(
+      {open && (
         <>
-          <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)} />
-          <div
-            style={menuStyle}
-            onClick={(e) => e.stopPropagation()}
-            className="z-[61] bg-white rounded-lg shadow-xl border border-gray-200 py-1 min-w-[150px]"
-          >
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-7 z-50 bg-white rounded-lg shadow-xl border border-gray-200 py-1 min-w-[150px]">
             {(Object.entries(PO_STATUS_CONFIG) as [PoStatus, { label: string; cls: string }][]).map(([s, c]) => (
               <button
                 key={s}
@@ -307,8 +252,7 @@ function PoStatusBadge({
               </button>
             ))}
           </div>
-        </>,
-        document.body
+        </>
       )}
     </div>
   );
@@ -328,15 +272,11 @@ function statusBadgeClass(status: string): string {
 
 function typeBadgeClass(type: string): string {
   const t = type.toLowerCase();
-  if (t.includes('subtask') || t.includes('sub-task')) return 'bg-blue-50 text-blue-700 border border-blue-100';
   if (t === 'epic') return 'bg-purple-50 text-purple-700 border border-purple-100';
-  if (t === 'story') return 'bg-green-50 text-green-700 border border-green-100';
-  if (t === 'techdebt' || t.includes('tech debt')) return 'bg-violet-50 text-violet-700 border border-violet-100';
-  if (t.includes('security')) return 'bg-orange-50 text-orange-700 border border-orange-100';
-  if (t.includes('vendor')) return 'bg-blue-50 text-blue-700 border border-blue-100';
+  if (t === 'story') return 'bg-lime-50 text-lime-700 border border-lime-100';
+  if (t === 'task') return 'bg-amber-50 text-amber-700 border border-amber-100';
   if (t === 'bug' || t === 'defect') return 'bg-red-50 text-red-700 border border-red-100';
-  if (t === 'initiative') return 'bg-amber-50 text-amber-700 border border-amber-100';
-  if (t === 'task') return 'bg-sky-50 text-sky-700 border border-sky-100';
+  if (t.includes('subtask') || t.includes('sub-task')) return 'bg-blue-50 text-blue-700 border border-blue-100';
   return 'bg-slate-50 text-slate-600 border border-slate-100';
 }
 
@@ -361,57 +301,24 @@ function IssueTypeIcon({ type }: { type: string }) {
   const t = type.toLowerCase().replace(/\s+/g, '').replace(/_/g, '-');
   if (t === 'epic') {
     return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5 text-purple-600" fill="currentColor">
+      <svg viewBox="0 0 24 24" className="h-5 w-5 text-purple-500" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M13 2 4 14h7l-1 8 10-13h-7l1-7Z" />
       </svg>
     );
   }
   if (t === 'story') {
     return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5 text-green-600" fill="currentColor">
-        <path d="M6 3h12a1 1 0 0 1 1 1v16.5a.75.75 0 0 1-1.17.62L12 17.5l-5.83 3.62A.75.75 0 0 1 5 20.5V4a1 1 0 0 1 1-1Z" />
-      </svg>
-    );
-  }
-  if (t === 'task') {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5 text-sky-500" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="3" />
-        <path d="m8 12 2.5 2.5L16 9" />
-      </svg>
-    );
-  }
-  if (t === 'techdebt' || t === 'tech-debt') {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5 text-violet-600" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="m9 8-4 4 4 4" />
-        <path d="m15 8 4 4-4 4" />
-      </svg>
-    );
-  }
-  if (t === 'securitytask' || t === 'security-task') {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5 text-orange-500" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="4" y="10" width="16" height="11" rx="2" />
-        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-      </svg>
-    );
-  }
-  if (t === 'vendortask' || t === 'vendor-task') {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="3" />
-        <path d="m8 12 2.5 2.5L16 9" />
+      <svg viewBox="0 0 24 24" className="h-5 w-5 text-lime-700" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 4h12v17l-6-4-6 4V4Z" />
       </svg>
     );
   }
   if (t === 'defect') {
     return (
-      <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-red-500 text-white">
-        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor">
-          <path d="M13 3 6 13h4l-1 8 8-11h-4l1-7Z" />
-        </svg>
-      </span>
+      <svg viewBox="0 0 24 24" className="h-5 w-5 text-red-500" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="4" y="3" width="16" height="18" rx="2" />
+        <path d="m13 6-3 6h4l-3 6" />
+      </svg>
     );
   }
   if (t === 'sub-task' || t === 'subtask') {
@@ -484,20 +391,11 @@ function IssueTypeIcon({ type }: { type: string }) {
       </svg>
     );
   }
-  if (t === 'initiative') {
-    return (
-      <svg viewBox="0 0 24 24" className="h-5 w-5 text-amber-500" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 18h6" />
-        <path d="M10 22h4" />
-        <path d="M8.5 14.5A6 6 0 1 1 15.5 14c-.9.7-1.5 1.7-1.5 3h-4c0-1.2-.6-2-1.5-2.5Z" />
-      </svg>
-    );
-  }
-  // Loại không xác định ("Không rõ" / khác)
   return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="3" />
-      <path d="M8 12h8" />
+    <svg viewBox="0 0 24 24" className="h-5 w-5 text-amber-600" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 18h6" />
+      <path d="M10 22h4" />
+      <path d="M8.5 14.5A6 6 0 1 1 15.5 14c-.9.7-1.5 1.7-1.5 3h-4c0-1.2-.6-2-1.5-2.5Z" />
     </svg>
   );
 }
@@ -720,153 +618,15 @@ function SprintHealthCheck({
   );
 }
 
-// ─── Story point aggregation ──────────────────────────────────────────────────
-// Quy tắc: node có ticket con → tổng point từ các con (đệ quy xuống lá);
-// node lá (không có con) → dùng story point của chính nó.
-// Vậy: Initiative = tổng Epic, Epic = tổng Story, Story = tổng Sub-task,
-// KHÔNG dùng point gốc của node cha. Truyền matchLeaf để chỉ cộng các lá
-// thoả filter (vd theo assignee / status).
-function aggregateStoryPoints(
-  id: string,
-  ticketCache: Record<string, CachedSprintTicket>,
-  matchLeaf?: (t: CachedSprintTicket) => boolean,
-  visited: Set<string> = new Set<string>()
-): number {
-  if (!id || visited.has(id)) return 0;
-  visited.add(id);
-  const t = ticketCache[id];
-  if (!t) return 0;
-  const children = t.children || [];
-  if (children.length === 0) {
-    if (matchLeaf && !matchLeaf(t)) return 0;
-    return t.storyPoints || 0;
-  }
-  return children.reduce(
-    (sum, childId) => sum + aggregateStoryPoints(childId, ticketCache, matchLeaf, visited),
-    0
-  );
-}
-
-// Predicate lọc ở cấp lá, dùng chung cho bảng và phần tính tổng.
-interface LeafFilterOpts {
-  filterAssignees: string[] | null;
-  filterStatusCategory: StatusCategory | null;
-  filterTypeCategories: Set<TypeCategory>;
-  hideClosedStatuses: boolean;
-}
-
-function makeLeafMatcher(opts: LeafFilterOpts): (t: CachedSprintTicket) => boolean {
-  return (t) => {
-    if (opts.hideClosedStatuses && isHiddenStatus(t.status || '')) return false;
-    if (opts.filterAssignees !== null && !opts.filterAssignees.includes(assigneeKey(t.assignee))) return false;
-    if (opts.filterStatusCategory !== null && getStatusCategory(t.status || '') !== opts.filterStatusCategory) return false;
-    if (!matchTypeCategories(t.type, opts.filterTypeCategories)) return false;
-    return true;
-  };
-}
-
-// Key duy nhất của item trong 1 section (KHÔNG dùng prNumber vì có thể trùng).
-function sectionItemKey(item: SprintItem): string {
-  return String(item.number);
-}
-
-function itemFilteredPoints(
-  item: SprintItem,
-  ticketCache: Record<string, CachedSprintTicket>,
-  matchLeaf: (t: CachedSprintTicket) => boolean
-): number {
-  return item.tickets.reduce((sum, t) => sum + aggregateStoryPoints(t.id, ticketCache, matchLeaf), 0);
-}
-
-function sumSectionPoints(
-  section: SprintSection,
-  ticketCache: Record<string, CachedSprintTicket>,
-  matchLeaf: (t: CachedSprintTicket) => boolean,
-  uncheckedKeys: Set<string>
-): number {
-  return section.items.reduce(
-    (sum, item) => (uncheckedKeys.has(sectionItemKey(item)) ? sum : sum + itemFilteredPoints(item, ticketCache, matchLeaf)),
-    0
-  );
-}
-
-// ─── % tải theo team capacity ─────────────────────────────────────────────────
-// Cấu hình số point/sprint cho từng team (lưu ở Settings). 0 = chưa cấu hình.
-export type TeamCapacity = Record<'backend' | 'web' | 'mobile' | 'qa', number>;
-export const DEFAULT_TEAM_CAPACITY: TeamCapacity = { backend: 0, web: 0, mobile: 0, qa: 0 };
-
-// % của 1 subtask (lá) = point lá / capacity team của lá đó.
-function leafPercent(t: CachedSprintTicket, capacity: TeamCapacity): number {
-  const cat = getTypeCategory(t.type);
-  if (cat === 'backend' || cat === 'web' || cat === 'mobile' || cat === 'qa') {
-    const cap = capacity[cat];
-    if (cap > 0) return ((t.storyPoints || 0) / cap) * 100;
-  }
-  return 0;
-}
-
-// % của 1 node = tổng % các lá bên dưới (giống cách cộng story point).
-// node lá → % của chính nó; node cha → cộng dồn từ con.
-function aggregatePercent(
-  id: string,
-  ticketCache: Record<string, CachedSprintTicket>,
-  capacity: TeamCapacity,
-  matchLeaf?: (t: CachedSprintTicket) => boolean,
-  visited: Set<string> = new Set<string>()
-): number {
-  if (!id || visited.has(id)) return 0;
-  visited.add(id);
-  const t = ticketCache[id];
-  if (!t) return 0;
-  const children = t.children || [];
-  if (children.length === 0) {
-    if (matchLeaf && !matchLeaf(t)) return 0;
-    return leafPercent(t, capacity);
-  }
-  return children.reduce(
-    (sum, childId) => sum + aggregatePercent(childId, ticketCache, capacity, matchLeaf, visited),
-    0
-  );
-}
-
-function itemFilteredPercent(
-  item: SprintItem,
-  ticketCache: Record<string, CachedSprintTicket>,
-  capacity: TeamCapacity,
-  matchLeaf: (t: CachedSprintTicket) => boolean
-): number {
-  return item.tickets.reduce((sum, t) => sum + aggregatePercent(t.id, ticketCache, capacity, matchLeaf), 0);
-}
-
-function sumSectionPercent(
-  section: SprintSection,
-  ticketCache: Record<string, CachedSprintTicket>,
-  capacity: TeamCapacity,
-  matchLeaf: (t: CachedSprintTicket) => boolean,
-  uncheckedKeys: Set<string>
-): number {
-  return section.items.reduce(
-    (sum, item) => (uncheckedKeys.has(sectionItemKey(item)) ? sum : sum + itemFilteredPercent(item, ticketCache, capacity, matchLeaf)),
-    0
-  );
-}
-
-function fmtPercent(p: number): string {
-  if (!p) return '-';
-  return `${Math.round(p * 10) / 10}%`;
-}
-
 // ─── Ticket row renderer ──────────────────────────────────────────────────────
 
 function renderTicketRows({
   jiraBase,
   ticketCache,
-  teamCapacity,
   formatDate,
   showChildTickets,
   filterAssignees,
   filterStatusCategory,
-  filterTypeCategories,
   hideClosedStatuses,
   collapsedTicketIds,
   onToggleTicket,
@@ -876,12 +636,10 @@ function renderTicketRows({
 }: {
   jiraBase: string;
   ticketCache: Record<string, CachedSprintTicket>;
-  teamCapacity: TeamCapacity;
   formatDate: (iso: string) => string;
   showChildTickets: boolean;
   filterAssignees: string[] | null;
   filterStatusCategory: StatusCategory | null;
-  filterTypeCategories: Set<TypeCategory>;
   hideClosedStatuses: boolean;
   collapsedTicketIds: Set<string>;
   onToggleTicket: (id: string) => void;
@@ -910,8 +668,8 @@ function renderTicketRows({
       const child = ticketCache[childId];
       if (!child) return;
       childRows.push(...renderTicketRows({
-        jiraBase, ticketCache, teamCapacity, formatDate, showChildTickets,
-        filterAssignees, filterStatusCategory, filterTypeCategories, hideClosedStatuses,
+        jiraBase, ticketCache, formatDate, showChildTickets,
+        filterAssignees, filterStatusCategory, hideClosedStatuses,
         collapsedTicketIds, onToggleTicket,
         ticket: child,
         depth: resetDepth ? 0 : depth + 1,
@@ -924,21 +682,17 @@ function renderTicketRows({
   const isCollapsed = collapsedTicketIds.has(ticket.id);
   const hasChildren = childIds.length > 0;
 
-  const anyFilterActive =
-    filterAssignees !== null || filterStatusCategory !== null || filterTypeCategories.size > 0;
-
   if (hideClosedStatuses && isHiddenStatus(displayTicket.status)) {
     // Hidden from display but still recurse to surface matching children
-    return anyFilterActive ? recurseChildren(true) : [];
+    return (filterAssignees !== null || filterStatusCategory !== null) ? recurseChildren(true) : [];
   }
 
   // When a filter is active: only render self if directly matches; skip otherwise and recurse
-  if (anyFilterActive) {
+  if (filterAssignees !== null || filterStatusCategory !== null) {
     const selfMatchAssignee = filterAssignees === null || filterAssignees.includes(assigneeKey(displayTicket.assignee));
     const selfMatchStatus = filterStatusCategory === null || getStatusCategory(displayTicket.status) === filterStatusCategory;
-    const selfMatchType = matchTypeCategories(displayTicket.type, filterTypeCategories);
 
-    if (!selfMatchAssignee || !selfMatchStatus || !selfMatchType) {
+    if (!selfMatchAssignee || !selfMatchStatus) {
       return recurseChildren(true);
     }
     // Self matches: render self, then also recurse children (they may also match)
@@ -996,36 +750,7 @@ function renderTicketRows({
           {cached?.fixVersions?.length ? cached.fixVersions.join(', ') : '-'}
         </td>
         <td className="px-3 py-2 text-xs text-gray-500 font-mono text-center">
-          {(() => {
-            const sp = hasChildren
-              ? aggregateStoryPoints(ticket.id, ticketCache)
-              : displayTicket.storyPoints;
-            if (!sp) return '-';
-            return hasChildren ? (
-              <span
-                className="font-semibold text-gray-700"
-                title="Tổng story point từ các ticket con"
-              >
-                {sp}
-              </span>
-            ) : sp;
-          })()}
-        </td>
-        <td className="px-3 py-2 text-xs font-mono text-center">
-          {(() => {
-            const pct = hasChildren
-              ? aggregatePercent(ticket.id, ticketCache, teamCapacity)
-              : leafPercent(displayTicket, teamCapacity);
-            if (!pct) return <span className="text-gray-300">-</span>;
-            return (
-              <span
-                className={hasChildren ? 'font-semibold text-indigo-700' : 'text-indigo-600'}
-                title={hasChildren ? 'Tổng % tải từ các subtask con' : '% so với capacity team trong sprint'}
-              >
-                {fmtPercent(pct)}
-              </span>
-            );
-          })()}
+          {displayTicket.storyPoints ? displayTicket.storyPoints : '-'}
         </td>
         <td className="px-3 py-2 text-xs text-gray-500">
           {cached?.lastUpdatedAt ? formatDate(cached.lastUpdatedAt) : '-'}
@@ -1047,49 +772,34 @@ function SprintSectionTable({
   section,
   jiraBase,
   ticketCache,
-  teamCapacity,
   formatDate,
   showChildTickets,
   filterAssignees,
   filterStatusCategory,
-  filterTypeCategories,
   hideClosedStatuses,
   pageId,
   collapseAllKey,
-  uncheckedItems: controlledUnchecked,
-  onUncheckedItemsChange,
 }: {
   section: SprintSection;
   jiraBase: string;
   ticketCache: Record<string, CachedSprintTicket>;
-  teamCapacity: TeamCapacity;
   formatDate: (iso: string) => string;
   showChildTickets: boolean;
   filterAssignees: string[] | null;
   filterStatusCategory: StatusCategory | null;
-  filterTypeCategories: Set<TypeCategory>;
   hideClosedStatuses: boolean;
   pageId: string;
   collapseAllKey?: number;
-  // Khi truyền vào → state tick được điều khiển từ ngoài (vd header trang).
-  uncheckedItems?: Set<string>;
-  onUncheckedItemsChange?: (next: Set<string>) => void;
 }) {
   const [collapsedItems, setCollapsedItems] = useState<Set<string>>(new Set());
   const [collapsedTicketIds, setCollapsedTicketIds] = useState<Set<string>>(new Set());
-  const [internalUnchecked, setInternalUnchecked] = useState<Set<string>>(new Set());
-  const uncheckedItems = controlledUnchecked ?? internalUnchecked;
-  const applyUnchecked = (updater: (prev: Set<string>) => Set<string>) => {
-    if (onUncheckedItemsChange) onUncheckedItemsChange(updater(uncheckedItems));
-    else setInternalUnchecked(updater);
-  };
   const [tableOpen, setTableOpen] = useState(true);
   const prevCollapseKeyRef = useRef(collapseAllKey ?? 0);
 
   useEffect(() => {
     if (collapseAllKey !== undefined && collapseAllKey !== prevCollapseKeyRef.current) {
       prevCollapseKeyRef.current = collapseAllKey;
-      const allKeys = new Set(section.items.map((item) => String(item.number)));
+      const allKeys = new Set(section.items.map((item) => item.prNumber || String(item.number)));
       setCollapsedItems(allKeys);
     }
   }, [collapseAllKey, section.items]);
@@ -1133,65 +843,18 @@ function SprintSectionTable({
     });
   };
 
-  // Key duy nhất trong section = item.number (KHÔNG dùng prNumber vì có thể trùng).
-  const itemKey = sectionItemKey;
-
-  const toggleItemCheck = (key: string) => {
-    applyUnchecked((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
-  // Filter áp dụng ở cấp lá: chỉ cộng point các lá thoả filter đang bật.
-  const matchLeaf = makeLeafMatcher({ filterAssignees, filterStatusCategory, filterTypeCategories, hideClosedStatuses });
-
-  const itemPointsOf = (item: SprintItem) => itemFilteredPoints(item, ticketCache, matchLeaf);
-  const itemPercentOf = (item: SprintItem) => itemFilteredPercent(item, ticketCache, teamCapacity, matchLeaf);
-
-  const grandTotal = sumSectionPoints(section, ticketCache, matchLeaf, uncheckedItems);
-  const grandTotalPercent = sumSectionPercent(section, ticketCache, teamCapacity, matchLeaf, uncheckedItems);
-  const allChecked = uncheckedItems.size === 0;
-  const tickAll = () => applyUnchecked(() => new Set());
-  const untickAll = () => applyUnchecked(() => new Set(section.items.map(itemKey)));
+  const itemKey = (item: SprintItem) => item.prNumber || String(item.number);
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-2 px-1 gap-2 flex-wrap">
-        <button
-          type="button"
-          onClick={() => setTableOpen((p) => !p)}
-          className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide hover:text-gray-700 transition-colors select-none"
-        >
-          <span className="font-mono">{tableOpen ? '▼' : '▶'}</span>
-          Danh sách ticket
-        </button>
-        <div className="flex items-center gap-2">
-          <span
-            className="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-1 rounded"
-            title="Tổng story point của các item đang được tick (theo filter hiện tại)"
-          >
-            Tổng: {grandTotal} SP
-          </span>
-          {grandTotalPercent > 0 && (
-            <span
-              className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded"
-              title="Tổng % tải so với capacity team của các item đang tick (theo filter hiện tại)"
-            >
-              {fmtPercent(grandTotalPercent)}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={allChecked ? untickAll : tickAll}
-            className="text-xs font-medium px-2.5 py-1 rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            {allChecked ? 'Bỏ tick tất cả' : 'Tick tất cả'}
-          </button>
-        </div>
-      </div>
+      <button
+        type="button"
+        onClick={() => setTableOpen((p) => !p)}
+        className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 px-1 hover:text-gray-700 transition-colors select-none"
+      >
+        <span className="font-mono">{tableOpen ? '▼' : '▶'}</span>
+        Danh sách ticket
+      </button>
       {!tableOpen ? null : <div className="rounded-lg border border-gray-200 overflow-hidden">
       <table className="w-full text-sm border-collapse">
         <thead>
@@ -1202,8 +865,7 @@ function SprintSectionTable({
             <th className="text-left px-3 py-2 font-semibold w-[130px]">Trạng thái</th>
             <th className="text-left px-3 py-2 font-semibold w-[150px]">Assignee</th>
             <th className="text-left px-3 py-2 font-semibold w-[140px]">Fix Version</th>
-            <th className="text-center px-3 py-2 font-semibold w-[52px]">SP</th>
-            <th className="text-center px-3 py-2 font-semibold w-[64px]">%</th>
+            <th className="text-left px-3 py-2 font-semibold w-[52px]">SP</th>
             <th className="text-left px-3 py-2 font-semibold w-[170px]">Last update</th>
           </tr>
         </thead>
@@ -1211,20 +873,11 @@ function SprintSectionTable({
           {section.items.map((item) => {
             const key = itemKey(item);
             const collapsed = collapsedItems.has(key);
-            const checked = !uncheckedItems.has(key);
-            const itemPoints = itemPointsOf(item);
             return (
               <React.Fragment key={item.number}>
-                <tr className={`border-t border-blue-100 ${checked ? 'bg-blue-50' : 'bg-gray-50'}`}>
-                  <td colSpan={9} className="px-3 py-2.5">
+                <tr className="bg-blue-50 border-t border-blue-100">
+                  <td colSpan={8} className="px-3 py-2.5">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleItemCheck(key)}
-                        title="Tính point item này vào tổng"
-                        className="w-4 h-4 accent-purple-600 cursor-pointer shrink-0"
-                      />
                       <button
                         onClick={() => toggleItem(key)}
                         className="text-gray-400 hover:text-gray-600 text-xs font-mono w-4 shrink-0 select-none"
@@ -1250,22 +903,6 @@ function SprintSectionTable({
                         </a>
                       )}
                       <span className="font-semibold text-gray-900 text-sm">{item.title}</span>
-                      {itemPoints > 0 && (
-                        <span
-                          className="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded"
-                          title="Tổng story point của item (theo filter hiện tại)"
-                        >
-                          {itemPoints} SP
-                        </span>
-                      )}
-                      {itemPercentOf(item) > 0 && (
-                        <span
-                          className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded"
-                          title="Tổng % tải của item so với capacity team (theo filter hiện tại)"
-                        >
-                          {fmtPercent(itemPercentOf(item))}
-                        </span>
-                      )}
                       <PoStatusBadge item={item} ticketCache={ticketCache} pageId={pageId} />
                     </div>
                   </td>
@@ -1274,7 +911,7 @@ function SprintSectionTable({
                 {!collapsed && (
                   item.tickets.length === 0 ? (
                     <tr className="border-t border-gray-100">
-                      <td colSpan={9} className="px-3 py-1.5 text-xs text-red-500 italic pl-10">
+                      <td colSpan={8} className="px-3 py-1.5 text-xs text-red-500 italic pl-10">
                         Không có sub-ticket
                       </td>
                     </tr>
@@ -1284,12 +921,10 @@ function SprintSectionTable({
                         {renderTicketRows({
                           jiraBase,
                           ticketCache,
-                          teamCapacity,
                           formatDate,
                           showChildTickets,
                           filterAssignees,
                           filterStatusCategory,
-                          filterTypeCategories,
                           hideClosedStatuses,
                           collapsedTicketIds,
                           onToggleTicket,
@@ -1560,7 +1195,6 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [loadingResults, setLoadingResults] = useState(false);
   const [ticketCache, setTicketCache] = useState<Record<string, CachedSprintTicket>>({});
-  const [teamCapacity, setTeamCapacity] = useState<TeamCapacity>(DEFAULT_TEAM_CAPACITY);
   const [reloadingTicketIds, setReloadingTicketIds] = useState<Set<string>>(new Set());
   const [showChildTickets, setShowChildTickets] = useState(true);
   const [hideClosedStatuses, setHideClosedStatuses] = useState(true);
@@ -1569,20 +1203,6 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
   const [selectedAssignee, setSelectedAssignee] = useState<string | null>(null);
   const [selectedRoleAssignees, setSelectedRoleAssignees] = useState<string[] | null>(null);
   const [filterStatusCategory, setFilterStatusCategory] = useState<StatusCategory | null>(null);
-  const [filterTypeCategories, setFilterTypeCategories] = useState<Set<TypeCategory>>(new Set());
-  const [reloadingAll, setReloadingAll] = useState(false);
-  const [typeMenuOpen, setTypeMenuOpen] = useState(false);
-  // State tick/untick của section "Must have" — lift lên đây để header trang điều khiển.
-  const [mustHaveUnchecked, setMustHaveUnchecked] = useState<Set<string>>(new Set());
-
-  const toggleTypeFilter = (cat: TypeCategory) => {
-    setFilterTypeCategories((prev) => {
-      const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat);
-      else next.add(cat);
-      return next;
-    });
-  };
 
   // Computed filter: role takes precedence over single assignee
   const filterAssignees: string[] | null = selectedRoleAssignees ?? (selectedAssignee ? [selectedAssignee] : null);
@@ -1648,20 +1268,6 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
 
   useEffect(() => { loadResults(); }, [loadResults]);
 
-  useEffect(() => {
-    configAPI.getTeamCapacity()
-      .then((res) => {
-        const c = res.data || {};
-        setTeamCapacity({
-          backend: Number(c.backend) || 0,
-          web: Number(c.web) || 0,
-          mobile: Number(c.mobile) || 0,
-          qa: Number(c.qa) || 0,
-        });
-      })
-      .catch(() => {});
-  }, []);
-
   const handleReloadPage = async () => {
     setReloadingPage(true);
     try {
@@ -1708,39 +1314,6 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
     }
   };
 
-  // Reload All: chạy tuần tự Confluence → Parse script → Reload Jira.
-  const handleReloadAll = async () => {
-    if (reloadingAll) return;
-    setReloadingAll(true);
-    try {
-      await sprintManagementAPI.loadPage(page.pageId);
-      toast.success('1/3 · Đã reload Confluence');
-
-      const res = await sprintManagementAPI.parseByScript({ pageIds: [page.pageId] });
-      const entry: AnalysisResult = res.data.data;
-      setResults((prev) => [entry, ...prev]);
-      const ids = collectTicketIds(parseSprintJSON(entry.result));
-      await loadTicketCache(ids);
-      toast.success('2/3 · Parse script xong');
-
-      if (ids.length) {
-        const jiraRes = await sprintManagementAPI.reloadTickets(ids);
-        setTicketCache((prev) => ({ ...prev, ...(jiraRes.data.data || {}) }));
-      }
-      toast.success('3/3 · Đã reload Jira — hoàn tất');
-    } catch (err: any) {
-      toast.error(`Reload All lỗi: ${err?.response?.data?.error || err.message}`);
-    } finally {
-      setReloadingAll(false);
-    }
-  };
-
-  const handleToggleChildTickets = () => {
-    const next = !showChildTickets;
-    setShowChildTickets(next);
-    if (!next) setCollapseAllKey((k) => k + 1);
-  };
-
   const latestResult = results[0] || null;
   const latestParsed = latestResult ? parseSprintJSON(latestResult.result) : null;
   const latestTicketIds = collectTicketIds(latestParsed);
@@ -1751,26 +1324,13 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
   const mustHaveSection = getSection('Must have');
   const niceToHaveSection = getSection('Nice to have');
 
-  // Tổng point "Must have" của các item đang tick (theo filter hiện tại).
-  const headerMatchLeaf = makeLeafMatcher({ filterAssignees, filterStatusCategory, filterTypeCategories, hideClosedStatuses });
-  const mustHaveTotal = mustHaveSection
-    ? sumSectionPoints(mustHaveSection, ticketCache, headerMatchLeaf, mustHaveUnchecked)
-    : 0;
-  const mustHaveAllChecked = mustHaveUnchecked.size === 0;
-  const toggleMustHaveAll = () => {
-    if (!mustHaveSection) return;
-    setMustHaveUnchecked(mustHaveAllChecked ? new Set(mustHaveSection.items.map(sectionItemKey)) : new Set());
-  };
-
   const commonSectionProps = {
     jiraBase,
     ticketCache,
-    teamCapacity,
     formatDate,
     showChildTickets,
     filterAssignees,
     filterStatusCategory,
-    filterTypeCategories,
     hideClosedStatuses,
     pageId: page.pageId,
     collapseAllKey,
@@ -1789,87 +1349,6 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
 
   return (
     <div className="space-y-6 pb-48">
-      {/* Sticky page header — luôn nằm trên đầu trang */}
-      <div className="sticky top-0 z-40 -mx-8 px-8 py-3 bg-white/95 backdrop-blur border-b border-gray-200 shadow-sm">
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={handleReloadAll}
-            disabled={reloadingAll || parsing || reloadingPage}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-sm transition-colors shadow-sm"
-            title="Chạy tuần tự: Reload Confluence → Parse script → Reload Jira"
-          >
-            {reloadingAll ? <><span className="animate-spin inline-block">⏳</span> Đang reload...</> : '🔄 Reload All'}
-          </button>
-
-          {/* Bộ lọc theo loại — dropdown cho gọn */}
-          <div className="relative">
-            <button
-              onClick={() => setTypeMenuOpen((o) => !o)}
-              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                filterTypeCategories.size > 0
-                  ? 'border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              Lọc loại{filterTypeCategories.size > 0 ? ` (${filterTypeCategories.size})` : ''}
-              <span className="opacity-50 text-[10px]">▾</span>
-            </button>
-            {typeMenuOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setTypeMenuOpen(false)} />
-                <div className="absolute left-0 mt-1 z-50 bg-white rounded-lg shadow-xl border border-gray-200 py-1 min-w-[190px]">
-                  {TYPE_CATEGORY_ORDER.map((cat) => {
-                    const active = filterTypeCategories.has(cat);
-                    return (
-                      <button
-                        key={cat}
-                        onClick={() => toggleTypeFilter(cat)}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-50"
-                      >
-                        <span className={`w-4 h-4 inline-flex items-center justify-center rounded border text-[10px] ${active ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 text-transparent'}`}>✓</span>
-                        {TYPE_CATEGORY_LABELS[cat]}
-                      </button>
-                    );
-                  })}
-                  {filterTypeCategories.size > 0 && (
-                    <button
-                      onClick={() => setFilterTypeCategories(new Set())}
-                      className="w-full text-left px-3 py-1.5 text-xs text-blue-600 hover:bg-gray-50 border-t border-gray-100 mt-1"
-                    >
-                      ✕ Bỏ lọc loại
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-
-          <button
-            onClick={handleToggleChildTickets}
-            className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            {showChildTickets ? 'Thu gọn ticket con' : 'Hiện ticket con'}
-          </button>
-
-          {mustHaveSection && (
-            <div className="ml-auto flex items-center gap-2">
-              <span
-                className="text-sm font-bold text-purple-700 bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-lg"
-                title="Tổng story point Must have của các item đang tick (theo filter hiện tại)"
-              >
-                Must have: {mustHaveTotal} SP
-              </span>
-              <button
-                onClick={toggleMustHaveAll}
-                className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
-              >
-                {mustHaveAllChecked ? 'Bỏ tick tất cả' : 'Tick tất cả'}
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Step 1: Confluence + Parse */}
       <div className="rounded-xl bg-white shadow-sm border border-gray-100">
         <div className="px-6 py-4 border-b border-gray-100">
@@ -1909,6 +1388,16 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
             </div>
             {latestParsed && (
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const next = !showChildTickets;
+                    setShowChildTickets(next);
+                    if (!next) setCollapseAllKey((k) => k + 1);
+                  }}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                >
+                  {showChildTickets ? 'Thu gọn ticket con' : 'Hiện ticket con'}
+                </button>
                 <button
                   onClick={() => setHideClosedStatuses((prev) => !prev)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${hideClosedStatuses ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}
@@ -1959,12 +1448,7 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
                 </div>
                 <SprintHealthCheck section={mustHaveSection} ticketCache={ticketCache} />
                 <SprintSummaryTable sections={[mustHaveSection]} {...commonSummaryProps} />
-                <SprintSectionTable
-                  section={mustHaveSection}
-                  {...commonSectionProps}
-                  uncheckedItems={mustHaveUnchecked}
-                  onUncheckedItemsChange={setMustHaveUnchecked}
-                />
+                <SprintSectionTable section={mustHaveSection} {...commonSectionProps} />
               </div>
             )}
 

@@ -22,6 +22,90 @@ const DEFAULT_MODELS: Record<string, string> = {
   custom_claude: 'claude-sonnet-4-6',
 };
 
+const TEAM_FIELDS: { key: 'backend' | 'web' | 'mobile' | 'qa'; label: string; icon: string }[] = [
+  { key: 'backend', label: 'Backend', icon: '🗄️' },
+  { key: 'web', label: 'Web', icon: '🌐' },
+  { key: 'mobile', label: 'Mobile', icon: '📱' },
+  { key: 'qa', label: 'QA', icon: '🔍' },
+];
+
+const TeamCapacityConfig: React.FC = () => {
+  const [capacity, setCapacity] = useState<Record<string, number>>({ backend: 0, web: 0, mobile: 0, qa: 0 });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    configAPI.getTeamCapacity().then((res) => {
+      const c = res.data || {};
+      setCapacity({
+        backend: Number(c.backend) || 0,
+        web: Number(c.web) || 0,
+        mobile: Number(c.mobile) || 0,
+        qa: Number(c.qa) || 0,
+      });
+    });
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await configAPI.saveTeamCapacity({
+        backend: capacity.backend,
+        web: capacity.web,
+        mobile: capacity.mobile,
+        qa: capacity.qa,
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || err?.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6 space-y-5 mt-6">
+      <div className="border-b pb-2">
+        <h2 className="text-lg font-semibold text-gray-800">Team Capacity</h2>
+        <p className="text-xs text-gray-400 mt-1">Số story point tối đa của mỗi team trong 1 sprint. Dùng để tính % tải của ticket ở trang Sprint Management.</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        {TEAM_FIELDS.map((t) => (
+          <div key={t.key}>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {t.icon} {t.label} <span className="text-gray-400 font-normal">(SP / sprint)</span>
+            </label>
+            <input
+              type="number"
+              min={0}
+              value={capacity[t.key]}
+              onChange={(e) => setCapacity((prev) => ({ ...prev, [t.key]: Number(e.target.value) }))}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 font-mono"
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-3 pt-1">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50"
+        >
+          {saving ? 'Saving...' : 'Save'}
+        </button>
+        {saved && <span className="text-green-600 text-sm">✓ Saved</span>}
+        {error && <span className="text-red-600 text-sm">✗ {error}</span>}
+      </div>
+    </div>
+  );
+};
+
 const Config: React.FC = () => {
   const [provider, setProvider] = useState('anthropic');
   const [apiKey, setApiKey] = useState('');
@@ -199,6 +283,8 @@ const Config: React.FC = () => {
           </div>
         )}
       </div>
+
+      <TeamCapacityConfig />
     </div>
   );
 };

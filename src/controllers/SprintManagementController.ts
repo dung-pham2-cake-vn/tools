@@ -71,7 +71,11 @@ function writeIssueToCache(
     name: fields.summary || cache[issue.key]?.name || '',
     type: fields.issuetype?.name || cache[issue.key]?.type || 'Không rõ',
     status: fields.normalizedStatusName || fields.status?.name || cache[issue.key]?.status || '',
-    assignee: fields.normalizedAssigneeName || cache[issue.key]?.assignee || '',
+    // Chỉ fallback assignee cũ khi field không được fetch (undefined).
+    // Khi đã fetch: null = chưa gán → phải xóa, không giữ giá trị cũ trong cache.
+    assignee: fields.assignee !== undefined
+      ? (fields.normalizedAssigneeName || '')
+      : (cache[issue.key]?.assignee || ''),
     storyPoints: fields.normalizedStoryPoints ?? cache[issue.key]?.storyPoints ?? 0,
     lastUpdatedAt: now,
     jiraUpdatedAt: fields.updated || cache[issue.key]?.jiraUpdatedAt,
@@ -111,8 +115,8 @@ function collectRequestedTicketIds(
   return Array.from(collected);
 }
 
-async function reloadTicketsFromJira(ids: string[]): Promise<Record<string, SprintTicketCacheItem>> {
-  if (!ids.length) return await getTicketCache();
+async function reloadTicketsFromJira(ids: string[]): Promise<{ cache: Record<string, SprintTicketCacheItem>; seenIds: Set<string> }> {
+  if (!ids.length) return { cache: await getTicketCache(), seenIds: new Set() };
 
   const cache = await getTicketCache();
   const rootIds = uniqueTicketIds(ids);
@@ -170,9 +174,36 @@ async function reloadTicketsFromJira(ids: string[]): Promise<Record<string, Spri
       fields: ['summary', 'status', 'issuetype', 'updated', 'parent', 'subtasks', 'assignee', 'fixVersions'],
     });
     const childIssues = childResult.issues || [];
-    if (!childIssues.length) break;
+    if (!childIssues.length) {
+      // No children returned — clear stale children for all queried parents
+      parentIds.forEach((pid) => {
+        if (cache[pid]) cache[pid] = { ...cache[pid], children: [] };
+      });
+      break;
+    }
 
     recordIssues(childIssues);
+
+    // Jira is authoritative: SET children for each queried parent based on
+    // what `parent in (...)` returned — this removes stale entries like
+    // converted/moved tickets (e.g. PL-12805 → PLO-1949).
+    const freshChildrenByParent = new Map<string, string[]>();
+    for (const issue of childIssues) {
+      const pid = readParentId(issue as any);
+      if (pid) {
+        const arr = freshChildrenByParent.get(pid) || [];
+        arr.push((issue as any).key);
+        freshChildrenByParent.set(pid, arr);
+      }
+    }
+    parentIds.forEach((pid) => {
+      if (!cache[pid]) return;
+      cache[pid] = {
+        ...cache[pid],
+        children: freshChildrenByParent.get(pid) || [],
+      };
+    });
+
     frontier = childIssues.map((issue: any) => issue.key);
   }
 
@@ -189,7 +220,7 @@ async function reloadTicketsFromJira(ids: string[]): Promise<Record<string, Spri
   }
 
   await setConfig(TICKET_CACHE_KEY, cache);
-  return cache;
+  return { cache, seenIds };
 }
 
 function stripHtml(html: string): string {
@@ -314,6 +345,9 @@ function parseItemsFromText(sectionText: string): ScriptSprintItem[] {
   const chunks = sectionText.split(/(?=[🟢🟡🔴])/u).filter((c) => /^[🟢🟡🔴]/u.test(c.trim()));
 
   for (let idx = 0; idx < chunks.length; idx++) {
+    // First line = item header (emoji + team + PR + mô tả). Các dòng bên dưới
+    // (link PL và ghi chú) chỉ dùng để lấy ticket ID, KHÔNG đưa vào title.
+    const headerLine = chunks[idx].split('\n').map((l) => l.trim()).filter(Boolean)[0] || '';
     const chunk = chunks[idx].replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
     const icon = (chunk.match(/^[🟢🟡🔴]/u)?.[0] || '🟢') as '🟢' | '🟡' | '🔴';
 
@@ -335,9 +369,9 @@ function parseItemsFromText(sectionText: string): ScriptSprintItem[] {
       ticketIds.push(km[1]);
     }
 
-    // Title: strip structural prefix, keep actual description
+    // Title: strip structural prefix, keep actual description (chỉ từ header line)
     const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    let title = chunk
+    let title = headerLine
       .replace(/^[🟢🟡🔴]\s*/u, '')          // remove icon
       .replace(/^\[[^\]]*\]\s*/u, '')          // remove first [bracket] = teams
       .replace(/^\[PR-\d+\]\s*/iu, '')         // remove [PR-NNN] if immediately after
@@ -571,10 +605,46 @@ export const reloadCachedTickets = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const cache = await reloadTicketsFromJira(ids);
-    const returnedIds = collectRequestedTicketIds(cache, ids);
-    const data = Object.fromEntries(returnedIds.map((id) => [id, cache[id]]).filter(([, ticket]) => Boolean(ticket)));
+    const { cache, seenIds } = await reloadTicketsFromJira(ids);
+    // Return every ticket actually fetched from Jira (seenIds), not just those
+    // reachable via cache children links (which may lag behind during the reload).
+    const data = Object.fromEntries(
+      [...seenIds].map((id) => [id, cache[id]]).filter(([, ticket]) => Boolean(ticket))
+    );
     res.json({ success: true, data });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+export const unlinkPage = async (req: Request, res: Response): Promise<void> => {
+  const { pageId } = req.params;
+  try {
+    const pages: any[] = (await getConfig('sprint_mgmt_pages')) || [];
+    const filtered = pages.filter((p) => p.pageId !== pageId);
+    await setConfig('sprint_mgmt_pages', filtered);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+export const getActiveSprints = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await jiraService.searchIssuesWithOptions(
+      'project=PL AND Sprint IN openSprints()',
+      { maxResults: 10, fields: ['status'] }
+    );
+    const issues = (result.issues || []) as any[];
+    const seen = new Map<string, { name: string; startDate: string | null; endDate: string | null }>();
+    for (const issue of issues) {
+      for (const s of (issue.fields?.normalizedSprints || [])) {
+        if (s.state === 'active' && !seen.has(s.name)) {
+          seen.set(s.name, { name: s.name, startDate: s.startDate || null, endDate: s.endDate || null });
+        }
+      }
+    }
+    res.json({ success: true, data: Array.from(seen.values()) });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }

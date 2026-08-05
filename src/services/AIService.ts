@@ -35,13 +35,15 @@ const callAnthropic = async (apiKey: string, model: string, prompt: string, base
     });
 
     for await (const chunk of stream) {
-      if (chunk.type === 'text') {
-        responseText += chunk.text;
+      if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+        responseText += chunk.delta.text;
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('[AI] Anthropic API error:', error);
-    throw new Error('Failed to call Anthropic API with streaming');
+    // surface the provider's own message (expired key, rate limit, bad model...) to the UI
+    const detail = error?.error?.error?.message || error?.message || String(error);
+    throw new Error(`Anthropic API: ${detail}`);
   }
 
   if (!responseText) {

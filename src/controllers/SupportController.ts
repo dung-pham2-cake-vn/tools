@@ -2,7 +2,84 @@ import { Request, Response } from 'express';
 import axios from 'axios';
 import { scanUnclosed, scanAll, executeJQLQuery, saveTicketsToDatabase } from '../services/SupportService';
 import { SupportTicket } from '../models/SupportTicket';
+import { SvkNote } from '../models/SvkNote';
 import { analyzeTicketWithAI } from '../services/AIService';
+import {
+  scanSvkTickets,
+  getSvkTickets as fetchSvkTickets,
+  startPendingAiJob,
+  getAiJobState,
+  runAiForTicket,
+} from '../services/SvkService';
+
+export const getSvkTickets = async (_req: Request, res: Response) => {
+  try {
+    res.status(200).json(await fetchSvkTickets());
+  } catch (error: any) {
+    res.status(500).json({ message: 'Failed to fetch SVK tickets', error: error?.message });
+  }
+};
+
+export const scanSvk = async (_req: Request, res: Response) => {
+  try {
+    // each ticket is queued for AI as soon as it is saved, so by the time the scan
+    // returns the AI job is already partway through; client polls /svk/ai-status
+    const result = await scanSvkTickets();
+    res.status(200).json({ ...result, aiJob: getAiJobState() });
+  } catch (error: any) {
+    console.error('Error scanning SVK tickets:', error);
+    res.status(500).json({ message: 'SVK scan failed', error: error?.message });
+  }
+};
+
+export const svkAiStatus = async (_req: Request, res: Response) => {
+  res.status(200).json(getAiJobState());
+};
+
+export const svkAiRunAll = async (req: Request, res: Response) => {
+  try {
+    const force = req.query.force === 'true';
+    res.status(200).json(await startPendingAiJob(force));
+  } catch (error: any) {
+    res.status(500).json({ message: 'Failed to start AI job', error: error?.message });
+  }
+};
+
+export const svkAiRunOne = async (req: Request, res: Response) => {
+  try {
+    const analysis = await runAiForTicket(req.params.key);
+    res.status(200).json({ analysis });
+  } catch (error: any) {
+    console.error(`Error analyzing SVK ${req.params.key}:`, error);
+    res.status(500).json({ message: error?.message || 'AI analysis failed' });
+  }
+};
+
+export const getSvkNotes = async (_req: Request, res: Response) => {
+  try {
+    const notes = await SvkNote.find().lean();
+    const map: Record<string, string> = {};
+    for (const n of notes) map[n.key] = n.note || '';
+    res.status(200).json(map);
+  } catch (error: any) {
+    res.status(500).json({ message: 'Failed to fetch SVK notes', error: error?.message });
+  }
+};
+
+export const saveSvkNote = async (req: Request, res: Response) => {
+  const { key } = req.params;
+  const { note } = req.body;
+  try {
+    const saved = await SvkNote.findOneAndUpdate(
+      { key },
+      { note: note ?? '' },
+      { new: true, upsert: true }
+    ).lean();
+    res.status(200).json(saved);
+  } catch (error: any) {
+    res.status(500).json({ message: 'Failed to save SVK note', error: error?.message });
+  }
+};
 
 export const scanTickets = async (req: Request, res: Response) => {
   const { mode } = req.body;

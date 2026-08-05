@@ -3,6 +3,19 @@ import toast, { Toaster } from 'react-hot-toast';
 import { jiraAPI } from '@/utils/api';
 
 const PROJECT_KEY = 'PL';
+// Board lấy theo PL Lending, nhưng issue gồm cả PLO (cùng sprint). PLO xếp khối trên PL.
+const ISSUE_PROJECTS = 'PL, PLO';
+const projectOf = (key: string): string => key.split('-')[0];
+const projectRank = (key: string): number => (projectOf(key) === 'PLO' ? 0 : 1);
+
+// Rank là LexoRank (chuỗi) — so sánh chuỗi ra đúng thứ tự backlog Jira.
+// Item không có rank xếp cuối.
+const cmpRank = (a: string, b: string): number => {
+  if (a === b) return 0;
+  if (!a) return 1;
+  if (!b) return -1;
+  return a < b ? -1 : 1;
+};
 const PAGE_SIZE = 100;
 // Board ưu tiên tên chứa "Lending" (giống board trong screenshot), fallback board đầu tiên.
 const PREFERRED_BOARD_NAME = 'Lending';
@@ -33,6 +46,7 @@ interface JiraIssueFields {
   normalizedStoryPoints?: number;
   normalizedSprints?: SprintDetail[];
   normalizedFixVersionNames?: string[];
+  normalizedRank?: string;
   labels?: string[];
   issuetype?: { name?: string; subtask?: boolean; iconUrl?: string };
   parent?: { key?: string; fields?: { summary?: string } };
@@ -186,8 +200,8 @@ export default function BacklogPage() {
       const sprintIds = allSprints.map((s) => s.id);
       const jql =
         sprintIds.length > 0
-          ? `project = ${PROJECT_KEY} AND sprint IN (${sprintIds.join(',')}) ORDER BY Rank ASC`
-          : `project = ${PROJECT_KEY} AND sprint IN openSprints() ORDER BY Rank ASC`;
+          ? `project IN (${ISSUE_PROJECTS}) AND sprint IN (${sprintIds.join(',')}) ORDER BY Rank ASC`
+          : `project IN (${ISSUE_PROJECTS}) AND sprint IN openSprints() ORDER BY Rank ASC`;
 
       const map = new Map<string, JiraIssue>();
       const sprintIssues = await fetchAllPages(jql);
@@ -200,7 +214,7 @@ export default function BacklogPage() {
         const next: string[] = [];
         for (const batch of chunk(frontier, PARENT_BATCH)) {
           const kids = await fetchAllPages(
-            `project = ${PROJECT_KEY} AND parent IN (${batch.join(',')}) ORDER BY Rank ASC`,
+            `project IN (${ISSUE_PROJECTS}) AND parent IN (${batch.join(',')}) ORDER BY Rank ASC`,
           );
           for (const k of kids) {
             if (!map.has(k.key)) {
@@ -230,30 +244,38 @@ export default function BacklogPage() {
   }, []);
 
   const keySet = useMemo(() => new Set(issues.map((i) => i.key)), [issues]);
+  // Chỉ nhận link cha-con CÙNG project (PL↔PLO không lồng nhau — PLO chỉ xếp khối trên).
+  const parentKeyOf = (issue: JiraIssue): string | undefined => {
+    const pk = issue.fields.parent?.key;
+    if (!pk || !keySet.has(pk) || projectOf(pk) !== projectOf(issue.key)) return undefined;
+    return pk;
+  };
   const childrenByParent = useMemo(() => {
     const m = new Map<string, JiraIssue[]>();
     for (const i of issues) {
-      const pk = i.fields.parent?.key;
-      if (pk && keySet.has(pk)) {
+      const pk = parentKeyOf(i);
+      if (pk) {
         const list = m.get(pk) || [];
         list.push(i);
         m.set(pk, list);
       }
     }
+    // Thứ tự mảng `issues` là thứ tự BFS (sprint trước, con tìm sau) nên không phải rank
+    // toàn cục — sort lại để anh em cùng cha luôn đúng rank.
+    m.forEach((list) => list.sort((a, b) => cmpRank(a.fields.normalizedRank || '', b.fields.normalizedRank || '')));
     return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [issues, keySet]);
 
-  const isRoot = (i: JiraIssue) => {
-    const pk = i.fields.parent?.key;
-    return !pk || !keySet.has(pk);
-  };
+  const isRoot = (i: JiraIssue) => !parentKeyOf(i);
   const parentByKey = useMemo(() => {
     const m = new Map<string, string>();
     for (const i of issues) {
-      const pk = i.fields.parent?.key;
-      if (pk && keySet.has(pk)) m.set(i.key, pk);
+      const pk = parentKeyOf(i);
+      if (pk) m.set(i.key, pk);
     }
     return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [issues, keySet]);
 
   const typeOptions = useMemo(
@@ -317,9 +339,36 @@ export default function BacklogPage() {
   // Con hiển thị dưới sprint S: subtask luôn hiện (theo cha), non-subtask chỉ khi relevant(S).
   const visibleChildren = (node: JiraIssue, s: number): JiraIssue[] => {
     const kids = childrenByParent.get(node.key) || [];
-    if (s === NO_SPRINT) return kids;
-    return kids.filter((c) => (isSubtask(c) ? true : relevant(c, s)));
+    const shown = s === NO_SPRINT ? kids : kids.filter((c) => (isSubtask(c) ? true : relevant(c, s)));
+    // Node có con thì xếp theo rank hiệu dụng (vị trí con đầu tiên), không phải rank của chính nó.
+    return [...shown].sort((a, b) => cmpRank(effectiveRank(a, s), effectiveRank(b, s)));
   };
+
+  // Rank hiệu dụng: node có con lấy rank nhỏ nhất trong cây con đang hiển thị —
+  // tức cha nhảy xuống đúng chỗ của con đầu tiên. Không con thì dùng rank của chính nó.
+  const effectiveRank = useMemo(() => {
+    const cache = new Map<string, string>();
+    const fn = (node: JiraIssue, s: number): string => {
+      const ck = `${s}:${node.key}`;
+      const cached = cache.get(ck);
+      if (cached !== undefined) return cached;
+
+      const own = node.fields.normalizedRank || '';
+      const kids = childrenByParent.get(node.key) || [];
+      const shown = s === NO_SPRINT ? kids : kids.filter((c) => (isSubtask(c) ? true : relevant(c, s)));
+
+      let best = '';
+      for (const c of shown) {
+        const r = fn(c, s);
+        if (r && (!best || r < best)) best = r;
+      }
+      const out = best || own;
+      cache.set(ck, out);
+      return out;
+    };
+    return fn;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [childrenByParent, relevant]);
   // Point trong cây đã prune theo sprint S (leaf mang SP, parent = tổng con hiển thị).
   const pointInSprint = (node: JiraIssue, s: number): number => {
     const kids = visibleChildren(node, s);
@@ -374,9 +423,15 @@ export default function BacklogPage() {
       }
       if (!placed) bySprint.get(NO_SPRINT)!.push(issue);
     }
+    // PLO xếp trên PL, trong mỗi khối xếp theo rank hiệu dụng.
+    bySprint.forEach((list, s) =>
+      list.sort(
+        (a, b) => projectRank(a.key) - projectRank(b.key) || cmpRank(effectiveRank(a, s), effectiveRank(b, s)),
+      ),
+    );
     return bySprint;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [issues, sprints, relevant, keySet]);
+  }, [issues, sprints, relevant, effectiveRank, keySet]);
 
   const sprintStats = (roots: JiraIssue[], s: number) => {
     const all = roots.flatMap((r) => flattenVisible(r, s));
@@ -675,7 +730,7 @@ export default function BacklogPage() {
         <div>
           <h1 className="text-4xl font-bold text-gray-900">Backlog</h1>
           <p className="mt-2 text-sm text-gray-600">
-            Board {board ? <span className="font-semibold text-gray-800">{board.name}</span> : PROJECT_KEY} · active + future sprint · tree parent → subtask
+            Board {board ? <span className="font-semibold text-gray-800">{board.name}</span> : PROJECT_KEY} · project PL + PLO (PLO trên) · active + future sprint
           </p>
         </div>
         <div className="flex gap-2">

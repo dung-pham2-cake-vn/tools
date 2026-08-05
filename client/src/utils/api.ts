@@ -52,6 +52,14 @@ export const supportAPI = {
     apiClient.patch(`/support/tickets/${id}/analyze`, { analyzeNote }),
   reloadTicket: (id: string) => apiClient.post(`/support/tickets/${id}/reload`),
   aiAnalyze: (id: string) => apiClient.post(`/support/tickets/${id}/ai-analyze`),
+  getSvkNotes: () => apiClient.get('/support/svk-notes'),
+  saveSvkNote: (key: string, note: string) =>
+    apiClient.put(`/support/svk-notes/${key}`, { note }),
+  getSvkTickets: () => apiClient.get('/support/svk/tickets'),
+  scanSvk: () => apiClient.post('/support/svk/scan'),
+  svkAiStatus: () => apiClient.get('/support/svk/ai-status'),
+  svkAiRunAll: (force = false) => apiClient.post(`/support/svk/ai-run?force=${force}`),
+  svkAiRunOne: (key: string) => apiClient.post(`/support/svk/tickets/${key}/ai`),
 };
 
 // Config API

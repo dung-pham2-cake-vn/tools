@@ -266,11 +266,12 @@ export class JiraService {
       const fieldMap = await this.getFieldDefinitionMap();
       const sprintField = this.findFieldIdByName(fieldMap, ['Sprint']);
       const storyPointsField = this.findFieldIdByName(fieldMap, ['Story Points', 'Story point estimate']);
+      const rankField = this.findFieldIdByName(fieldMap, ['Rank']);
 
       return {
         ...response.data,
         issues: (response.data.issues || []).map((issue: JiraSearchIssue) =>
-          this.normalizeSearchIssue(issue, sprintField, storyPointsField)
+          this.normalizeSearchIssue(issue, sprintField, storyPointsField, rankField)
         ),
       };
     } catch (error) {
@@ -423,6 +424,7 @@ export class JiraService {
     const resolvedFields = new Set(requestedFields && requestedFields.length > 0 ? requestedFields : defaultFields);
     const sprintField = this.findFieldIdByName(fieldMap, ['Sprint']);
     const storyPointsField = this.findFieldIdByName(fieldMap, ['Story Points', 'Story point estimate']);
+    const rankField = this.findFieldIdByName(fieldMap, ['Rank']);
 
     if (sprintField) {
       resolvedFields.add(sprintField);
@@ -432,14 +434,20 @@ export class JiraService {
       resolvedFields.add(storyPointsField);
     }
 
+    if (rankField) {
+      resolvedFields.add(rankField);
+    }
+
     return Array.from(resolvedFields);
   }
 
   private normalizeSearchIssue(
     issue: JiraSearchIssue,
     sprintFieldId: string | null,
-    storyPointsFieldId: string | null
+    storyPointsFieldId: string | null,
+    rankFieldId?: string | null
   ) {
+    const rawRank = rankFieldId ? issue.fields[rankFieldId] : undefined;
     const sprintValues = sprintFieldId ? issue.fields[sprintFieldId] : undefined;
     const rawStoryPoints = storyPointsFieldId ? issue.fields[storyPointsFieldId] : undefined;
     const status = issue.fields.status as { name?: string } | undefined;
@@ -463,6 +471,8 @@ export class JiraService {
         normalizedAssigneeName: assignee?.displayName || '',
         normalizedFixVersionNames: (fixVersions || []).map((item) => item.name || '').filter(Boolean),
         normalizedFixVersions: fixVersionDetails,
+        // LexoRank string — plain lexicographic compare gives Jira backlog order
+        normalizedRank: typeof rawRank === 'string' ? rawRank : '',
       },
     };
   }

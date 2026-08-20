@@ -1,0 +1,297 @@
+openapi: 3.0.3
+info:
+  title: product_id - Collection Reminder API
+  description: |
+    > **⚠️ Lưu ý bản quyền:** Tài liệu này thuộc bản quyền của **Cake by VPBank**.
+    > Mọi hình thức sao chép, chỉnh sửa, hoặc phát tán phải được sự đồng ý bằng văn bản của Cake by VPBank.
+
+    ## Mô tả
+    API để đối tác (Partner) lấy danh sách các khoản vay cần bắn thông báo nhắc nợ (collection reminder)
+    cho khách hàng, bao gồm cả nhắc trước hạn (chưa tới due) và nhắc quá hạn.
+    Đối tác dùng danh sách này để tự gửi thông báo (SMS/push/app...) tới KH theo `channel` và `content_type` tương ứng.
+
+    ## Changelog
+
+    | Thời gian | Email title | Cập nhật |
+    |-----------|-------|-------|
+    | 2026-0x-0x | email_title | Khởi tạo tài liệu |
+
+    ## Cơ chế xác thực (Signature)
+    Tất cả request từ Partner gọi Cake đều phải ký signature:
+    ```
+    rawBody = {{body}} + {{partner_key}}
+    hash = sha256(rawBody)
+    signature = base64_encode(rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA256, hash))
+    ```
+    Partner cần tạo cặp khóa RSA 1024 bit: private key (PKCS#8) và public key (X.509).
+
+    ## Môi trường
+
+    ### SIT+UAT Environment
+
+    | Key | Value | Description |
+    |-----|-------|-------------|
+    | CAKE_API_URL | `https://gw.stage.cakedigibank.tech/ext/loan/{group}/{product_id}/collections` | |
+    | CAKE_PARTNER_ID | *(Cake cấp)* | Gắn ở header khi gọi API Cake |
+    | CAKE_PARTNER_KEY | *(Cake cấp)* | Gắn sau body khi ký api partner |
+    | PARTNER_API_URL | *(Partner cấp)* | |
+    | PARTNER_PUBLIC_KEY | *(Partner cấp)* | Gọi API Cake, Partner ký bằng private key, Cake verify |
+
+    ### PROD Environment
+
+    | Key | Value | Description |
+    |-----|-------|-------------|
+    | CAKE_API_URL | `https://gw.cake.vn/ext/loan/{group}/{product_id}/collections` | |
+    | CAKE_PARTNER_ID | *(Cake cấp)* | Gắn ở header khi gọi API Cake |
+    | CAKE_PARTNER_KEY | *(Cake cấp)* | Gắn sau body khi ký api partner |
+    | PARTNER_API_URL | *(Partner cấp)* | |
+    | PARTNER_PUBLIC_KEY | *(Partner cấp)* | Gọi API Cake, Partner ký bằng private key, Cake verify |
+
+    ## Error Codes
+
+    | Code | Message |
+    |------|---------|
+    | `1` | Thành công |
+    | `900000` | Có lỗi xảy ra, vui lòng thử lại sau |
+    | `900001` | Hệ thống đang bảo trì |
+    | `200000` | Chữ ký không hợp lệ |
+    | `200001` | Mã đối tác không hợp lệ |
+    | `500013` | Trường dữ liệu không hợp lệ |
+
+  version: "1.0.0"
+  contact:
+    name: Cake Digital Bank Support
+    url: https://cake.vn
+
+servers:
+  - url: https://gw.cake.vn/ext/loan/{group}/{product_id}
+    description: Production
+    variables:
+      group:
+        description: "Nhóm API (ví dụ: cashloan, paylater)"
+        default: cashloan
+      product_id:
+        description: Mã sản phẩm được cấu hình
+        default: product_id
+  - url: https://gw.stage.cakedigibank.tech/ext/loan/{group}/{product_id}
+    description: SIT+UAT
+    variables:
+      group:
+        default: cashloan
+      product_id:
+        default: product_id
+
+# ─────────────────────────────────────────────
+# COMMON COMPONENTS
+# ─────────────────────────────────────────────
+components:
+  parameters:
+    PartnerHeader:
+      name: partner
+      in: header
+      required: true
+      description: CAKE_PARTNER_ID được cấu hình trong môi trường
+      schema:
+        type: string
+        example: CAKE_PARTNER_ID
+
+    SignatureHeader:
+      name: signature
+      in: header
+      required: true
+      description: |
+        Chữ ký RSA-SHA256 của request body.
+        rawBody = body + partner_key → sha256 → RSA sign PKCS1v15 → base64
+      schema:
+        type: string
+
+    ContentTypeHeader:
+      name: Content-Type
+      in: header
+      required: true
+      schema:
+        type: string
+        default: application/json; charset=utf-8
+
+  schemas:
+    # ── Common Response Wrapper ──
+    BaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Kết quả xử lý yêu cầu (true/false)
+          example: true
+        code:
+          type: integer
+          description: Mã trạng thái hệ thống
+          example: 1
+        message:
+          type: string
+          description: Thông báo phản hồi từ hệ thống
+          example: Thành công
+        response_id:
+          type: string
+          description: Mã định danh duy nhất của mỗi phản hồi
+          example: "849KTQG7SQWLWQW5"
+        timestamp:
+          type: string
+          format: date-time
+          description: Thời gian phản hồi (ISO 8601)
+          example: "2025-11-03T07:00:00+07:00"
+
+    # ── Collection Reminder ──
+    GetCollectionReminderListRequest:
+      type: object
+      required:
+        - limit
+        - cursor
+      properties:
+        limit:
+          type: integer
+          description: Giới hạn số bản ghi trên mỗi trang (tối đa 500)
+          maximum: 500
+          example: 500
+        cursor:
+          type: string
+          description: Cursor từ yêu cầu trước đó (mặc định rỗng cho trang đầu)
+          default: ""
+
+    GetCollectionReminderListResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                cursor:
+                  type: string
+                  description: Con trỏ dùng để lấy dữ liệu trang tiếp theo
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/CollectionReminderItem"
+
+    CollectionReminderItem:
+      type: object
+      required:
+        - partner_name
+        - product_type
+        - product_group
+        - product_group_name
+        - loan_account_id
+        - content_type
+        - channel
+        - dpd
+        - updated_at
+      properties:
+        partner_name:
+          type: string
+          description: Tên đối tác
+          example: "qtv"
+        product_type:
+          type: string
+          description: Loại sản phẩm
+          example: "lending"
+        product_group:
+          type: string
+          description: Nhóm sản phẩm
+          example: "cashloan"
+        product_group_name:
+          type: string
+          description: Tên nhóm sản phẩm
+          example: "vay tiền nhanh"
+        loan_account_id:
+          type: string
+          description: Mã tài khoản khoản vay
+          example: "CAKECLMWG6909843022"
+        content_type:
+          type: string
+          description: Loại nội dung nhắc nợ
+          example: "overdue"
+        channel:
+          type: string
+          description: Kênh gửi thông báo
+          example: "sms"
+        dpd:
+          type: string
+          description: Số ngày quá hạn (days past due)
+          example: "-10"
+        updated_at:
+          type: string
+          description: Thời gian cập nhật record (UTC+7, ISO 8601)
+          example: "2026-07-16T11:44:00+07:00"
+        extra_data:
+          type: object
+          nullable: true
+          description: Dữ liệu bổ sung (nếu có)
+          properties:
+            partner_reference_id:
+              type: string
+              nullable: true
+              description: ID tham chiếu phía đối tác
+              example: "3b430a18-4fdf-4a4b-a269-3b7181e2fb27"
+
+# ─────────────────────────────────────────────
+# PATHS
+# ─────────────────────────────────────────────
+paths:
+  # ════════════════════
+  # COLLECTION REMINDER
+  # ════════════════════
+  /collections:
+    post:
+      tags: [ Collection Reminder ]
+      summary: Lấy danh sách khoản vay cần nhắc nợ (trước hạn + quá hạn) cho KH
+      description: |
+        Trả về danh sách các khoản vay cần đối tác chủ động gửi thông báo nhắc nợ (SMS/push/app...)
+        tới khách hàng, bao gồm cả nhắc trước hạn (dpd < 0) và nhắc quá hạn (dpd >= 0),
+        dựa theo `channel` và `content_type` của từng bản ghi.
+        Hỗ trợ phân trang bằng cursor. Tối đa 500 bản ghi/trang.
+      operationId: getCollectionReminderList
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetCollectionReminderListRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetCollectionReminderListResponse"
+
+# ─────────────────────────────────────────────
+# TAGS
+# ─────────────────────────────────────────────
+tags:
+  - name: Collection Reminder
+    description: |
+      API để đối tác lấy danh sách khoản vay cần bắn thông báo nhắc nợ (trước hạn + quá hạn) cho KH.
+
+# ─────────────────────────────────────────────
+# SEQUENCE DIAGRAM - API FLOW (x-extension)
+# ─────────────────────────────────────────────
+x-mermaid-flows:
+
+  collection_reminder: |
+    sequenceDiagram
+      autonumber
+      participant P as Partner
+      participant C as Cake
+
+      Note over P,C: Partner định kỳ (cron) gọi API để lấy danh sách nhắc nợ
+      P->>C: collections(limit, cursor)
+      C-->>P: items[loan_account_id, content_type, channel, dpd, ...], cursor
+      Note over P: Partner tự gửi thông báo (SMS/push/app) theo channel + content_type
+      loop Còn dữ liệu (cursor != rỗng)
+        P->>C: collections(limit, cursor)
+        C-->>P: items[], cursor
+      end

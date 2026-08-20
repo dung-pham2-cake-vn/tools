@@ -1,0 +1,623 @@
+openapi: 3.0.3
+info:
+  title: be_payday - APIs spec
+  description: |
+    ## Mô tả
+    API tích hợp giữa đối tác (Partner) và hệ thống Cake Digital Bank cho sản phẩm **be_payday**
+    theo mô hình **DOP** (Digital Onboarding Process).
+
+    ## Changelog
+
+    | Thời gian | Email title | Cập nhật |
+    |-----------|-------|-------|
+    | 2026-06-08 | BE Payday_API spec | Khởi tạo tài liệu |
+    | 2026-06-11 | BE Payday_API spec | Cập nhật mã lỗi, ví dụ |
+
+    ## Cơ chế xác thực (Signature)
+    Tất cả request từ Partner gọi Cake đều phải ký signature:
+    ```
+    rawBody = {{body}} + {{partner_key}}
+    hash = sha256(rawBody)
+    signature = base64_encode(rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA256, hash))
+    ```
+    Partner cần tạo cặp khóa RSA 1024 bit: private key (PKCS#8) và public key (X.509),
+    gửi public key cho Cake.
+    Test chữ ký có thể dùng tool online như [https://emn178.github.io/online-tools/rsa/verify](https://emn178.github.io/online-tools/rsa/verify/?input=%7B%22req_id%22%3A%221%22%2C%22action%22%3A1%7DPartner&input_type=utf-8&algorithm=SHA256&public_key=-----BEGIN%20PUBLIC%20KEY-----%0AMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC0KTbcJmoAT1g%2FFEp7eWWzuATg%0AK%2F7Go01PKZUaVTsN80JiDdg%2FmgDIcE0D9w5fYsDBN2pgeQ7EW8qqB8wb84qqk7QX%0AzAFfAqGx10X5aRe0WPsL3x7SCnG9QDz%2Fsun7hvrELes2sBw1a63lk3ZHyU9xLAcs%0ASsOFirCfQDlq0sbvNQIDAQAB%0A-----END%20PUBLIC%20KEY-----&signature_input_type=base64&signature=LWRijuKu83sa%2BU2FMe%2BsrtP8ctIaPjNAZ68YBiOiZNhzl%2FBELWztAcnTaOxINjghrfepTRLjhjvQw5mfwZrUHue4hwWDRvCpTMvCSfv513vuKp4kIQFK5EAASMZuhjwTn6mBxeO1i55xWB2wHqXVJxXgFecSok6T8qqJyH4XUzc%3D).
+    Other tools: [8gwifi RSA](https://8gwifi.org/RSAFunctionality?rsasignverifyfunctions=rsasignverifyfunctions&keysize=1024) (chọn `RSA Signature Algorithms: SHA256withRSA`).
+
+    ## Môi trường
+
+    ### SIT+UAT Environment
+
+    | Key | Value | Description |
+    |-----|-------|-------------|
+    | CAKE_API_URL | `https://gw.stage.cakedigibank.tech/ext/loan/payday/be_payday/` | |
+    | CAKE_PARTNER_ID | *(Cake cấp)* | Gắn ở header khi gọi API Cake |
+    | CAKE_PARTNER_KEY | *(Cake cấp)* | Gắn sau body khi ký API Cake |
+    | CAKE_IP_ADDRESS | `35.197.157.155/32`<br>`34.87.136.147/32`<br>`35.240.241.82/32`<br>`34.142.212.108/32`<br>`35.198.211.12/32`<br>`34.143.164.202/32`<br>`34.124.200.2/32` | Partner thêm các IP này vào Whitelist |
+    | PARTNER_API_URL | *(Partner cấp)* | |
+    | PARTNER_IP_ADDRESS | `34.87.136.147 (Cake auto)` | Cake thêm các IP này vào Whitelist |
+    | PARTNER_REDIRECT_URL | *(Partner cấp)* | Cake whitelist các redirect_url này |
+
+    ### PROD Environment
+
+    | Key | Value | Description |
+    |-----|-------|-------------|
+    | CAKE_API_URL | `https://gw.cake.vn/ext/loan/payday/be_payday/` | |
+    | CAKE_PARTNER_ID | *(Cake cấp)* | Gắn ở header khi gọi API Cake |
+    | CAKE_PARTNER_KEY | *(Cake cấp)* | Gắn sau body khi ký api partner |
+    | CAKE_IP_ADDRESS | `34.87.56.148/32`<br>`35.240.146.157/32`<br>`34.87.175.195/32`<br>`34.142.177.122/32`<br>`34.87.39.41/32`<br>`34.143.164.31/32`<br>`34.143.174.79/32` | Partner thêm các IP này vào Whitelist |
+    | PARTNER_API_URL | *(Partner cấp)* | |
+    | PARTNER_IP_ADDRESS | *(Partner cấp)* | Cake thêm các IP này vào Whitelist |
+    | PARTNER_REDIRECT_URL | *(Partner cấp)* | Cake whitelist các redirect_url này |
+
+
+    ## Error Codes
+
+    ### General
+    | Code | Message |
+    |------|---------|
+    | `1` | Thành công |
+    | `2` | Deadline exceeded |
+    | `500` | Internal server error |
+    | `501` | Not implement |
+    | `502` | An invalid response was received from the upstream server |
+    | `900000` | Có lỗi xảy ra, vui lòng thử lại sau! / Trường dữ liệu không hợp lệ: {{field_name}} - required |
+    | `900001` | Hệ thống đang bảo trì |
+    | `900002` | Request is processing |
+    | `200000` | Chữ ký không hợp lệ |
+    | `200001` | Mã đối tác không hợp lệ |
+    | `200003` | Request ID không hợp lệ (NID hoặc Phone không khớp) |
+    | `400001` | Không có thông tin khoản vay (Sản phẩm không tồn tại loan_code này) |
+    | `100100` | COB Time - Yêu cầu thanh toán không được thực hiện |
+    | `500013` | Trường dữ liệu không hợp lệ: {{field_name}} - {{field_type}} |
+    | `500014` | Trạng thái khoản vay không hợp lệ (đang không hỗ trợ) |
+
+  version: "1.0.0"
+  contact:
+    name: Cake Digital Bank Support
+    url: https://cake.vn
+
+servers:
+  - url: https://gw.stage.cakedigibank.tech/ext/loan/payday/be_payday
+    description: SIT+UAT
+  - url: https://gw.cake.vn/ext/loan/payday/be_payday
+    description: Production
+
+# ─────────────────────────────────────────────
+# COMMON COMPONENTS
+# ─────────────────────────────────────────────
+components:
+  parameters:
+    PartnerHeader:
+      name: partner
+      in: header
+      required: true
+      description: CAKE_PARTNER_ID được cấu hình trong môi trường
+      schema:
+        type: string
+        example: CAKE_PARTNER_ID
+
+    SignatureHeader:
+      name: signature
+      in: header
+      required: true
+      description: |
+        Chữ ký RSA-SHA256 của request body.
+        rawBody = body + partner_key → sha256 → RSA sign PKCS1v15 → base64
+      schema:
+        type: string
+
+    ContentTypeHeader:
+      name: Content-Type
+      in: header
+      required: true
+      description: application/json; charset=utf-8
+      schema:
+        type: string
+        default: application/json; charset=utf-8
+
+  schemas:
+    # ── Common Response Wrapper ──
+    BaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Kết quả xử lý yêu cầu (true/false)
+          example: true
+        code:
+          type: integer
+          description: Mã trạng thái hệ thống
+          example: 1
+        message:
+          type: string
+          description: Thông báo phản hồi từ hệ thống
+          example: Thành công
+        response_id:
+          type: string
+          description: Mã định danh duy nhất của mỗi phản hồi
+          example: "849KTQG7SQWLWQW5"
+        timestamp:
+          type: string
+          format: date-time
+          description: Thời gian phản hồi (ISO 8601)
+          example: "2025-11-03T07:00:00+07:00"
+
+    # ── generate-webview/onboarding ──
+    GenerateWebviewOnboardingRequest:
+      type: object
+      required:
+        - partner_reference_id
+        - phone_number
+      properties:
+        partner_reference_id:
+          type: string
+          description: ID của đối tác để định danh hồ sơ
+          example: "bf133c7c-8e10-45a2-b9d2-4d04a352917a"
+        phone_number:
+          type: string
+          description: SĐT của KH (định dạng bắt đầu bằng số 0)
+          example: "0xxxxxxxxx"
+
+    GenerateWebviewResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                webview_url:
+                  type: string
+                  description: Webview DOP URL, thời gian hết hạn trong 30 phút
+                  example: "https://dop.cake.vn/...?token=..."
+
+    # ── get-loan-detail ──
+    GetLoanDetailRequest:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+      properties:
+        loan_code:
+          type: string
+          description: Mã khoản vay, partner nhận từ API callback /partner-update-status
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          description: SĐT của KH (định dạng bắt đầu bằng số 0)
+          example: "0xxxxxxxxx"
+
+    GetLoanDetailResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                loan_account_status:
+                  type: string
+                  description: |
+                    Trạng thái tài khoản vay:
+                    - LOAN_UNKNOWN: Hồ sơ KH có trạng thái không xác định
+                    - LOAN_APPROVE: Hồ sơ vay đã được phê duyệt
+                    - LOAN_EXPIRED: Hồ sơ vay bị hết hạn (7 ngày)
+                    - LOAN_CANCEL: KH hủy hợp đồng vay
+                    - LOAN_SIGNED: KH ký hợp đồng vay thành công
+                    - LOAN_ACTIVE: Khoản vay đã được giải ngân thành công
+                    - LOAN_CLOSE: Khoản vay đã tất toán
+                  example: "LOAN_ACTIVE"
+                contract_id:
+                  type: string
+                  description: Mã hợp đồng. Dùng cho luồng nhắc nợ, đối soát
+                  example: "1234567890"
+                loan_alias:
+                  type: string
+                  description: Mã thanh toán
+                  example: "G4JH5R"
+                contract_url:
+                  type: string
+                  description: Url hợp đồng cuối (đã ký song phương). Link hết hạn trong 1h
+                  example: "https://storage.googleapis.com/..."
+                full_name:
+                  type: string
+                  description: Họ và tên KH
+                  example: "Nguyễn Hoàng Sơn"
+                document_id:
+                  type: string
+                  description: Số GTTT của KH
+                  example: "xxxxxxxxxxxx"
+                approved_amount:
+                  type: string
+                  description: Số tiền được phê duyệt
+                  example: "12000000"
+                approved_term:
+                  type: string
+                  description: Thời hạn vay phê duyệt (ngày)
+                  example: "30"
+                loan_insurance:
+                  type: string
+                  description: Số tiền bảo hiểm khoản vay
+                  example: "840000"
+                disburse_amount:
+                  type: string
+                  description: Số tiền đã giải ngân
+                  example: "12840000"
+                disburse_date:
+                  type: string
+                  format: date
+                  description: Ngày giải ngân khoản vay (yyyy-mm-dd)
+                  example: "2025-06-03"
+                interest_rate:
+                  type: string
+                  description: Lãi suất
+                  example: "0.43"
+                principle_balance:
+                  type: string
+                  description: Dư nợ gốc khả dụng còn lại
+                  example: "12640000"
+                interest_balance:
+                  type: string
+                  description: Dư nợ lãi phát sinh (nếu có)
+                  example: "197494"
+                penalty_principal_balance:
+                  type: string
+                  description: Lãi phạt gốc quá hạn (nếu có)
+                  example: "2494265"
+                penalty_interest_balance:
+                  type: string
+                  description: Lãi phạt lãi quá hạn (nếu có)
+                  example: "0"
+                due_date:
+                  type: string
+                  format: date
+                  description: Ngày đến hạn thanh toán gần nhất (yyyy-mm-dd)
+                  example: "2025-06-27"
+                day_arrears:
+                  type: string
+                  description: Số ngày quá hạn (nếu có)
+                  example: "191"
+                total_payment_amount:
+                  type: string
+                  description: Tổng tiền KH có thể thanh toán
+                  example: "15331759"
+
+    # ── partner-update-status (Cake → Partner) ──
+    PartnerUpdateStatusRequest:
+      type: object
+      required:
+        - partner_reference_id
+        - loan_code
+        - status
+      properties:
+        partner_reference_id:
+          type: string
+          description: ID của đối tác truyền khi gen link, gắn theo khoản vay khi được APPROVE
+          example: "bf133c7c-8e10-45a2-b9d2-4d04a352917a"
+        loan_code:
+          type: string
+          description: Mã khoản vay
+          example: "u8123123Sjsdb"
+        status:
+          type: string
+          description: |
+            Trạng thái hồ sơ khoản vay Cake:
+            - LOAN_APPROVE: Hồ sơ đăng ký khoản vay đã được phê duyệt
+            - LOAN_REJECT: Hồ sơ đăng ký khoản vay bị từ chối
+            - LOAN_EXPIRED: Hồ sơ đăng ký khoản vay bị hết hạn (7 ngày)
+            - LOAN_SIGNED: Hồ sơ đã ký hợp đồng vay
+            - LOAN_CANCEL: Hồ sơ đăng ký khoản vay bị hủy
+            - LOAN_ACTIVE: Hồ sơ đã giải ngân thành công
+            - LOAN_CLOSE: Khoản vay đã tất toán
+          example: "LOAN_APPROVE"
+
+    # ── Partner callback response (code/message) ──
+    PartnerCallbackResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          description: Mã trạng thái
+          example: 1
+        message:
+          type: string
+          description: Thông báo phản hồi
+          example: "Thành công"
+
+# ─────────────────────────────────────────────
+# PATHS
+# ─────────────────────────────────────────────
+paths:
+  # ════════════════════
+  # ONBOARDING (Partner → Cake)
+  # ════════════════════
+  /generate-webview/onboarding:
+    post:
+      tags: [ Onboarding ]
+      summary: Khởi tạo token & webview cho DOP onboarding
+      description: |
+        Khởi tạo token cho DOP. Response trả về `webview_url` (hết hạn trong 30 phút)
+        để Partner hiển thị webview onboarding của Cake cho KH.
+
+        ## Error Codes
+
+        ### Validation Errors
+        | Code | Message | Mô tả |
+        |------|---------|-------|
+        | `900000` | Trường dữ liệu không hợp lệ: {{field_name}} - required | Truyền thiếu field required |
+        | `500013` | Trường dữ liệu không hợp lệ: {{field_name}} - {{field_type}} | Truyền field sai định dạng hoặc không thuộc list được phép truyền |
+
+        ### Precheck Errors
+        | Code | Message | Mô tả |
+        |------|---------|-------|
+        | `100008` | Hồ sơ của bạn không đủ điều kiện đăng ký sản phẩm. Vui lòng gọi điện lên tổng đài 1900 636 686 để được hỗ trợ! | Hồ sơ eKYC không đủ điều kiện |
+        | `100009` | Thông tin GTTT đã tồn tại. Vui lòng gọi điện lên tổng đài 1900 636 686 để được hỗ trợ! | GTTT đã tồn tại trên hệ thống |
+        | `100011` | Rất tiếc, độ tuổi của bạn không đủ điều kiện để đăng ký sản phẩm này. Hãy quay lại sau nhé! | Không đủ tuổi đăng ký |
+        | `500009` | Rất tiếc! Hồ sơ của bạn không đủ điều kiện đăng ký sản phẩm này. Hãy quay lại sau nhé! | Hit precheck |
+        | `500010` | Ops, hồ sơ của bạn mới bị từ chối gần đây. Hãy quay lại sau ít ngày nhé! | Hồ sơ bị LOS reject, cần chờ 7 ngày |
+        | `500015` | Bạn đang có khoản vay tương tự đã được giải ngân. Hãy quay lại sau nhé! | Đang có khoản vay cùng loại active |
+        | `500016` | Ops, giấy tờ tùy thân của bạn không còn đủ hiệu lực. Hãy cập nhật giấy tờ tùy thân mới nhất với Cake trước khi khám phá sản phẩm này nhé! | GTTT hết hiệu lực |
+        | `500017` | Ops, hồ sơ của bạn chưa thực hiện xác thực định danh NFC. Hãy bổ sung trước khi khám phá sản phẩm của Cake nhé! | Chưa xác thực NFC |
+        | `500018` | Rất tiếc! Hồ sơ của bạn không đủ điều kiện đăng ký sản phẩm này. Hãy quay lại sau nhé! | Hit precheck |
+        | `500019` | Ops, giấy tờ tùy thân của bạn không còn đủ hiệu lực. Hãy cập nhật giấy tờ tùy thân mới nhất với Cake trước khi khám phá sản phẩm này nhé! | GTTT hết hiệu lực |
+        | `500021` | Ops, hồ sơ của bạn không đủ điều kiện đăng ký sản phẩm này. Hãy quay lại sau nhé! | Hit precheck |
+        | `500024` | Tài khoản nhận giải ngân không hợp lệ, vui lòng kiểm tra lại thông tin. | Tài khoản nhận giải ngân không hợp lệ |
+        | `500025` | Rất tiếc! Hồ sơ của bạn không đủ điều kiện đăng ký sản phẩm này. Hãy quay lại sau nhé! | Hit precheck |
+        | `500029` | Bạn đang có hồ sơ vay khác chưa hoàn tất. Vui lòng gọi điện lên tổng đài 1900 636 686 để được hỗ trợ! | Có hồ sơ vay khác chưa hoàn tất |
+        | `500030` | Tài khoản của bạn đang tạm khóa. Vui lòng gọi điện lên tổng đài 1900 636 686 để được hỗ trợ! | Tài khoản bị tạm khóa |
+        | `500031` | Tài khoản giải ngân không hợp lệ. Vui lòng kiểm tra lại thông tin. | Tài khoản giải ngân không hợp lệ |
+        | `500032` | Ops, hồ sơ của bạn chưa hợp lệ. Vui lòng gọi điện lên tổng đài 1900 636 686 để được hỗ trợ! | Hồ sơ chưa hợp lệ (cần liên hệ tổng đài) |
+        | `500034` | Ops, hồ sơ của bạn chưa đủ điều kiện đăng ký sản phẩm này. Hãy quay lại sau nhé! | Hit precheck |
+        | `500035` | Rất tiếc! Hồ sơ của bạn không đủ điều kiện đăng ký sản phẩm này. Hãy quay lại sau nhé! | Hit precheck |
+        | `500036` | Ops, hồ sơ của bạn chưa đủ điều kiện đăng ký sản phẩm này. Vui lòng quay lại sau! | Hit precheck |
+        | `500037` | Rất tiếc! Hồ sơ của bạn không đủ điều kiện đăng ký sản phẩm này. Hãy quay lại sau nhé! | Hit precheck |
+        | `500038` | Rất tiếc! Hồ sơ của bạn không đủ điều kiện đăng ký sản phẩm này. Hãy quay lại sau nhé! | Hit precheck |
+        | `500039` | Rất tiếc! Hồ sơ của bạn không đủ điều kiện đăng ký sản phẩm này. Hãy quay lại sau nhé! | Hit precheck |
+        | `500040` | Hồ sơ của bạn không đủ điều kiện. | Hit precheck |
+        | `500041` | Rất tiếc! Hồ sơ của bạn không đủ điều kiện đăng ký sản phẩm này. Hãy quay lại sau nhé! | Hit precheck |
+        | `500042` | Hồ sơ của bạn không đủ điều kiện. | Hit precheck |
+        | `500043` | Hồ sơ của bạn không đủ điều kiện. | Hit precheck |
+        | `500044` | Hồ sơ của bạn không đủ điều kiện. | Hit precheck |
+        | `500045` | Hồ sơ của bạn không đủ điều kiện. | Hit precheck |
+        | `500046` | Hồ sơ của bạn không đủ điều kiện. | Hit precheck |
+        | `500047` | Hồ sơ của bạn không đủ điều kiện. | Hit precheck |
+        | `500048` | Hồ sơ của bạn không đủ điều kiện. | Hit precheck |
+        | `500049` | Hồ sơ của bạn không đủ điều kiện. | Hit precheck |
+        | `500050` | Hồ sơ của bạn không đủ điều kiện. | Hit precheck |
+      operationId: generateWebviewOnboarding
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateWebviewOnboardingRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateWebviewResponse"
+
+  # ════════════════════
+  # LOAN INFO (Partner → Cake)
+  # ════════════════════
+  /get-loan-detail:
+    post:
+      tags: [ Loan Info ]
+      summary: Truy vấn thông tin chi tiết khoản vay
+      description: |
+        ## Error Codes
+
+        | Code | Message | Mô tả |
+        |------|---------|-------|
+        | `900000` | Trường dữ liệu không hợp lệ: {{field_name}} - required | Truyền thiếu field required |
+        | `500013` | Trường dữ liệu không hợp lệ: {{field_name}} - {{field_type}} | Truyền field sai định dạng hoặc không thuộc list được phép truyền |
+        | `400001` | Không có thông tin khoản vay | Sản phẩm không tồn tại loan_code này |
+      operationId: getLoanDetail
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetLoanDetailRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetLoanDetailResponse"
+              examples:
+                active_normal:
+                  summary: "[LOAN_ACTIVE] Đang vay, chưa đến hạn"
+                  value:
+                    success: true
+                    code: 1
+                    message: Thành công
+                    response_id: "WNLJW3G63V3UP9BR"
+                    timestamp: "2026-06-10T22:00:02+07:00"
+                    data:
+                      loan_account_status: "LOAN_ACTIVE"
+                      contract_id: "1166718696"
+                      contract_url: "https://storage.googleapis.com/..."
+                      full_name: "Phạm Thị B"
+                      document_id: "123456789012"
+                      approved_amount: "4000000"
+                      approved_term: "30"
+                      loan_insurance: "320000"
+                      disburse_amount: "4320000"
+                      disburse_date: "2026-06-10"
+                      interest_rate: "60"
+                      principle_balance: "4320000"
+                      interest_balance: "0"
+                      penalty_principal_balance: "0"
+                      penalty_interest_balance: "0"
+                      due_date: "2026-07-10"
+                      day_arrears: "0"
+                      total_payment_amount: "4320000"
+                active_overdue:
+                  summary: "[LOAN_ACTIVE] Quá hạn 38 ngày — có phạt gốc, lãi tích lũy"
+                  description: |
+                    Nguồn: SIT data, đã map với be_payday spec:
+                    - `tenor` → `approved_term`
+                    - `loan_code`, `paid_amount` bỏ (không có trong be_payday schema)
+                    - `principle_balance` chuyển sang string (API thực tế trả integer)
+                    - `full_name`, `document_id` đã mask
+                  value:
+                    success: true
+                    code: 1
+                    message: Thành công
+                    response_id: "13HRGD3VE2U6AHYL"
+                    timestamp: "2026-06-10T22:13:55+07:00"
+                    data:
+                      loan_account_status: "LOAN_ACTIVE"
+                      contract_id: "8038285193"
+                      contract_url: "https://storage.googleapis.com/..."
+                      full_name: "Đoàn Tấn B"
+                      document_id: "123456789012"
+                      approved_amount: "5000000"
+                      approved_term: "60"
+                      loan_insurance: "400000"
+                      disburse_amount: "5400000"
+                      disburse_date: "2026-03-02"
+                      interest_rate: "60"
+                      principle_balance: "5400000"
+                      interest_balance: "541479"
+                      penalty_principal_balance: "505973"
+                      penalty_interest_balance: "0"
+                      due_date: "2026-05-02"
+                      day_arrears: "38"
+                      total_payment_amount: "6447452"
+                closed_on_time:
+                  summary: "[LOAN_CLOSE] Đã tất toán"
+                  description: |
+                    Nguồn: SIT data, đã map với be_payday spec:
+                    - `tenor` → `approved_term`
+                    - `loan_code`, `paid_amount` bỏ (không có trong be_payday schema)
+                    - `principle_balance` chuyển sang string (API thực tế trả integer)
+                    - `full_name`, `document_id` đã mask
+                  value:
+                    success: true
+                    code: 1
+                    message: Thành công
+                    response_id: "G8VORH9W0E0SAI8S"
+                    timestamp: "2026-06-11T08:48:11+07:00"
+                    data:
+                      loan_account_status: "LOAN_CLOSE"
+                      contract_id: "3699380319"
+                      contract_url: "https://storage.googleapis.com/..."
+                      full_name: "Đoàn Tấn B"
+                      document_id: "123456789012"
+                      approved_amount: "5000000"
+                      approved_term: "60"
+                      loan_insurance: "400000"
+                      disburse_amount: "5400000"
+                      disburse_date: "2026-03-02"
+                      interest_rate: "60"
+                      principle_balance: "0"
+                      interest_balance: "0"
+                      penalty_principal_balance: "0"
+                      penalty_interest_balance: "0"
+                      due_date: "2026-05-02"
+                      day_arrears: "0"
+                      total_payment_amount: "0"
+
+  # ════════════════════
+  # PARTNER CALLBACKS (Cake → Partner)
+  # ════════════════════
+  /partner-update-status:
+    post:
+      tags: [ Partner Callbacks ]
+      summary: Cake cập nhật trạng thái hồ sơ sang Partner
+      description: |
+        **Chiều: Cake → Partner**
+        Cake chủ động gọi API này trên hệ thống đối tác để thông báo thay đổi trạng thái hồ sơ.
+        Partner cần expose endpoint này.
+      operationId: partnerUpdateStatus
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerUpdateStatusRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerCallbackResponse"
+
+# ─────────────────────────────────────────────
+# TAGS
+# ─────────────────────────────────────────────
+tags:
+  - name: Onboarding
+    description: |
+      Luồng onboarding qua DOP webview:
+      generate-webview/onboarding → (KH onboarding trong webview Cake)
+  - name: Loan Info
+    description: Thông tin khoản vay (get-loan-detail)
+  - name: Partner Callbacks
+    description: |
+      API Cake gọi sang Partner (webhook/callback). Partner phải expose các endpoint này.
+      Xác thực ngược chiều (Cake ký, Partner verify).
+
+# ─────────────────────────────────────────────
+# SEQUENCE DIAGRAMS - API FLOWS (x-extension)
+# ─────────────────────────────────────────────
+x-mermaid-flows:
+
+  onboarding: |
+    sequenceDiagram
+      autonumber
+      participant Cl as Client
+      participant P as Partner
+      participant C as Cake
+
+      Note over Cl,C: ONBOARDING
+      Cl->>P: Access icon Payday
+      P->>C: generate-webview/onboarding(partner_reference_id, phone_number)
+      C-->>P: Response webview_url
+      P-->>Cl: Display Cake DOP webview cho customer
+      Cl->>C: Submit loan application (trong webview)
+
+      Note over C,P: Cake callback cập nhật trạng thái
+      C->>P: partner-update-status
+      P-->>C: Response (code, message)
+
+      Cl->>C: Sign application
+      Note over C: Create-loan
+
+      Note over C,P: Cake cập nhật trạng thái giải ngân
+      C->>P: partner-update-status (LOAN_ACTIVE)
+      P-->>C: Response
+
+  loan_info: |
+    sequenceDiagram
+      autonumber
+      participant Cl as Client
+      participant P as Partner
+      participant C as Cake
+
+      Note over Cl,C: LOAN INFO
+      Cl->>P: View loan info
+      P->>C: get-loan-detail(loan_code, phone_number)
+      C-->>P: Response loan information
+      P-->>Cl: Show loan information

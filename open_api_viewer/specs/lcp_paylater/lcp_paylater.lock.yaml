@@ -1,0 +1,1636 @@
+openapi: 3.0.3
+info:
+  title: LCP_paylater - DOP Lending APIs
+  description: |
+    API tích hợp giữa đối tác (Partner) và hệ thống Cake Digital Bank theo mô hình **DOP**
+    (Digital Onboarding Process).
+
+    ## Cơ chế xác thực (Signature)
+    Tất cả request từ Partner gọi Cake đều phải ký signature:
+    ```
+    rawBody = {{body}} + {{partner_key}}
+    hash = sha256(rawBody)
+    signature = base64_encode(rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA256, hash))
+    ```
+    Partner cần tạo cặp khóa RSA 1024 bit: private key (PKCS#8) và public key (X.509),
+    gửi public key cho Cake.
+    Test chữ ký có thể dùng tool online như [https://emn178.github.io/online-tools/rsa/verify](https://emn178.github.io/online-tools/rsa/verify/?input=%7B%22req_id%22%3A%221%22%2C%22action%22%3A1%7DPartner&input_type=utf-8&algorithm=SHA256&public_key=-----BEGIN%20PUBLIC%20KEY-----%0AMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC0KTbcJmoAT1g%2FFEp7eWWzuATg%0AK%2F7Go01PKZUaVTsN80JiDdg%2FmgDIcE0D9w5fYsDBN2pgeQ7EW8qqB8wb84qqk7QX%0AzAFfAqGx10X5aRe0WPsL3x7SCnG9QDz%2Fsun7hvrELes2sBw1a63lk3ZHyU9xLAcs%0ASsOFirCfQDlq0sbvNQIDAQAB%0A-----END%20PUBLIC%20KEY-----&signature_input_type=base64&signature=LWRijuKu83sa%2BU2FMe%2BsrtP8ctIaPjNAZ68YBiOiZNhzl%2FBELWztAcnTaOxINjghrfepTRLjhjvQw5mfwZrUHue4hwWDRvCpTMvCSfv513vuKp4kIQFK5EAASMZuhjwTn6mBxeO1i55xWB2wHqXVJxXgFecSok6T8qqJyH4XUzc%3D).
+    Other tools: [8gwifi RSA](https://8gwifi.org/RSAFunctionality?rsasignverifyfunctions=rsasignverifyfunctions&keysize=1024) (chọn `RSA Signature Algorithms: SHA256withRSA`).
+
+    ## Môi trường
+
+    ### SIT+UAT Environment
+
+    | Key | Value | Description |
+    |-----|-------|-------------|
+    | CAKE_API_URL | `https://gw.stage.cakedigibank.tech/ext/loan/{group}/{product_id}/` | |
+    | CAKE_PARTNER_ID | *(Cake cấp)* | Gắn ở header khi gọi API Cake |
+    | CAKE_PARTNER_KEY | *(Cake cấp)* | Gắn sau body khi ký API Cake |
+    | CAKE_IP_ADDRESS | `35.197.157.155/32`<br>`34.87.136.147/32`<br>`35.240.241.82/32`<br>`34.142.212.108/32`<br>`35.198.211.12/32`<br>`34.143.164.202/32`<br>`34.124.200.2/32` | Partner thêm các IP này vào Whitelist |
+    | PARTNER_API_URL | *(Partner cấp)* | |
+    | PARTNER_IP_ADDRESS | `34.87.136.147 (Cake auto)` | Cake thêm các IP này vào Whitelist |
+    | PARTNER_REDIRECT_URL | *(Partner cấp)* | Cake whitelist các redirect_url này |
+
+    ### PROD Environment
+
+    | Key | Value | Description |
+    |-----|-------|-------------|
+    | CAKE_API_URL | `https://gw.cake.vn/ext/loan/{group}/{product_id}/` | |
+    | CAKE_PARTNER_ID | *(Cake cấp)* | Gắn ở header khi gọi API Cake |
+    | CAKE_PARTNER_KEY | *(Cake cấp)* | Gắn sau body khi ký api partner |
+    | CAKE_IP_ADDRESS | `34.87.56.148/32`<br>`35.240.146.157/32`<br>`34.87.175.195/32`<br>`34.142.177.122/32`<br>`34.87.39.41/32`<br>`34.143.164.31/32`<br>`34.143.174.79/32` | Partner thêm các IP này vào Whitelist |
+    | PARTNER_API_URL | *(Partner cấp)* | |
+    | PARTNER_IP_ADDRESS | *(Partner cấp)* | Cake thêm các IP này vào Whitelist |
+    | PARTNER_REDIRECT_URL | *(Partner cấp)* | Cake whitelist các redirect_url này |
+
+    ## Định nghĩa Status
+
+    ### partner-update-status (Cake callback → Partner)
+    | Status | Description |
+    |--------|-------------|
+    | `LOAN_APPROVE` | Hồ sơ đăng ký khoản vay đã được phê duyệt |
+    | `LOAN_REJECT` | Hồ sơ đăng ký khoản vay bị từ chối |
+    | `LOAN_EXPIRED` | Hồ sơ đăng ký khoản vay bị hết hạn (7 ngày) |
+    | `LOAN_SIGNED` | Hồ sơ đã ký hợp đồng vay |
+    | `LOAN_CANCEL` | Hồ sơ đăng ký khoản vay bị hủy |
+    | `LOAN_ACTIVE` | Khoản vay của KH đã được giải ngân thành công |
+    | `LOAN_CLOSE` | Khoản vay đã tất toán |
+
+    ### get-loan-detail (loan_account_status)
+    | Status | Description |
+    |--------|-------------|
+    | `LOAN_UNKNOWN` | Hồ sơ KH có trạng thái không xác định/lỗi |
+    | `LOAN_APPROVE` | Hồ sơ đăng ký khoản vay đã được phê duyệt |
+    | `LOAN_REJECT` | Hồ sơ đăng ký khoản vay bị từ chối |
+    | `LOAN_EXPIRED` | Hồ sơ đăng ký khoản vay bị hết hạn (7 ngày) |
+    | `LOAN_CANCEL` | Hồ sơ đăng ký khoản vay bị hủy |
+    | `LOAN_SIGNED` | Khoản vay đã được ký, đang giải ngân |
+    | `LOAN_ACTIVE` | Khoản vay của KH đã được giải ngân thành công |
+    | `LOAN_LOCK` | Khoản vay bị tạm khóa, cần thanh toán để mở lại (chỉ Paylater) |
+    | `LOAN_LOCKED` | Khoản vay bị khóa vĩnh viễn, cần tất toán và đăng ký lại (chỉ Paylater) |
+    | `LOAN_CLOSE` | Khoản vay đã tất toán |
+
+    ## Error Codes
+
+    ### General
+    | Code | Message |
+    |------|---------|
+    | `1` | Thành công |
+    | `2` | Deadline exceeded |
+    | `500` | Internal server error |
+    | `501` | Not implement |
+    | `502` | An invalid response was received from the upstream server |
+    | `900000` | Có lỗi xảy ra, vui lòng thử lại sau! / Trường dữ liệu không hợp lệ: {{field_name}} - required |
+    | `900001` | Hệ thống đang bảo trì |
+    | `900002` | Request is processing |
+    | `200000` | Chữ ký không hợp lệ |
+    | `200001` | Mã đối tác không hợp lệ |
+    | `200003` | Request ID không hợp lệ (NID hoặc Phone không khớp) |
+    | `400001` | Không có thông tin khoản vay (Sản phẩm không tồn tại loan_code này) |
+    | `100100` | COB Time - Yêu cầu thanh toán không được thực hiện |
+    | `500013` | Trường dữ liệu không hợp lệ: {{field_name}} - {{field_type}} |
+    | `500014` | Trạng thái khoản vay không hợp lệ (đang không hỗ trợ) |
+
+    ### Repayments
+    | Code | Message |
+    |------|---------|
+    | `100103` | Số tiền thanh toán vượt quá dư nợ có thể thanh toán |
+    | `10003` | Yêu cầu hiện tại khác với yêu cầu trước đó (order_id đã được confirm trước đó) |
+
+    ### Terminates
+    | Code | Message |
+    |------|---------|
+    | `100102` | Đang có số dư thanh toán trước hạn, không thể tất toán |
+    | `100104` | Khoản vay đã đến hạn thanh toán, cần thanh toán toàn bộ dư nợ để hủy hợp đồng |
+    | `600000` | Thông tin thanh toán không hợp lệ (bộ dữ liệu thanh toán không khớp) |
+    | `100002` | Hình selfie không đúng (facematch không thành công) |
+
+  version: "1.0.0"
+  contact:
+    name: Cake Digital Bank Support
+    url: https://cake.vn
+
+servers:
+  - url: https://gw.stage.cakedigibank.tech/ext/loan/{group}/{product_id}
+    description: SIT+UAT
+    variables:
+      group:
+        default: cashloan
+      product_id:
+        default: lcp_paylater
+  - url: https://gw.cake.vn/ext/loan/{group}/{product_id}
+    description: Production
+    variables:
+      group:
+        description: "Nhóm API (ví dụ: cashloan, paylater)"
+        default: cashloan
+      product_id:
+        description: Mã sản phẩm được cấu hình
+        default: lcp_paylater
+
+# ─────────────────────────────────────────────
+# COMMON COMPONENTS
+# ─────────────────────────────────────────────
+components:
+  parameters:
+    PartnerHeader:
+      name: partner
+      in: header
+      required: true
+      description: CAKE_PARTNER_ID được cấu hình trong môi trường
+      schema:
+        type: string
+        example: CAKE_PARTNER_ID
+
+    SignatureHeader:
+      name: signature
+      in: header
+      required: true
+      description: |
+        Chữ ký RSA-SHA256 của request body.
+        rawBody = body + partner_key → sha256 → RSA sign PKCS1v15 → base64
+      schema:
+        type: string
+
+    ContentTypeHeader:
+      name: Content-Type
+      in: header
+      required: true
+      schema:
+        type: string
+        default: application/json; charset=utf-8
+
+  schemas:
+    # ── Common Response Wrapper ──
+    BaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Kết quả xử lý yêu cầu (true/false)
+          example: true
+        code:
+          type: integer
+          description: Mã trạng thái hệ thống
+          example: 1
+        message:
+          type: string
+          description: Thông báo phản hồi từ hệ thống
+          example: Thành công
+        response_id:
+          type: string
+          description: Mã định danh duy nhất của mỗi phản hồi
+          example: "849KTQG7SQWLWQW5"
+        timestamp:
+          type: string
+          format: date-time
+          description: Thời gian phản hồi (ISO 8601)
+          example: "2025-11-03T07:00:00+07:00"
+
+    # ── generate-webview/onboarding ──
+    GenerateWebviewOnboardingRequest:
+      type: object
+      required:
+        - partner_reference_id
+        - phone_number
+        - redirect_url
+        - metadata
+      properties:
+        partner_reference_id:
+          type: string
+          description: ID của đối tác để định danh hồ sơ
+          example: "bf133c7c-8e10-45a2-b9d2-4d04a352917a"
+        phone_number:
+          type: string
+          description: SĐT của KH (định dạng bắt đầu bằng số 0)
+          example: "0345678900"
+        redirect_url:
+          type: string
+          description: URL để đóng webview DOP, mặc định điền https://cake.vn/deeplink?home=app
+          example: "https://cake.vn/deeplink?home=app"
+        metadata:
+          $ref: "#/components/schemas/OnboardingMetadata"
+        nfc_data:
+          $ref: "#/components/schemas/NfcData"
+
+    OnboardingMetadata:
+      type: object
+      description: Dữ liệu bổ sung (nếu có)
+      required:
+        - partner_score
+        - partner_onboarding_channel
+      properties:
+        partner_score:
+          type: string
+          description: Dạng range, lấy chặn dưới
+          example: "800-800"
+        partner_onboarding_channel:
+          type: string
+          description: Kênh KH truy cập
+          example: "ZALO"
+
+    NfcData:
+      type: object
+      description: Dữ liệu NFC raw
+      required:
+        - sod
+        - dg1
+        - dg2
+        - dg13
+        - dg14
+        - dg15
+        - com
+      properties:
+        sod:
+          type: string
+          description: The raw NFC data
+        dg1:
+          type: string
+          description: The raw NFC data
+        dg2:
+          type: string
+          description: The raw NFC data
+        dg13:
+          type: string
+          description: The raw NFC data
+        dg14:
+          type: string
+          description: The raw NFC data
+        dg15:
+          type: string
+          description: The raw NFC data
+        com:
+          type: string
+          description: The raw NFC data
+
+    GenerateWebviewResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                webview_url:
+                  type: string
+                  description: Webview DOP URL
+                  example: "https://dop.cake.vn/...?token=..."
+
+
+    # ── get-loan-detail ──
+    GetLoanDetailRequest:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+      properties:
+        loan_code:
+          type: string
+          description: Mã khoản vay từ API /loan-register
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          example: "0345678900"
+
+    GetLoanDetailResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                loan_account_status:
+                  type: string
+                  enum:
+                    - LOAN_UNKNOWN
+                    - LOAN_INIT
+                    - LOAN_REVIEWING
+                    - LOAN_REJECT
+                    - LOAN_APPROVE
+                    - LOAN_EXPIRED
+                    - LOAN_CANCEL
+                    - LOAN_SIGNED
+                    - LOAN_ACTIVE
+                    - LOAN_LOCK
+                    - LOAN_LOCKED
+                    - LOAN_CLOSE
+                  description: Trạng thái tài khoản vay
+                contract_id:
+                  type: string
+                  description: Mã hợp đồng (dùng cho nhắc nợ, đối soát)
+                  example: "1234567890"
+                loan_alias:
+                  type: string
+                  description: Mã thanh toán
+                  example: "G4JH5R"
+                contract_url:
+                  type: string
+                  description: URL hợp đồng đã ký song phương (hết hạn trong 1h)
+                  example: "https://storage.googleapis.com/..."
+                full_name:
+                  type: string
+                  example: "Nguyễn Hoàng Sơn"
+                document_id:
+                  type: string
+                  example: "075099093845"
+                approved_amount:
+                  type: string
+                  description: Số tiền được phê duyệt (VNĐ)
+                  example: "12000000"
+                approved_term:
+                  type: string
+                  description: Thời hạn vay phê duyệt
+                  example: "12"
+                disburse_amount:
+                  type: string
+                  description: Số tiền đã giải ngân
+                  example: "12840000"
+                disburse_date:
+                  type: string
+                  format: date
+                  description: Ngày giải ngân (yyyy-mm-dd)
+                  example: "2025-06-03"
+                interest_rate:
+                  type: string
+                  description: Lãi suất
+                  example: "43"
+                principle_balance:
+                  type: string
+                  description: Dư nợ gốc khả dụng còn lại
+                  example: "12640000"
+                interest_balance:
+                  type: string
+                  description: Dư nợ lãi phát sinh
+                  example: "197494"
+                payment_period:
+                  type: string
+                  description: "Kỳ thanh toán số"
+                  example: "12"
+                due_date:
+                  type: string
+                  format: date
+                  description: Ngày đến hạn thanh toán gần nhất
+                  example: "2025-06-27"
+                day_arrears:
+                  type: string
+                  description: Số ngày quá hạn
+                  example: "191"
+                monthly_payment_amount:
+                  type: string
+                  description: "Số tiền KH có thể thanh toán sớm"
+                  example: "0"
+                overdue_payment_amount:
+                  type: string
+                  description: "Số tiền KH buộc phải thanh toán"
+                  example: "15331759"
+                total_payment_amount:
+                  type: string
+                  description: Tổng tiền KH có thể thanh toán (monthly + overdue)
+                  example: "15331759"
+                prepayment_amount:
+                  type: string
+                  description: "Số tiền KH thanh toán dư"
+                  example: "0"
+
+    # ── repayment-request ──
+    RepaymentRequestBody:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+        - partner_reference_id
+        - payment_amount
+      properties:
+        loan_code:
+          type: string
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          example: "0345678900"
+        partner_reference_id:
+          type: string
+          description: ID tạo mới mỗi request (idempotency key)
+        payment_amount:
+          type: integer
+          description: Số tiền thanh toán (VNĐ)
+          example: 5000000
+
+
+    # ── repayment-status ──
+    RepaymentStatusRequest:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+        - order_id
+      properties:
+        loan_code:
+          type: string
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          example: "0345678900"
+        order_id:
+          type: string
+          description: order_id từ API /repayment-request
+
+    RepaymentStatusResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum:
+                    - INIT
+                    - IN_PROCESS
+                    - HOLD
+                    - SUCCESS
+                    - FAILED
+                  description: |
+                    - INIT: Chưa nhận tiền từ KH
+                    - IN_PROCESS: Đã nhận tiền, đang gạch nợ
+                    - HOLD: Nhận tiền nhưng lỗi gạch nợ, cần đối soát thủ công
+                    - SUCCESS: Đã gạch nợ thành công
+                    - FAILED: Chuyển khoản thất bại hoặc giao dịch hết hạn
+
+    # ── partner-update-status (Cake → Partner) ──
+    PartnerUpdateStatusRequest:
+      type: object
+      required:
+        - request_id
+        - partner_reference_id
+        - status
+      properties:
+        request_id:
+          type: string
+          description: Mã định danh cho request
+          example: "req-0001"
+        partner_reference_id:
+          type: string
+          description: ID đối tác truyền ở API /generate-webview/onboarding
+          example: "uuid-1234"
+        loan_code:
+          type: string
+          description: Mã khoản vay, không truyền khi LOAN_REJECT
+          example: "u8123123Sjsdb"
+        status:
+          type: string
+          description: |
+            Trạng thái hồ sơ khoản vay Cake:
+            - LOAN_APPROVE: Hồ sơ đăng ký khoản vay đã được phê duyệt
+            - LOAN_REJECT: Hồ sơ đăng ký khoản vay bị từ chối
+            - LOAN_EXPIRED: Hồ sơ đăng ký khoản vay bị hết hạn (7 ngày)
+            - LOAN_SIGNED: Hồ sơ đã ký hợp đồng vay
+            - LOAN_CANCEL: Hồ sơ đăng ký khoản vay bị hủy
+            - LOAN_ACTIVE: Hồ sơ đã giải ngân thành công
+            - LOAN_CLOSE: Khoản vay đã tất toán
+          enum:
+            - LOAN_APPROVE
+            - LOAN_REJECT
+            - LOAN_EXPIRED
+            - LOAN_SIGNED
+            - LOAN_CANCEL
+            - LOAN_ACTIVE
+            - LOAN_CLOSE
+          example: "LOAN_APPROVE"
+
+
+    # ── Partner callback response (code/message) ──
+    PartnerCallbackResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          description: Mã trạng thái
+          example: 1
+        message:
+          type: string
+          description: Thông báo phản hồi
+          example: "Thành công"
+
+    # ── repayment-van ──
+    RepaymentVanResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                order_id:
+                  type: string
+                  description: Mã tham chiếu giao dịch do Cake tạo ra
+                qr_code:
+                  type: string
+                  description: Chuỗi QR code để thanh toán
+                expired_time:
+                  type: string
+                  format: date-time
+                  description: Thời gian hết hạn yêu cầu thanh toán
+                bank_name:
+                  type: string
+                  description: Tên ngân hàng thụ hưởng
+                bank_account_number:
+                  type: string
+                  description: Số tài khoản thụ hưởng
+                bank_account_name:
+                  type: string
+                  description: Tên tài khoản thụ hưởng
+                payment_description:
+                  type: string
+                  description: Thông tin mô tả khi thanh toán
+
+    # ── Payment ──
+    PaymentRequestBody:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+        - partner_reference_id
+        - payment_amount
+        - partner_service_code
+        - partner_service_name
+      properties:
+        loan_code:
+          type: string
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          example: "0345678900"
+        partner_reference_id:
+          type: string
+          description: ID tạo mới mỗi request
+        payment_amount:
+          type: integer
+          description: Số tiền thanh toán dịch vụ
+        partner_group_code:
+          type: string
+          nullable: true
+        partner_group_name:
+          type: string
+          nullable: true
+        partner_service_code:
+          type: string
+        partner_service_name:
+          type: string
+        installment_offer:
+          type: object
+          nullable: true
+          properties:
+            tenor:
+              type: number
+              description: Kỳ hạn (tháng)
+              example: 3
+            fee_rate:
+              type: number
+              example: 0.1
+
+    PaymentRequestResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                order_id:
+                  type: string
+                  description: Mã tham chiếu giao dịch
+                payment_fee:
+                  type: number
+                  description: Phí thanh toán đơn hàng
+                challenge_level:
+                  type: array
+                  items:
+                    type: integer
+                  description: "1=None, 2=Facematch, 3=SMS OTP. Sản phẩm này luôn là [1] (None), không có challenge"
+                  example: [ 1 ]
+                challenge_id:
+                  type: string
+                  example: "a27f5d0e-8b43-4e3f-9bfa-0c6d7c5b2189"
+
+    PaymentConfirmRequest:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+        - partner_reference_id
+        - order_id
+        - challenge_id
+      properties:
+        loan_code:
+          type: string
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          example: "0345678900"
+        partner_reference_id:
+          type: string
+          description: partner_reference_id từ API /payment-request
+        order_id:
+          type: string
+          description: order_id từ API /payment-request
+        challenge_id:
+          type: string
+          example: "a27f5d0e-8b43-4e3f-9bfa-0c6d7c5b2189"
+
+    PaymentStatusRequest:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+        - partner_reference_id
+        - order_id
+      properties:
+        loan_code:
+          type: string
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          example: "0345678900"
+        partner_reference_id:
+          type: string
+        order_id:
+          type: string
+
+    PaymentStatusResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                loan_code:
+                  type: string
+                payment_status:
+                  type: string
+                  enum:
+                    - INIT
+                    - IN_PROCESS
+                    - HOLD
+                    - SUCCESS
+                    - FAILED
+                    - REVERT
+                installment_status:
+                  type: string
+                  enum:
+                    - NONE
+                    - INIT
+                    - SUCCESS
+                    - FAILED
+                  description: Trạng thái trả góp (nếu có)
+
+    PaymentRevertRequest:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+        - partner_reference_id
+        - order_id
+        - payment_amount
+        - revert_amount
+      properties:
+        loan_code:
+          type: string
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          example: "0345678900"
+        partner_reference_id:
+          type: string
+        order_id:
+          type: string
+        payment_amount:
+          type: integer
+          description: Số tiền đơn hàng gốc
+        revert_amount:
+          type: integer
+          description: Số tiền cần revert (≤ payment_amount)
+
+    # ── Installment ──
+    GetInstallmentEligibleRequest:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+        - limit_unit_page
+        - cursor
+      properties:
+        loan_code:
+          type: string
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          example: "0345678900"
+        limit_unit_page:
+          type: integer
+          description: Giới hạn trên mỗi trang (tối đa 50)
+          maximum: 50
+          example: 20
+        cursor:
+          type: string
+          description: Cursor từ yêu cầu trước đó (mặc định rỗng)
+          default: ""
+
+    GetInstallmentEligibleResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                cursor:
+                  type: string
+                  description: Con trỏ dùng để lấy dữ liệu trang tiếp theo
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      order_id:
+                        type: string
+                      payment_amount:
+                        type: string
+                      created_at:
+                        type: string
+                        description: Timestamp tạo đơn
+                      updated_at:
+                        type: string
+                        description: Timestamp cập nhật đơn
+                      partner_service_code:
+                        type: string
+                      partner_service_name:
+                        type: string
+                      partner_group_code:
+                        type: string
+                        nullable: true
+                      partner_group_name:
+                        type: string
+                        nullable: true
+                      partner_branch_id:
+                        type: string
+                        nullable: true
+                      partner_branch_name:
+                        type: string
+                        nullable: true
+
+    GetInstallmentOfferingListRequest:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+        - order_id
+      properties:
+        loan_code:
+          type: string
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          example: "0345678900"
+        order_id:
+          type: string
+          description: order_id từ API /payment-request
+
+    GetInstallmentOfferingListResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      tenor:
+                        type: string
+                        description: Kỳ hạn (tháng)
+                        example: "3"
+                      ins_fee_type:
+                        type: string
+                        enum: [ per_month, total ]
+                        description: "per_month: phí theo tháng; total: phí kỳ đầu"
+                      total_ins_fee_amount_vat:
+                        type: string
+                        description: "Tổng phí (bao gồm VAT) = payment_amount * ins_fee_rate_vat * tenor"
+                        example: "891000"
+                      total_amount:
+                        type: string
+                        description: "Tổng tiền = payment_amount + total_ins_fee_amount_vat"
+                        example: "9891000"
+
+    InstallmentRequestBody:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+        - partner_reference_id
+        - order_id
+        - tenor
+      properties:
+        loan_code:
+          type: string
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          example: "0345678900"
+        partner_reference_id:
+          type: string
+          description: ID tạo mới mỗi request
+          example: "7c3c4c3c-6c62-4c5f-9f83-2f8c4e4c9b6e"
+        order_id:
+          type: string
+          description: order_id từ API /payment-request
+          example: "f13b2e6b-9f0c-4f72-a3d4-6b1c89f0e2aa"
+        tenor:
+          type: string
+          description: Kỳ hạn (tháng)
+          example: "3"
+
+    InstallmentRequestResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                installment_id:
+                  type: string
+                  description: Mã tham chiếu do CAKE tạo ra
+                  example: "3b6c9a18-4c92-4c8a-9e6f-2e4b7e1c9f34"
+                challenge_level:
+                  type: array
+                  items:
+                    type: integer
+                  description: "1=None, 2=Facematch, 3=SMS OTP. Sản phẩm này luôn là [1] (None), không có challenge"
+                  example: [ 1 ]
+                challenge_id:
+                  type: string
+                  example: "a27f5d0e-8b43-4e3f-9bfa-0c6d7c5b2189"
+
+    InstallmentConfirmRequest:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+        - partner_reference_id
+        - order_id
+        - installment_id
+        - challenge_id
+      properties:
+        loan_code:
+          type: string
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          example: "0345678900"
+        partner_reference_id:
+          type: string
+          description: partner_reference_id từ API /installment-request
+          example: 123e4567-e89b-12d3-a456-426614174000
+        order_id:
+          type: string
+          description: order_id từ API /payment-request
+        installment_id:
+          type: string
+          description: installment_id từ API /installment-request
+        challenge_id:
+          type: string
+          example: "a27f5d0e-8b43-4e3f-9bfa-0c6d7c5b2189"
+
+    InstallmentDetailResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                transaction:
+                  $ref: "#/components/schemas/InstallmentTransactionInfo"
+                installment:
+                  $ref: "#/components/schemas/InstallmentInfo"
+
+    InstallmentTransactionInfo:
+      type: object
+      properties:
+        order_id:
+          type: string
+        payment_amount:
+          type: string
+          description: Số tiền đơn hàng gốc (bao gồm phí + VAT)
+          example: "9000000"
+        partner_service_code:
+          type: string
+        partner_service_name:
+          type: string
+        partner_group_code:
+          type: string
+          nullable: true
+        partner_group_name:
+          type: string
+          nullable: true
+        partner_branch_id:
+          type: string
+          nullable: true
+        partner_branch_name:
+          type: string
+          nullable: true
+
+    InstallmentInfo:
+      type: object
+      properties:
+        installment_id:
+          type: string
+        status:
+          type: string
+          enum: [ ACTIVE, CLOSE ]
+          description: "ACTIVE: đang hoạt động; CLOSE: đã tất toán"
+        tenor:
+          type: string
+          example: "3"
+        ins_fee_type:
+          type: string
+          enum: [ per_month, total ]
+        total_ins_fee_amount_vat:
+          type: string
+          example: "891000"
+        total_amount:
+          type: string
+          example: "9891000"
+        start_date:
+          type: string
+          description: Ngày bắt đầu trả góp
+        end_date:
+          type: string
+          nullable: true
+          description: Ngày kết thúc trả góp (chỉ với khoản đã close)
+        repayment_schedule:
+          type: array
+          nullable: true
+          description: Lịch trả góp (chỉ với khoản đang active)
+          items:
+            type: object
+            properties:
+              installment_no:
+                type: string
+                description: Số thứ tự kỳ
+              due_date:
+                type: string
+                format: date
+              principal_amount:
+                type: string
+                description: Tiền gốc phải trả trong kỳ
+              fee_amount:
+                type: string
+                description: Phí trong kỳ (chưa VAT)
+              fee_amount_vat:
+                type: string
+                description: Phí đã bao gồm VAT
+              total_amount:
+                type: string
+                description: Tổng tiền cần thanh toán trong kỳ (đã VAT)
+
+    # ── Partner-side callback schemas ──
+    PartnerRepaymentStatusRequest:
+      type: object
+      required:
+        - request_id
+        - loan_code
+        - phone_number
+        - order_id
+        - status
+      properties:
+        request_id:
+          type: string
+        loan_code:
+          type: string
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          example: "0345678900"
+        order_id:
+          type: string
+          description: OrderId từ api repayment-van
+        status:
+          type: string
+          enum: [ SUCCESS, FAILED ]
+
+    PartnerPaymentStatusRequest:
+      type: object
+      required:
+        - request_id
+        - loan_code
+        - phone_number
+        - order_id
+        - status
+      properties:
+        request_id:
+          type: string
+        loan_code:
+          type: string
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          example: "0345678900"
+        order_id:
+          type: string
+          description: order_id từ API /payment-request
+        status:
+          type: string
+          enum: [ SUCCESS, FAILED, REVERT ]
+        status_installment:
+          type: string
+          nullable: true
+          enum: [ SUCCESS, FAILED ]
+          description: Trạng thái trả góp (nếu có)
+
+# ─────────────────────────────────────────────
+# PATHS
+# ─────────────────────────────────────────────
+paths:
+  # ════════════════════
+  # ONBOARDING (Partner → Cake)
+  # ════════════════════
+  /generate-webview/onboarding:
+    post:
+      tags: [ Onboarding ]
+      summary: Khởi tạo token & webview cho DOP onboarding
+      description: |
+        Khởi tạo token cho DOP. Response trả về `webview_url`
+        để Partner hiển thị webview onboarding của Cake cho KH.
+      operationId: generateWebviewOnboarding
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateWebviewOnboardingRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateWebviewResponse"
+
+  # ════════════════════
+  # LOAN INFO (Partner → Cake)
+  # ════════════════════
+  /get-loan-detail:
+    post:
+      tags: [ Loan Info ]
+      summary: Truy vấn thông tin chi tiết khoản vay
+      operationId: getLoanDetail
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetLoanDetailRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetLoanDetailResponse"
+
+  # ════════════════════
+  # REPAYMENT (Partner → Cake)
+  # ════════════════════
+  /repayment-van:
+    post:
+      tags: [ Repayment ]
+      summary: Tạo QR code thanh toán khoản vay (VAN)
+      operationId: repaymentVan
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepaymentRequestBody"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepaymentVanResponse"
+
+  /repayment-status:
+    post:
+      tags: [ Repayment ]
+      summary: Kiểm tra trạng thái thanh toán
+      operationId: repaymentStatus
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepaymentStatusRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepaymentStatusResponse"
+
+  # ════════════════════
+  # PAYMENT (Partner → Cake)
+  # ════════════════════
+  /payment-request:
+    post:
+      tags: [ Payment ]
+      summary: Tạo yêu cầu thanh toán dịch vụ
+      description: |
+        Tạo yêu cầu thanh toán dịch vụ (Paylater payment).
+        Sau khi gọi, xử lý tiếp dựa trên challenge_level:
+        - [1] None → Gọi payment-confirm
+        - [2] Facematch → Gọi challenge-facematch
+        - [3] SMS OTP → Gọi challenge-get-otp + challenge-verify-otp
+        Sản phẩm này không có challenge (luôn None) — gọi thẳng payment-confirm với challenge_id trả về.
+      operationId: paymentRequest
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentRequestBody"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentRequestResponse"
+
+  /payment-confirm:
+    post:
+      tags: [ Payment ]
+      summary: Xác nhận giao dịch thanh toán dịch vụ
+      operationId: paymentConfirm
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentConfirmRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BaseResponse"
+
+  /payment-status:
+    post:
+      tags: [ Payment ]
+      summary: Truy vấn trạng thái giao dịch thanh toán dịch vụ
+      operationId: paymentStatus
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentStatusRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentStatusResponse"
+
+  /payment-revert:
+    post:
+      tags: [ Payment ]
+      summary: Yêu cầu hoàn tiền giao dịch thanh toán dịch vụ
+      operationId: paymentRevert
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentRevertRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BaseResponse"
+
+  # ════════════════════
+  # INSTALLMENT (Partner → Cake)
+  # ════════════════════
+  /get-installment-eligible:
+    post:
+      tags: [ Installment ]
+      summary: Truy vấn đơn hàng có thể chuyển đổi trả góp
+      description: Hỗ trợ phân trang bằng cursor. Tối đa 50 bản ghi/trang.
+      operationId: getInstallmentEligible
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetInstallmentEligibleRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetInstallmentEligibleResponse"
+
+  /get-installment-offering-list:
+    post:
+      tags: [ Installment ]
+      summary: Truy vấn danh sách gói trả góp phù hợp với đơn hàng
+      operationId: getInstallmentOfferingList
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetInstallmentOfferingListRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetInstallmentOfferingListResponse"
+
+  /installment-request:
+    post:
+      tags: [ Installment ]
+      summary: Tạo yêu cầu chuyển đổi trả góp
+      description: |
+        Tạo yêu cầu chuyển đổi trả góp. Sản phẩm này không có challenge (luôn None) — gọi thẳng installment-confirm với challenge_id trả về.
+      operationId: installmentRequest
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InstallmentRequestBody"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstallmentRequestResponse"
+
+  /installment-confirm:
+    post:
+      tags: [ Installment ]
+      summary: Xác nhận chuyển đổi trả góp hoàn tất
+      operationId: installmentConfirm
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InstallmentConfirmRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/BaseResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          installment_id:
+                            type: string
+                            description: installment_id từ API /installment-request
+
+  /get-installment-detail:
+    post:
+      tags: [ Installment ]
+      summary: Truy vấn chi tiết đơn hàng đã chuyển đổi trả góp
+      operationId: getInstallmentDetail
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ loan_code, phone_number, installment_id ]
+              properties:
+                loan_code:
+                  type: string
+                  example: "u8123123Sjsdb"
+                phone_number:
+                  type: string
+                  example: "0345678900"
+                installment_id:
+                  type: string
+                  example: "3b6c9a18-4c92-4c8a-9e6f-2e4b7e1c9f34"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstallmentDetailResponse"
+
+  /get-installment-transactions:
+    post:
+      tags: [ Installment ]
+      summary: Truy vấn danh sách đơn hàng đã chuyển đổi trả góp
+      description: |
+        - status=ACTIVE: lấy full giao dịch
+        - status=CLOSE: lấy giao dịch có end_date trong 3 tháng gần nhất
+        Hỗ trợ phân trang bằng cursor.
+      operationId: getInstallmentTransactions
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ loan_code, phone_number, status, limit_unit_page, cursor ]
+              properties:
+                loan_code:
+                  type: string
+                  example: "u8123123Sjsdb"
+                phone_number:
+                  type: string
+                  example: "0345678900"
+                status:
+                  type: string
+                  enum: [ ACTIVE, CLOSE ]
+                limit_unit_page:
+                  type: integer
+                  maximum: 50
+                  example: 20
+                cursor:
+                  type: string
+                  default: ""
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/BaseResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          cursor:
+                            type: string
+                          total_records:
+                            type: string
+                          items:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                transaction:
+                                  $ref: "#/components/schemas/InstallmentTransactionInfo"
+                                installment:
+                                  $ref: "#/components/schemas/InstallmentInfo"
+
+  # ════════════════════
+  # PARTNER CALLBACKS (Cake → Partner)
+  # ════════════════════
+  /partner-update-status:
+    post:
+      tags: [ Partner Callbacks ]
+      summary: Cake cập nhật trạng thái hồ sơ sang Partner
+      description: |
+        **Chiều: Cake → Partner**
+        Cake chủ động gọi API này trên hệ thống đối tác để thông báo thay đổi trạng thái hồ sơ.
+        Partner cần expose endpoint này, yêu cầu path là */partner-update-status.
+      operationId: partnerUpdateStatus
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerUpdateStatusRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerCallbackResponse"
+
+  /partner-repayment-status:
+    post:
+      tags: [ Partner Callbacks ]
+      summary: Cake cập nhật trạng thái thanh toán sang đối tác
+      description: |
+        **Chiều: Cake → Partner**
+        Cake thông báo kết quả giao dịch thanh toán khoản vay cho đối tác.
+      operationId: partnerRepaymentStatus
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerRepaymentStatusRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BaseResponse"
+
+  /partner-payment-status:
+    post:
+      tags: [ Partner Callbacks ]
+      summary: Cake cập nhật trạng thái thanh toán dịch vụ sang đối tác
+      description: |
+        **Chiều: Cake → Partner**
+        Cake thông báo kết quả giao dịch payment (và installment nếu có) cho đối tác.
+      operationId: partnerPaymentStatus
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerPaymentStatusRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BaseResponse"
+
+# ─────────────────────────────────────────────
+# TAGS
+# ─────────────────────────────────────────────
+tags:
+  - name: Onboarding
+    description: |
+      Luồng onboarding qua DOP webview:
+      generate-webview/onboarding → (KH onboarding trong webview Cake)
+  - name: Loan Info
+    description: get-loan-detail
+  - name: Repayment
+    description: Thanh toán kỳ hạn khoản vay (repayment-van → repayment-status)
+  - name: Payment
+    description: Thanh toán dịch vụ (Paylater payment feature)
+  - name: Installment
+    description: Chuyển đổi giao dịch sang trả góp
+  - name: Partner Callbacks
+    description: |
+      API Cake gọi sang Partner (webhook/callback). Partner phải expose các endpoint này.
+      Xác thực ngược chiều (Cake ký, Partner verify).
+
+# ─────────────────────────────────────────────
+# SEQUENCE DIAGRAMS - API FLOWS (x-extension)
+# ─────────────────────────────────────────────
+x-mermaid-flows:
+
+  onboarding: |
+    sequenceDiagram
+      autonumber
+      participant Cl as Client
+      participant P as Partner
+      participant C as Cake
+
+      Note over Cl,C: ONBOARDING
+      Cl->>P: Access entry point
+      P->>C: generate-webview/onboarding
+      C-->>P: Response webview_url
+      P-->>Cl: Display Cake DOP webview cho customer
+      Cl->>C: Submit loan application (trong webview)
+
+      Note over C,P: Cake callback cập nhật trạng thái
+      C->>P: partner-update-status
+      P-->>C: Response (code, message)
+
+      Cl->>C: Sign application
+      Note over C: Create-loan
+
+      Note over C,P: GIẢI NGÂN
+      C->>P: partner-update-status (LOAN_ACTIVE)
+      P-->>C: Response
+
+  loan_info: |
+    sequenceDiagram
+      autonumber
+      participant Cl as Client
+      participant P as Partner
+      participant C as Cake
+
+      Note over Cl,C: LOAN INFO
+      Cl->>P: View loan info
+      P->>C: get-loan-detail(loan_code)
+      C-->>P: Response loan information
+      P-->>Cl: Show loan information
+
+  repayment: |
+    sequenceDiagram
+      autonumber
+      participant Cl as Client
+      participant P as Partner
+      participant C as Cake
+
+      Note over Cl,C: REPAYMENT (VAN QR)
+      Cl->>P: Repayment
+      P->>C: repayment-van(loan_code, phone, partner_reference_id, payment_amount)
+      C-->>P: order_id, qr_code, expired_time, bank_account_number
+      P-->>Cl: Hiển thị QR cho KH quét
+      P->>C: repayment-status(loan_code, order_id)
+      C-->>P: status(INIT/IN_PROCESS/SUCCESS/FAILED/HOLD)
+      P-->>Cl: Show status repayment
+      Note over C: Cake callback sang Partner
+      C->>P: partner-repayment-status(loan_code, order_id, status)

@@ -1,0 +1,1566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<title>OpenAPI Viewer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" media="(prefers-color-scheme: dark)">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root {
+    --bg: #f8f7f4;
+    --surface: #ffffff;
+    --border: #e8e4dc;
+    --text: #1a1917;
+    --text-muted: #6b6862;
+    --accent: #2563eb;
+    --get: #0e7490;       --get-bg: #ecfeff;    --get-border: #a5f3fc;
+    --post: #c2410c;      --post-bg: #fff7ed;   --post-border: #fed7aa;
+    --put: #92400e;       --put-bg: #fffbeb;    --put-border: #fde68a;
+    --delete: #be123c;    --delete-bg: #fff1f2; --delete-border: #fecdd3;
+    --patch: #5b21b6;     --patch-bg: #f5f3ff;  --patch-border: #ddd6fe;
+    --table-header: #f1ede6;
+    --accent-tint: #eff6ff;
+    --accent-tint-border: #bfdbfe;
+    --surface-2: #fafaf9;
+    --topbar-bg: rgba(248,247,244,0.95);
+    --zebra: #faf9f7;
+    --warn-bg: #fef3c7; --warn-border: #fde68a; --warn-text: #78350f;
+    --diff-a-text: #065f46; --diff-b-text: #1e3a8a;
+    --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --sans: 'Instrument Serif', Georgia, serif;
+    --ui: 'DM Sans', 'Helvetica Neue', sans-serif;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17151f;
+      --surface: #201d29;
+      --border: #35313f;
+      --text: #ede9f4;
+      --text-muted: #a29cb3;
+      --accent: #60a5fa;
+      --get: #67e8f9;    --get-bg: #083344;    --get-border: #0e7490;
+      --post: #fb923c;   --post-bg: #431407;   --post-border: #c2410c;
+      --put: #fbbf24;    --put-bg: #451a03;    --put-border: #92400e;
+      --delete: #fb7185; --delete-bg: #4c0519; --delete-border: #be123c;
+      --patch: #c4b5fd;  --patch-bg: #2e1065;  --patch-border: #5b21b6;
+      --table-header: #2a2635;
+      --accent-tint: rgba(96,165,250,0.14);
+      --accent-tint-border: rgba(96,165,250,0.4);
+      --surface-2: #1b1824;
+      --topbar-bg: rgba(23,21,31,0.9);
+      --zebra: #272232;
+      --warn-bg: #3a2e05; --warn-border: #78350f; --warn-text: #fcd34d;
+      --diff-a-text: #34d399; --diff-b-text: #93c5fd;
+    }
+    ::selection { background: rgba(96,165,250,0.35); }
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--ui);
+    font-size: 14px;
+    line-height: 1.6;
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ── SIDEBAR ── */
+  #sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+  }
+
+  #sidebar-header {
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #sidebar-logo {
+    font-family: var(--sans);
+    font-style: italic;
+    font-size: 15px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  .btn-open-folder {
+    width: 100%;
+    padding: 7px 12px;
+    border-radius: 7px;
+    border: 1.5px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--ui);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s;
+  }
+  .btn-open-folder:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-tint); }
+  .btn-open-folder svg { flex-shrink: 0; }
+
+  .btn-compare-toggle {
+    width: 100%;
+    margin-top: 6px;
+    padding: 7px 12px;
+    border-radius: 7px;
+    border: 1.5px solid var(--border);
+    background: var(--bg);
+    color: var(--text-muted);
+    font-family: var(--ui);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s;
+  }
+  .btn-compare-toggle:hover { border-color: #f59e0b; color: #b45309; background: #fffbeb; }
+  .btn-compare-toggle.active { border-color: #f59e0b; color: #b45309; background: #fef3c7; }
+
+  .folder-name {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    margin-top: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .live-status {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 5px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .live-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #d1d5db;
+    flex-shrink: 0;
+    transition: background 0.4s;
+  }
+  .live-dot.on { background: #22c55e; box-shadow: 0 0 0 2px #bbf7d0; }
+
+  /* ── COMPARE BANNER ── */
+  #compare-banner {
+    display: none;
+    padding: 8px 10px;
+    background: var(--warn-bg);
+    border-bottom: 1px solid var(--warn-border);
+    font-size: 11px;
+    color: var(--warn-text);
+    font-weight: 500;
+    gap: 6px;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  #compare-banner.show { display: flex; }
+  .compare-banner-text { flex: 1; }
+  .compare-sel-chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+  .chip-a { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; padding: 1px 7px; border-radius: 99px; font-size: 10px; font-weight: 700; }
+  .chip-b { background: #dbeafe; color: #1e3a8a; border: 1px solid #93c5fd; padding: 1px 7px; border-radius: 99px; font-size: 10px; font-weight: 700; }
+
+  #file-list-wrap {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px;
+  }
+  .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 8px 8px 4px;
+  }
+
+  /* ── TREE ── */
+  .folder-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    transition: background 0.1s;
+    user-select: none;
+  }
+  .folder-row:hover { background: var(--bg); color: var(--text); }
+  .folder-arrow { font-size: 9px; transition: transform 0.15s; display: inline-block; width: 9px; flex-shrink: 0; color: var(--text-muted); }
+  .folder-arrow.open { transform: rotate(90deg); }
+  .folder-icon { font-size: 13px; flex-shrink: 0; }
+  .folder-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .file-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 7px 8px;
+    border-radius: 7px;
+    cursor: pointer;
+    border: 1.5px solid transparent;
+    margin-bottom: 1px;
+    transition: background 0.1s;
+    position: relative;
+  }
+  .file-item:hover { background: var(--bg); }
+  .file-item.active { background: var(--accent-tint); border-color: var(--accent-tint-border); }
+  .file-item.active .fi-name { color: var(--accent); }
+  .file-item.sel-a { background: #ecfdf5; border-color: #6ee7b7; }
+  .file-item.sel-a .fi-name { color: #065f46; }
+  .file-item.sel-b { background: #eff6ff; border-color: #93c5fd; }
+  .file-item.sel-b .fi-name { color: #1e3a8a; }
+  .fi-icon { font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+  .fi-info { min-width: 0; flex: 1; }
+  .fi-name {
+    font-size: 12px; font-weight: 500; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;
+    display: block;
+  }
+  .fi-raw {
+    font-size: 10px; color: var(--text-muted); font-family: var(--mono);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;
+    display: block;
+  }
+  .sel-badge {
+    font-size: 9px; font-weight: 800; padding: 1px 5px; border-radius: 99px;
+    flex-shrink: 0; margin-top: 2px; letter-spacing: 0.05em;
+  }
+  .sel-badge.a { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+  .sel-badge.b { background: #dbeafe; color: #1e3a8a; border: 1px solid #93c5fd; }
+
+  .sidebar-bottom {
+    flex-shrink: 0;
+    padding: 8px;
+    border-top: 1px solid var(--border);
+  }
+  .btn-upload-small {
+    width: 100%;
+    padding: 7px 12px;
+    border-radius: 7px;
+    border: 1.5px dashed var(--border);
+    background: none;
+    color: var(--text-muted);
+    font-family: var(--ui);
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s;
+  }
+  .btn-upload-small:hover { border-color: var(--text-muted); color: var(--text); }
+  #file-input { display: none; }
+
+  /* ── MAIN ── */
+  #main-wrapper {
+    flex: 1; display: flex; flex-direction: column;
+    height: 100vh; overflow: hidden; min-width: 0;
+  }
+  #top-bar {
+    flex-shrink: 0;
+    background: var(--topbar-bg);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  #current-file-name {
+    font-family: var(--sans); font-style: italic; font-size: 16px;
+    color: var(--text-muted); letter-spacing: -0.02em;
+    flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #reload-indicator {
+    font-size: 11px; color: var(--accent);
+    opacity: 0; transition: opacity 0.3s;
+    display: flex; align-items: center; gap: 4px;
+  }
+  #reload-indicator.show { opacity: 1; }
+  .btn {
+    font-family: var(--ui); font-size: 13px; font-weight: 500;
+    padding: 7px 14px; border-radius: 6px; border: none;
+    cursor: pointer; transition: all 0.15s;
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  }
+  .btn-pdf { background: var(--text); color: #fff; }
+  .btn-pdf:hover { background: #333; }
+  .btn-pdf:disabled { background: #ccc; cursor: not-allowed; }
+
+  /* ── SCROLL AREA ── */
+  #scroll-area { flex: 1; overflow-y: auto; }
+
+  /* ── EMPTY STATES ── */
+  #welcome {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    min-height: calc(100vh - 53px);
+    text-align: center; padding: 40px; gap: 12px;
+  }
+  .welcome-icon { font-size: 48px; }
+  .welcome-title { font-family: var(--sans); font-style: italic; font-size: 24px; color: var(--text); }
+  .welcome-sub { font-size: 13px; color: var(--text-muted); max-width: 320px; line-height: 1.6; }
+  .welcome-btn {
+    margin-top: 8px; padding: 10px 20px; border-radius: 8px;
+    background: var(--accent); color: #fff; border: none;
+    font-family: var(--ui); font-size: 14px; font-weight: 500;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+    transition: background 0.15s;
+  }
+  .welcome-btn:hover { background: #1d4ed8; }
+  .welcome-btn-restore {
+    margin-top: 8px; padding: 10px 20px; border-radius: 8px;
+    background: var(--surface); color: var(--text);
+    border: 1.5px solid var(--border);
+    font-family: var(--ui); font-size: 14px; font-weight: 500;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+    transition: all 0.15s;
+  }
+  .welcome-btn-restore:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-tint); }
+  .welcome-btn-restore .folder-tag { font-family: var(--mono); font-size: 12px; background: var(--table-header); padding: 1px 7px; border-radius: 4px; }
+  .no-api-note { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  /* ── CONTENT ── */
+  #content { display: none; max-width: 960px; margin: 0 auto; padding: 28px 24px 80px; }
+
+  /* ── API INFO ── */
+  .api-info { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px 28px; margin-bottom: 28px; }
+  .api-title { font-family: var(--sans); font-size: 30px; letter-spacing: -0.02em; margin-bottom: 4px; line-height: 1.2; }
+  .api-version { display: inline-flex; align-items: center; background: var(--table-header); border: 1px solid var(--border); padding: 2px 10px; border-radius: 99px; font-size: 12px; font-weight: 500; margin-bottom: 10px; }
+  .api-desc { color: var(--text-muted); font-size: 13px; margin-bottom: 18px; line-height: 1.7; overflow-x: auto; }
+  .info-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+  .servers-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .servers-table th { background: var(--table-header); padding: 7px 12px; text-align: left; font-weight: 600; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); border: 1px solid var(--border); }
+  .servers-table td { padding: 7px 12px; border: 1px solid var(--border); font-family: var(--mono); font-size: 12px; }
+
+  /* ── TOC ── */
+  #toc { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 28px; }
+  .toc-title { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 12px; }
+  .toc-list { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+  .toc-list a { display: flex; align-items: center; gap: 10px; padding: 5px 8px; border-radius: 6px; text-decoration: none; color: var(--text); font-size: 13px; transition: background 0.1s; }
+  .toc-list a:hover { background: var(--table-header); }
+
+  /* ── ENDPOINT ── */
+  .endpoint-section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 20px; overflow: hidden; }
+  .endpoint-header { padding: 18px 22px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 12px; }
+  .method-badge { font-family: var(--mono); font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 6px; letter-spacing: 0.05em; flex-shrink: 0; margin-top: 2px; border: 1.5px solid; }
+  .method-GET    { color: var(--get);    background: var(--get-bg);    border-color: var(--get-border); }
+  .method-POST   { color: var(--post);   background: var(--post-bg);   border-color: var(--post-border); }
+  .method-PUT    { color: var(--put);    background: var(--put-bg);    border-color: var(--put-border); }
+  .method-DELETE { color: var(--delete); background: var(--delete-bg); border-color: var(--delete-border); }
+  .method-PATCH  { color: var(--patch);  background: var(--patch-bg);  border-color: var(--patch-border); }
+  .endpoint-path { font-family: var(--mono); font-size: 15px; font-weight: 500; letter-spacing: -0.01em; }
+  .endpoint-summary { color: var(--text-muted); font-size: 13px; margin-top: 3px; }
+  .endpoint-desc { margin-top: 8px; }
+  .endpoint-block { padding: 18px 22px; border-bottom: 1px solid var(--border); }
+  .endpoint-block:last-child { border-bottom: none; }
+  .block-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .block-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* ── TABLES ── */
+  .spec-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .spec-table th { background: var(--table-header); padding: 8px 12px; text-align: left; font-weight: 600; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); border: 1px solid var(--border); }
+  .spec-table td { padding: 8px 12px; border: 1px solid var(--border); vertical-align: top; line-height: 1.5; }
+  .spec-table tr:nth-child(even) td { background: var(--zebra); }
+  .field-name { font-family: var(--mono); font-size: 12px; }
+  .field-type { font-family: var(--mono); font-size: 11px; color: var(--text-muted); background: var(--table-header); padding: 1px 6px; border-radius: 4px; }
+  .field-required { color: var(--text-muted); font-weight: 500; font-size: 12px; }
+  .field-optional { color: var(--accent); font-size: 12px; }
+  .field-conditional { color: var(--text-muted); font-size: 12px; font-weight: 500; }
+
+  /* ── CODE ── */
+  .code-wrap { border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+  .code-wrap pre { margin: 0 !important; }
+  .code-wrap code { font-family: var(--mono) !important; font-size: 12px !important; }
+
+  /* ── EXAMPLE CARDS ── */
+  .examples-flat { display: flex; flex-direction: column; gap: 10px; }
+  .example-card { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; break-inside: avoid; }
+  .example-card-label { padding: 5px 12px; background: var(--table-header); font-size: 11px; font-weight: 600; color: var(--text-muted); border-bottom: 1px solid var(--border); letter-spacing: 0.04em; }
+  .example-card .code-wrap { border: none; border-radius: 0; }
+
+  /* ── MARKDOWN ── */
+  .md-prose { font-size: 13px; line-height: 1.75; color: var(--text-muted); }
+  .md-prose p { margin: 0 0 8px; } .md-prose p:last-child { margin-bottom: 0; }
+  .md-prose h1,.md-prose h2,.md-prose h3,.md-prose h4 { font-family: var(--sans); font-style: italic; color: var(--text); margin: 12px 0 5px; }
+  .md-prose ul,.md-prose ol { padding-left: 18px; margin: 0 0 8px; }
+  .md-prose code { font-family: var(--mono); font-size: 11px; background: var(--table-header); border: 1px solid var(--border); padding: 1px 5px; border-radius: 4px; color: var(--text); }
+  .md-prose pre { background: var(--table-header); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow-x: auto; margin: 8px 0; }
+  .md-prose pre code { background: none; border: none; padding: 0; }
+  .md-prose blockquote { border-left: 3px solid var(--border); padding-left: 12px; margin: 8px 0; font-style: italic; }
+  .md-prose a { color: var(--accent); text-decoration: underline; }
+  .md-prose strong { color: var(--text); font-weight: 600; }
+  .md-prose table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 12px; }
+  .md-prose table th { background: var(--table-header); padding: 6px 10px; border: 1px solid var(--border); font-weight: 600; text-align: left; white-space: nowrap; }
+  .md-prose table td { padding: 6px 10px; border: 1px solid var(--border); word-break: break-word; overflow-wrap: break-word; vertical-align: top; }
+  .md-prose table td:first-child { white-space: nowrap; width: 1%; }
+  .md-prose table td code { white-space: nowrap; word-break: normal; }
+
+  /* ── PARAM GROUPS ── */
+  .param-group { margin-bottom: 14px; }
+  .param-group:last-child { margin-bottom: 0; }
+  .param-group-label { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; padding: 2px 8px; background: var(--accent-tint); border: 1px solid var(--accent-tint-border); border-radius: 5px; display: inline-block; }
+
+  /* ── MERMAID ── */
+  #mermaid-flows { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; margin-bottom: 28px; }
+  .mermaid-flows-title { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 18px; }
+  .mermaid-flow-item { margin-bottom: 24px; } .mermaid-flow-item:last-child { margin-bottom: 0; }
+  .mermaid-flow-name { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text); background: var(--table-header); border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; display: inline-block; margin-bottom: 10px; }
+  .mermaid-flow-diagram { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 20px; overflow-x: auto; text-align: center; }
+  .mermaid-flow-diagram svg { max-width: 100%; height: auto; }
+
+  /* ── COMPARE VIEW ── */
+  .compare-view { max-width: 1100px; margin: 0 auto; padding: 28px 24px 80px; }
+  .compare-header {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px 24px; margin-bottom: 20px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .compare-header-text { flex: 1; }
+  .compare-title { font-family: var(--sans); font-style: italic; font-size: 22px; margin-bottom: 4px; }
+  .compare-subtitle { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+  .cmp-name-a { color: #065f46; font-weight: 600; background: #d1fae5; padding: 1px 8px; border-radius: 99px; font-family: var(--mono); font-size: 11px; }
+  .cmp-name-b { color: #1e3a8a; font-weight: 600; background: #dbeafe; padding: 1px 8px; border-radius: 99px; font-family: var(--mono); font-size: 11px; }
+  .btn-exit-compare { background: none; border: 1.5px solid var(--border); color: var(--text-muted); font-family: var(--ui); font-size: 12px; font-weight: 500; padding: 6px 14px; border-radius: 6px; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 5px; }
+  .btn-exit-compare:hover { border-color: var(--text); color: var(--text); }
+
+  .compare-stats { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+  .stat-pill { padding: 6px 14px; border-radius: 99px; font-size: 12px; font-weight: 600; border: 1.5px solid; display: flex; align-items: center; gap: 5px; }
+  .stat-added   { background: #f0fdf4; color: #166534; border-color: #86efac; }
+  .stat-removed { background: #fff1f2; color: #9f1239; border-color: #fca5a5; }
+  .stat-modified{ background: #fffbeb; color: #78350f; border-color: #fde68a; }
+  .stat-same    { background: var(--bg); color: var(--text-muted); border-color: var(--border); }
+
+  .compare-section { margin-bottom: 24px; }
+  .compare-section-title {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+    margin-bottom: 10px; padding: 6px 12px; border-radius: 6px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .cs-added   { background: #f0fdf4; color: #166534; }
+  .cs-removed { background: #fff1f2; color: #9f1239; }
+  .cs-modified{ background: #fffbeb; color: #78350f; }
+  .cs-same    { background: var(--bg); color: var(--text-muted); }
+
+  .diff-ep-row {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    margin-bottom: 8px; overflow: hidden;
+  }
+  .diff-ep-row.diff-added   { border-color: #86efac; }
+  .diff-ep-row.diff-removed { border-color: #fca5a5; }
+  .diff-ep-row.diff-modified{ border-color: #fde68a; }
+
+  .diff-ep-head {
+    padding: 12px 16px; display: flex; align-items: center; gap: 10px;
+    cursor: pointer; user-select: none;
+  }
+  .diff-ep-head:hover { background: var(--bg); }
+  .diff-side-badge { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 99px; }
+  .badge-a-only { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+  .badge-b-only { background: #dbeafe; color: #1e3a8a; border: 1px solid #93c5fd; }
+  .badge-modified { background: #fef3c7; color: #78350f; border: 1px solid #fde68a; }
+  .diff-expand-arrow { font-size: 9px; margin-left: auto; color: var(--text-muted); transition: transform 0.15s; }
+  .diff-expand-arrow.open { transform: rotate(90deg); }
+
+  .diff-ep-body { padding: 0 16px 16px; display: none; }
+  .diff-ep-body.open { display: block; }
+
+  .diff-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .diff-col-label { font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 6px; }
+  .diff-col-a .diff-col-label { color: #065f46; }
+  .diff-col-b .diff-col-label { color: #1e3a8a; }
+
+  .diff-field-list { font-size: 12px; }
+  .diff-field-row { display: flex; gap: 8px; padding: 3px 6px; border-radius: 4px; margin-bottom: 2px; align-items: baseline; }
+  .diff-field-row.field-added   { background: #f0fdf4; }
+  .diff-field-row.field-removed { background: #fff1f2; }
+  .diff-field-row.field-changed { background: #fffbeb; }
+  .diff-field-name { font-family: var(--mono); font-size: 11px; font-weight: 600; flex-shrink: 0; }
+  .diff-field-type { font-family: var(--mono); font-size: 10px; color: var(--text-muted); background: var(--table-header); padding: 0 5px; border-radius: 3px; }
+  .diff-field-status { font-size: 10px; font-weight: 700; margin-left: auto; }
+  .diff-field-status.added   { color: #166534; }
+  .diff-field-status.removed { color: #9f1239; }
+  .diff-field-status.changed { color: #78350f; }
+
+  /* ── MISC ── */
+  .empty-msg { color: var(--text-muted); font-size: 13px; font-style: italic; }
+  .error-msg { background: var(--delete-bg); border: 1px solid var(--delete-border); color: var(--delete); padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
+
+  /* ── PRINT ── */
+  @media print {
+    @page { margin: 10mm 12mm; }
+
+    #sidebar { display: none !important; }
+    #top-bar { display: none !important; }
+    body { display: block; height: auto; overflow: visible; background: white; font-size: 11px; }
+    #main-wrapper { display: block; height: auto; overflow: visible; }
+    #scroll-area { overflow: visible; height: auto; }
+    #welcome { display: none !important; }
+    #content { display: block !important; max-width: 100%; padding: 10px 8px 40px; }
+
+    /* Tables: scale down to fit portrait */
+    .spec-table { font-size: 10px; table-layout: fixed; width: 100%; }
+    .spec-table th { padding: 5px 7px; font-size: 9px; white-space: nowrap; }
+    .spec-table td { padding: 5px 7px; word-break: break-word; overflow-wrap: anywhere; }
+    /* Column width hints for 4-col table */
+    .spec-table th:nth-child(1), .spec-table td:nth-child(1) { width: 22%; }
+    .spec-table th:nth-child(2), .spec-table td:nth-child(2) { width: 16%; }
+    .spec-table th:nth-child(3), .spec-table td:nth-child(3) { width: 12%; }
+    .spec-table th:nth-child(4), .spec-table td:nth-child(4) { width: 50%; }
+    .field-name { font-size: 10px; }
+    .field-type { font-size: 9px; }
+
+    /* Markdown tables in description */
+    .md-prose table { font-size: 10px; table-layout: auto; width: 100%; }
+    .md-prose table th, .md-prose table td { padding: 4px 6px; word-break: break-word; overflow-wrap: anywhere; }
+    .md-prose table td:first-child { white-space: normal; width: auto; }
+    /* Override: code inside table must wrap (URLs etc.) */
+    .md-prose table td code { white-space: pre-wrap; word-break: break-all; overflow-wrap: anywhere; }
+    /* Servers table in info block */
+    .servers-table { table-layout: auto; width: 100%; font-size: 10px; }
+    .servers-table td, .servers-table th { padding: 4px 7px; word-break: break-word; overflow-wrap: anywhere; }
+    .servers-table td:first-child { word-break: break-all; }
+
+    /* Endpoint headers */
+    .endpoint-path { font-size: 13px; }
+    .endpoint-summary { font-size: 11px; }
+    .endpoint-section { page-break-inside: avoid; break-inside: avoid; }
+    .api-info, #toc { page-break-inside: avoid; }
+    #toc { page-break-after: always; }
+    .endpoint-block { page-break-inside: avoid; }
+    .code-wrap { page-break-inside: avoid; font-size: 10px; }
+    .code-wrap code { font-size: 9px !important; }
+
+    .method-badge, .spec-table th, .spec-table tr:nth-child(even) td { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div id="sidebar-header">
+    <div id="sidebar-logo">API Specs</div>
+    <button class="btn-open-folder" onclick="openFolder()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      Open folder
+    </button>
+    <button class="btn-compare-toggle" id="compare-toggle-btn" onclick="toggleCompareMode()" style="display:none">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+      Compare specs
+    </button>
+    <div class="folder-name" id="folder-name" style="display:none"></div>
+    <div class="live-status" id="live-status" style="display:none">
+      <span class="live-dot on" id="live-dot"></span>
+      <span>watching for changes</span>
+    </div>
+  </div>
+
+  <div id="compare-banner">
+    <div style="flex:1">
+      <div class="compare-banner-text" id="compare-banner-text">Select first file (A)</div>
+      <div class="compare-sel-chips" id="compare-sel-chips"></div>
+    </div>
+    <button style="background:none;border:none;cursor:pointer;color:var(--warn-text);font-size:16px;padding:0 2px" onclick="toggleCompareMode()" title="Cancel">✕</button>
+  </div>
+
+  <div id="file-list-wrap">
+    <div class="section-label" id="files-label" style="display:none">Spec files</div>
+    <div id="file-list">
+      <p style="padding:10px 8px;font-size:12px;color:var(--text-muted);line-height:1.6">
+        Open a folder containing<br>.yaml / .yml spec files.
+      </p>
+    </div>
+  </div>
+
+  <div class="sidebar-bottom">
+    <label class="btn-upload-small" for="file-input">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Upload single file
+    </label>
+    <input type="file" id="file-input" accept=".json,.yaml,.yml">
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main-wrapper">
+  <div id="top-bar">
+    <span id="current-file-name">OpenAPI Viewer</span>
+    <span id="reload-indicator">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      Reloaded
+    </span>
+    <button class="btn btn-pdf" id="pdf-btn" onclick="printSpec()" disabled>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Export PDF
+    </button>
+  </div>
+
+  <div id="scroll-area">
+    <div id="welcome">
+      <div class="welcome-icon">📂</div>
+      <div class="welcome-title" id="welcome-title">Open your specs folder</div>
+      <div class="welcome-sub" id="welcome-sub">Select the folder containing your OpenAPI YAML files. Changes in IDE will auto-reload here.</div>
+      <div id="welcome-actions">
+        <button class="welcome-btn" onclick="openFolder()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          Open Folder
+        </button>
+      </div>
+      <div class="no-api-note">Works in Chrome / Edge · No server needed</div>
+    </div>
+    <div id="content"></div>
+  </div>
+</div>
+
+<script>
+// ─── STATE ───────────────────────────────────────
+let dirHandle = null;
+let fileHandles = {};       // path → FileSystemFileHandle
+let fileTree = [];          // nested tree structure
+let folderCollapsed = new Set();
+let currentFileName = null;
+let currentFileHandle = null;
+let lastModified = null;
+let pollTimer = null;
+let reloadFlashTimer = null;
+let globalSpec = null;
+
+// compare state
+let compareMode = false;
+let compareSelections = [];  // [{path, handle, spec}]
+
+// ─── INDEXEDDB PERSIST ───────────────────────────
+function idbOpen() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('openapi-viewer', 1);
+    r.onupgradeneeded = e => e.target.result.createObjectStore('kv');
+    r.onsuccess = e => res(e.target.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function idbGet(key) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const r = db.transaction('kv').objectStore('kv').get(key);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function idbSet(key, value) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const r = db.transaction('kv','readwrite').objectStore('kv').put(value, key);
+    r.onsuccess = () => res();
+    r.onerror = () => rej(r.error);
+  });
+}
+
+// ─── INIT ────────────────────────────────────────
+async function init() {
+  if (!window.showDirectoryPicker) return;
+  try {
+    const saved = await idbGet('dirHandle');
+    if (!saved) return;
+    const perm = await saved.queryPermission({ mode: 'read' });
+    if (perm === 'granted') {
+      await useDirHandle(saved);
+    } else {
+      showRestorePrompt(saved);
+    }
+  } catch (e) {}
+}
+
+function showRestorePrompt(handle) {
+  document.getElementById('welcome-title').textContent = 'Continue where you left off';
+  document.getElementById('welcome-sub').textContent = 'Browser needs one click to re-grant folder access.';
+  document.getElementById('welcome-actions').innerHTML = `
+    <button class="welcome-btn-restore" onclick="restoreFolder()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      Continue with <span class="folder-tag">${escHtml(handle.name)}</span>
+    </button>
+    <button class="welcome-btn" style="margin-top:8px" onclick="openFolder()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      Open different folder
+    </button>`;
+  window._pendingRestoreHandle = handle;
+}
+
+async function restoreFolder() {
+  const handle = window._pendingRestoreHandle;
+  if (!handle) return;
+  try {
+    const perm = await handle.requestPermission({ mode: 'read' });
+    if (perm === 'granted') await useDirHandle(handle);
+  } catch (e) {}
+}
+
+// ─── FOLDER PICKER ───────────────────────────────
+async function openFolder() {
+  if (!window.showDirectoryPicker) {
+    alert('File System Access API not supported.\nUse Chrome or Edge, or use the "Upload single file" option.');
+    return;
+  }
+  try {
+    const handle = await window.showDirectoryPicker({ mode: 'read' });
+    await idbSet('dirHandle', handle);
+    await useDirHandle(handle);
+  } catch (e) {}
+}
+
+async function useDirHandle(handle) {
+  dirHandle = handle;
+  document.getElementById('folder-name').textContent = handle.name;
+  document.getElementById('folder-name').style.display = 'block';
+  document.getElementById('live-status').style.display = 'flex';
+  document.getElementById('files-label').style.display = 'block';
+  document.getElementById('compare-toggle-btn').style.display = 'flex';
+  await refreshFileList();
+  startPolling();
+}
+
+init();
+
+// ─── RECURSIVE DIR SCAN ──────────────────────────
+async function scanDir(handle, pathPrefix) {
+  const entries = [];
+  for await (const [name, h] of handle.entries()) {
+    if (name.startsWith('.')) continue;
+    const fullPath = pathPrefix ? `${pathPrefix}/${name}` : name;
+    if (h.kind === 'directory') {
+      const children = await scanDir(h, fullPath);
+      if (children.length) {
+        entries.push({ name, type: 'folder', path: fullPath, children });
+      }
+    } else if (h.kind === 'file' && /\.(yaml|yml)$/i.test(name)) {
+      fileHandles[fullPath] = h;
+      entries.push({ name, type: 'file', path: fullPath, handle: h });
+    }
+  }
+  entries.sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+  return entries;
+}
+
+async function refreshFileList() {
+  if (!dirHandle) return;
+  fileHandles = {};
+  fileTree = await scanDir(dirHandle, '');
+  renderTree(fileTree);
+}
+
+// ─── TREE RENDER ─────────────────────────────────
+function fileDisplayName(filename) {
+  return filename
+    .replace(/\.(yaml|yml)$/i, '')
+    .replace(/[_-]/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function buildTreeHTML(entries, depth) {
+  return entries.map(e => {
+    const indent = depth * 14;
+    if (e.type === 'folder') {
+      const isOpen = !folderCollapsed.has(e.path);
+      return `<div>
+        <div class="folder-row" data-path="${escAttr(e.path)}" style="padding-left:${8 + indent}px">
+          <span class="folder-arrow${isOpen ? ' open' : ''}">▶</span>
+          <span class="folder-icon">${isOpen ? '📂' : '📁'}</span>
+          <span class="folder-label">${escHtml(e.name)}</span>
+        </div>
+        <div id="fc-${escAttr(e.path)}" style="display:${isOpen ? 'block' : 'none'}">
+          ${buildTreeHTML(e.children, depth + 1)}
+        </div>
+      </div>`;
+    } else {
+      const selA = compareSelections[0]?.path === e.path;
+      const selB = compareSelections[1]?.path === e.path;
+      const active = !compareMode && currentFileName === e.path;
+      let cls = 'file-item';
+      if (active) cls += ' active';
+      if (selA) cls += ' sel-a';
+      if (selB) cls += ' sel-b';
+      const badge = selA ? '<span class="sel-badge a">A</span>' : selB ? '<span class="sel-badge b">B</span>' : '';
+      return `<div class="${cls}" data-path="${escAttr(e.path)}" style="padding-left:${8 + indent}px">
+        <span class="fi-icon">📋</span>
+        <span class="fi-info">
+          <span class="fi-name">${escHtml(fileDisplayName(e.name))}</span>
+          <span class="fi-raw">${escHtml(e.name)}</span>
+        </span>
+        ${badge}
+      </div>`;
+    }
+  }).join('');
+}
+
+function renderTree(entries) {
+  const el = document.getElementById('file-list');
+  if (!entries.length) {
+    el.innerHTML = '<p style="padding:10px 8px;font-size:12px;color:var(--text-muted)">No .yaml files found.</p>';
+    return;
+  }
+  el.innerHTML = buildTreeHTML(entries, 0);
+}
+
+// ─── TREE EVENTS (delegation) ─────────────────────
+document.getElementById('file-list-wrap').addEventListener('click', e => {
+  const fileEl = e.target.closest('.file-item');
+  const folderEl = e.target.closest('.folder-row');
+  if (fileEl) handleFileClick(fileEl.dataset.path);
+  else if (folderEl) toggleFolder(folderEl.dataset.path);
+});
+
+function toggleFolder(path) {
+  if (folderCollapsed.has(path)) folderCollapsed.delete(path);
+  else folderCollapsed.add(path);
+  renderTree(fileTree);
+}
+
+// ─── FILE SELECTION ───────────────────────────────
+function handleFileClick(path) {
+  if (compareMode) {
+    selectForCompare(path);
+  } else {
+    selectFile(path);
+  }
+}
+
+async function selectFile(path) {
+  const handle = fileHandles[path];
+  if (!handle) return;
+  currentFileName = path;
+  currentFileHandle = handle;
+  const displayName = path.split('/').pop();
+  document.getElementById('current-file-name').textContent = fileDisplayName(displayName);
+  renderTree(fileTree);
+  await loadCurrentFile(false);
+}
+
+async function loadCurrentFile(preserveScroll) {
+  const scrollArea = document.getElementById('scroll-area');
+  const savedScroll = preserveScroll ? scrollArea.scrollTop : 0;
+  try {
+    const file = await currentFileHandle.getFile();
+    lastModified = file.lastModified;
+    const text = await file.text();
+    const spec = jsyaml.load(text);
+    renderSpec(spec);
+    requestAnimationFrame(() => { scrollArea.scrollTop = savedScroll; });
+  } catch (e) {
+    showError('Cannot read file: ' + e.message);
+  }
+}
+
+// ─── COMPARE MODE ────────────────────────────────
+function toggleCompareMode() {
+  compareMode = !compareMode;
+  compareSelections = [];
+  const btn = document.getElementById('compare-toggle-btn');
+  const banner = document.getElementById('compare-banner');
+  btn.classList.toggle('active', compareMode);
+  banner.classList.toggle('show', compareMode);
+  if (compareMode) {
+    updateCompareBanner();
+    document.getElementById('pdf-btn').disabled = true;
+    document.getElementById('current-file-name').textContent = 'Compare mode — select 2 files';
+  } else {
+    exitCompareView();
+  }
+  renderTree(fileTree);
+}
+
+function updateCompareBanner() {
+  const textEl = document.getElementById('compare-banner-text');
+  const chipsEl = document.getElementById('compare-sel-chips');
+  if (compareSelections.length === 0) {
+    textEl.textContent = 'Select first file (A)';
+    chipsEl.innerHTML = '';
+  } else if (compareSelections.length === 1) {
+    textEl.textContent = 'Select second file (B)';
+    const name = compareSelections[0].path.split('/').pop().replace(/\.(yaml|yml)$/i,'');
+    chipsEl.innerHTML = `<span class="chip-a">A: ${escHtml(name)}</span>`;
+  } else {
+    textEl.textContent = 'Comparing...';
+  }
+}
+
+async function selectForCompare(path) {
+  if (compareSelections.find(s => s.path === path)) return;
+  if (compareSelections.length >= 2) return;
+
+  const handle = fileHandles[path];
+  if (!handle) return;
+
+  try {
+    const file = await handle.getFile();
+    const text = await file.text();
+    const spec = jsyaml.load(text);
+    compareSelections.push({ path, handle, spec });
+  } catch (e) {
+    showError('Cannot read file: ' + e.message);
+    return;
+  }
+
+  updateCompareBanner();
+  renderTree(fileTree);
+
+  if (compareSelections.length === 2) {
+    const a = compareSelections[0];
+    const b = compareSelections[1];
+    document.getElementById('current-file-name').textContent =
+      `${a.path.split('/').pop()} vs ${b.path.split('/').pop()}`;
+    renderCompareView(a, b);
+  }
+}
+
+function exitCompareView() {
+  document.getElementById('welcome').style.display = 'none';
+  const c = document.getElementById('content');
+  if (currentFileName && globalSpec) {
+    c.style.display = 'block';
+    renderSpec(globalSpec);
+    document.getElementById('current-file-name').textContent =
+      fileDisplayName(currentFileName.split('/').pop());
+    document.getElementById('pdf-btn').disabled = false;
+  } else {
+    c.style.display = 'none';
+    document.getElementById('welcome').style.display = 'flex';
+    document.getElementById('current-file-name').textContent = 'OpenAPI Viewer';
+  }
+}
+
+// ─── COMPARE RENDERER ────────────────────────────
+function extractEndpointMap(spec) {
+  const result = {};
+  const order = ['get','post','put','patch','delete','head','options'];
+  for (const [path, item] of Object.entries(spec.paths || {})) {
+    for (const m of order) {
+      if (item[m]) {
+        const key = `${m.toUpperCase()} ${path}`;
+        result[key] = { method: m.toUpperCase(), path, op: item[m] };
+      }
+    }
+  }
+  return result;
+}
+
+function diffFieldLists(fieldsA, fieldsB) {
+  const mapA = Object.fromEntries(fieldsA.map(f => [f.field, f]));
+  const mapB = Object.fromEntries(fieldsB.map(f => [f.field, f]));
+  const all = new Set([...Object.keys(mapA), ...Object.keys(mapB)]);
+  const diffs = [];
+  for (const k of all) {
+    if (!mapA[k]) diffs.push({ field: k, status: 'added', a: null, b: mapB[k] });
+    else if (!mapB[k]) diffs.push({ field: k, status: 'removed', a: mapA[k], b: null });
+    else if (JSON.stringify(mapA[k]) !== JSON.stringify(mapB[k]))
+      diffs.push({ field: k, status: 'changed', a: mapA[k], b: mapB[k] });
+  }
+  return diffs;
+}
+
+function compareOps(opA, opB, specA, specB) {
+  const reqA = extractRequest(opA, specA);
+  const reqB = extractRequest(opB, specB);
+  const resA = extractResponse(opA, specA);
+  const resB = extractResponse(opB, specB);
+
+  const paramsA = [...(reqA.header||[]), ...(reqA.path||[]), ...(reqA.query||[]), ...(reqA.body||[])];
+  const paramsB = [...(reqB.header||[]), ...(reqB.path||[]), ...(reqB.query||[]), ...(reqB.body||[])];
+
+  return {
+    params: diffFieldLists(paramsA, paramsB),
+    response: diffFieldLists(resA, resB),
+    summaryChanged: opA.summary !== opB.summary ? { a: opA.summary, b: opB.summary } : null,
+  };
+}
+
+function renderFieldDiffs(diffs, labelA, labelB) {
+  if (!diffs.length) return '<p class="empty-msg" style="font-size:12px">No field differences</p>';
+  const rows = diffs.map(d => {
+    const cls = d.status === 'added' ? 'field-added' : d.status === 'removed' ? 'field-removed' : 'field-changed';
+    const type = d.b?.type || d.a?.type || '';
+    const statusLabel = d.status === 'added' ? `+${labelB}` : d.status === 'removed' ? `−${labelA}` : '≠';
+    const statusCls = d.status === 'added' ? 'added' : d.status === 'removed' ? 'removed' : 'changed';
+    return `<div class="diff-field-row ${cls}">
+      <span class="diff-field-name">${escHtml(d.field)}</span>
+      ${type ? `<span class="diff-field-type">${escHtml(type)}</span>` : ''}
+      <span class="diff-field-status ${statusCls}">${statusLabel}</span>
+    </div>`;
+  }).join('');
+  return `<div class="diff-field-list">${rows}</div>`;
+}
+
+function renderCompareView(selA, selB) {
+  const specA = selA.spec, specB = selB.spec;
+  const nameA = selA.path.split('/').pop().replace(/\.(yaml|yml)$/i,'');
+  const nameB = selB.path.split('/').pop().replace(/\.(yaml|yml)$/i,'');
+
+  const mapA = extractEndpointMap(specA);
+  const mapB = extractEndpointMap(specB);
+  const allKeys = new Set([...Object.keys(mapA), ...Object.keys(mapB)]);
+
+  const onlyA = [], onlyB = [], modified = [], same = [];
+
+  for (const k of allKeys) {
+    if (mapA[k] && !mapB[k]) onlyA.push(k);
+    else if (!mapA[k] && mapB[k]) onlyB.push(k);
+    else {
+      const diff = compareOps(mapA[k].op, mapB[k].op, specA, specB);
+      const hasDiff = diff.params.length || diff.response.length || diff.summaryChanged;
+      if (hasDiff) modified.push({ key: k, diff, epA: mapA[k], epB: mapB[k] });
+      else same.push(k);
+    }
+  }
+
+  let html = `<div class="compare-view">`;
+
+  // header
+  html += `<div class="compare-header">
+    <div class="compare-header-text">
+      <div class="compare-title">Spec Comparison</div>
+      <div class="compare-subtitle">
+        <span class="cmp-name-a">A: ${escHtml(nameA)}</span>
+        <span style="color:var(--text-muted)">vs</span>
+        <span class="cmp-name-b">B: ${escHtml(nameB)}</span>
+      </div>
+    </div>
+    <button class="btn-exit-compare" onclick="exitCompare()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      Exit compare
+    </button>
+  </div>`;
+
+  // stats
+  html += `<div class="compare-stats">
+    <span class="stat-pill stat-removed">− ${onlyA.length} only in A</span>
+    <span class="stat-pill stat-added">+ ${onlyB.length} only in B</span>
+    <span class="stat-pill stat-modified">≠ ${modified.length} modified</span>
+    <span class="stat-pill stat-same">= ${same.length} unchanged</span>
+  </div>`;
+
+  // only in A (removed)
+  if (onlyA.length) {
+    html += `<div class="compare-section">
+      <div class="compare-section-title cs-removed">− Only in A (${escHtml(nameA)})</div>`;
+    for (const k of onlyA) {
+      const ep = mapA[k];
+      html += `<div class="diff-ep-row diff-removed">
+        <div class="diff-ep-head" style="cursor:default">
+          ${badge(ep.method)}
+          <span style="font-family:var(--mono);font-size:13px">${escHtml(ep.path)}</span>
+          ${ep.op.summary ? `<span style="color:var(--text-muted);font-size:12px">${escHtml(ep.op.summary)}</span>` : ''}
+          <span class="diff-side-badge badge-a-only" style="margin-left:auto">A only</span>
+        </div>
+      </div>`;
+    }
+    html += `</div>`;
+  }
+
+  // only in B (added)
+  if (onlyB.length) {
+    html += `<div class="compare-section">
+      <div class="compare-section-title cs-added">+ Only in B (${escHtml(nameB)})</div>`;
+    for (const k of onlyB) {
+      const ep = mapB[k];
+      html += `<div class="diff-ep-row diff-added">
+        <div class="diff-ep-head" style="cursor:default">
+          ${badge(ep.method)}
+          <span style="font-family:var(--mono);font-size:13px">${escHtml(ep.path)}</span>
+          ${ep.op.summary ? `<span style="color:var(--text-muted);font-size:12px">${escHtml(ep.op.summary)}</span>` : ''}
+          <span class="diff-side-badge badge-b-only" style="margin-left:auto">B only</span>
+        </div>
+      </div>`;
+    }
+    html += `</div>`;
+  }
+
+  // modified
+  if (modified.length) {
+    html += `<div class="compare-section">
+      <div class="compare-section-title cs-modified">≠ Modified (${modified.length})</div>`;
+    for (const { key, diff, epA, epB } of modified) {
+      const safeId = 'diff-' + key.replace(/[^a-zA-Z0-9]/g, '-');
+      let changeCount = diff.params.length + diff.response.length + (diff.summaryChanged ? 1 : 0);
+      html += `<div class="diff-ep-row diff-modified">
+        <div class="diff-ep-head" onclick="toggleDiffBody('${safeId}')">
+          ${badge(epA.method)}
+          <span style="font-family:var(--mono);font-size:13px">${escHtml(epA.path)}</span>
+          <span style="color:var(--text-muted);font-size:12px">${changeCount} change${changeCount !== 1 ? 's' : ''}</span>
+          <span class="diff-side-badge badge-modified" style="margin-left:auto">Modified</span>
+          <span class="diff-expand-arrow" id="arr-${safeId}">▶</span>
+        </div>
+        <div class="diff-ep-body" id="${safeId}">`;
+
+      if (diff.summaryChanged) {
+        html += `<div style="margin-bottom:12px">
+          <div class="block-label" style="margin-bottom:6px">Summary</div>
+          <div style="font-size:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div><span class="diff-col-label" style="color:var(--diff-a-text);font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase">A</span><br>
+              <span style="color:var(--text-muted)">${escHtml(diff.summaryChanged.a || '—')}</span></div>
+            <div><span class="diff-col-label" style="color:var(--diff-b-text);font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase">B</span><br>
+              <span style="color:var(--text-muted)">${escHtml(diff.summaryChanged.b || '—')}</span></div>
+          </div>
+        </div>`;
+      }
+
+      if (diff.params.length) {
+        html += `<div style="margin-bottom:12px">
+          <div class="block-label" style="margin-bottom:6px">Request Parameters / Body</div>
+          ${renderFieldDiffs(diff.params, 'A', 'B')}
+        </div>`;
+      }
+
+      if (diff.response.length) {
+        html += `<div>
+          <div class="block-label" style="margin-bottom:6px">Response Fields</div>
+          ${renderFieldDiffs(diff.response, 'A', 'B')}
+        </div>`;
+      }
+
+      html += `</div></div>`;
+    }
+    html += `</div>`;
+  }
+
+  // unchanged (collapsed by default, just count shown)
+  if (same.length) {
+    html += `<div class="compare-section">
+      <div class="compare-section-title cs-same" onclick="toggleDiffBody('unchanged-list')" style="cursor:pointer">
+        = Unchanged (${same.length})
+        <span class="diff-expand-arrow" id="arr-unchanged-list" style="margin-left:auto">▶</span>
+      </div>
+      <div id="unchanged-list" style="display:none">`;
+    for (const k of same) {
+      const ep = mapA[k];
+      html += `<div class="diff-ep-row" style="opacity:0.55">
+        <div class="diff-ep-head" style="cursor:default">
+          ${badge(ep.method)}
+          <span style="font-family:var(--mono);font-size:13px">${escHtml(ep.path)}</span>
+          ${ep.op.summary ? `<span style="color:var(--text-muted);font-size:12px">${escHtml(ep.op.summary)}</span>` : ''}
+        </div>
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  html += `</div>`;
+
+  document.getElementById('welcome').style.display = 'none';
+  const c = document.getElementById('content');
+  c.style.display = 'block';
+  c.innerHTML = html;
+  document.getElementById('pdf-btn').disabled = true;
+}
+
+function toggleDiffBody(id) {
+  const body = document.getElementById(id);
+  const arr = document.getElementById('arr-' + id);
+  if (!body) return;
+  const open = body.style.display !== 'none' && body.style.display !== '';
+  body.style.display = open ? 'none' : 'block';
+  if (arr) arr.classList.toggle('open', !open);
+}
+
+function exitCompare() {
+  compareMode = false;
+  compareSelections = [];
+  document.getElementById('compare-toggle-btn').classList.remove('active');
+  document.getElementById('compare-banner').classList.remove('show');
+  exitCompareView();
+  renderTree(fileTree);
+}
+
+// ─── POLLING (live reload) ────────────────────────
+function startPolling() {
+  clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    if (!currentFileHandle || compareMode) return;
+    try {
+      const file = await currentFileHandle.getFile();
+      if (file.lastModified !== lastModified) {
+        await loadCurrentFile(true);
+        flashReload();
+      }
+    } catch (e) {}
+  }, 800);
+}
+
+function flashReload() {
+  const el = document.getElementById('reload-indicator');
+  el.classList.add('show');
+  clearTimeout(reloadFlashTimer);
+  reloadFlashTimer = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ─── UPLOAD FALLBACK ──────────────────────────────
+document.getElementById('file-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const text = ev.target.result;
+      const spec = /\.(yaml|yml)$/i.test(file.name) ? jsyaml.load(text) : JSON.parse(text);
+      currentFileName = file.name;
+      document.getElementById('current-file-name').textContent = fileDisplayName(file.name);
+      renderSpec(spec);
+    } catch (err) { showError('Cannot parse: ' + err.message); }
+  };
+  reader.readAsText(file);
+});
+
+// ─── PRINT ───────────────────────────────────────
+function printSpec() {
+  const title = globalSpec?.info?.title || 'API';
+  const now = new Date();
+  const yyyymmdd = now.getFullYear().toString()
+    + String(now.getMonth() + 1).padStart(2, '0')
+    + String(now.getDate()).padStart(2, '0');
+  const origTitle = document.title;
+  document.title = `${yyyymmdd} ${title}`;
+  window.print();
+  setTimeout(() => { document.title = origTitle; }, 2000);
+}
+
+// ─── HELPERS ─────────────────────────────────────
+function showError(msg) {
+  document.getElementById('welcome').style.display = 'none';
+  const c = document.getElementById('content');
+  c.style.display = 'block';
+  c.innerHTML = `<div class="error-msg" style="max-width:960px;margin:28px auto">⚠ ${escHtml(msg)}</div>`;
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function escAttr(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ─── PARSER ──────────────────────────────────────
+function resolveRef(obj, spec) {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (obj.$ref) {
+    const parts = obj.$ref.replace(/^#\//, '').split('/');
+    let r = spec;
+    for (const p of parts) r = r?.[decodeURIComponent(p.replace(/~1/g,'/').replace(/~0/g,'~'))];
+    return resolveRef(r, spec);
+  }
+  if (Array.isArray(obj)) return obj.map(i => resolveRef(i, spec));
+  const res = {};
+  for (const k of Object.keys(obj)) res[k] = resolveRef(obj[k], spec);
+  return res;
+}
+
+function flattenSchema(schema, spec, prefix='', depth=0, parentOptional=false) {
+  if (!schema || depth > 8) return [];
+  schema = resolveRef(schema, spec);
+  if (schema.allOf) return schema.allOf.flatMap(s => flattenSchema(resolveRef(s,spec),spec,prefix,depth,parentOptional));
+  if (schema.oneOf||schema.anyOf) return flattenSchema(resolveRef((schema.oneOf||schema.anyOf)[0],spec),spec,prefix,depth,parentOptional);
+  if (schema.type==='object'||schema.properties) {
+    const props=schema.properties||{}, req=schema.required||[], rows=[];
+    for (const [k,v] of Object.entries(props)) {
+      const rv=resolveRef(v,spec), fk=prefix?`${prefix}.${k}`:k;
+      const fieldReq=req.includes(k);
+      const effReq=parentOptional?(fieldReq?'conditional':false):fieldReq;
+      if (rv.type==='object'||rv.properties||rv.allOf||rv.oneOf) {
+        rows.push({field:fk,type:'object',required:effReq,desc:rv.description||''});
+        rows.push(...flattenSchema(rv,spec,fk,depth+1,!fieldReq||parentOptional));
+      } else if (rv.type==='array') {
+        const ik=`${fk}[]`, items=resolveRef(rv.items,spec);
+        if (items&&(items.type==='object'||items.properties)) {
+          rows.push({field:ik,type:'array of objects',required:effReq,desc:rv.description||''});
+          rows.push(...flattenSchema(items,spec,ik,depth+1,!fieldReq||parentOptional));
+        } else rows.push({field:ik,type:`array of ${items?.type||'any'}`,required:effReq,desc:rv.description||''});
+      } else {
+        let t=rv.type||'';
+        if (rv.enum) t+=` (enum: ${rv.enum.join(', ')})`;
+        if (rv.format) t+=` <${rv.format}>`;
+        rows.push({field:fk,type:t,required:effReq,desc:rv.description||''});
+      }
+    }
+    return rows;
+  }
+  if (schema.type==='array') {
+    const items=resolveRef(schema.items,spec);
+    if (items&&(items.type==='object'||items.properties)) return flattenSchema(items,spec,prefix?`${prefix}[]`:'[]',depth+1);
+    return [{field:prefix||'[]',type:`array of ${items?.type||'any'}`,required:false,desc:schema.description||''}];
+  }
+  if (prefix) {
+    let t=schema.type||'any';
+    if (schema.enum) t+=` (enum: ${schema.enum.join(', ')})`;
+    if (schema.format) t+=` <${schema.format}>`;
+    return [{field:prefix,type:t,required:false,desc:schema.description||''}];
+  }
+  return [];
+}
+
+function extractRequest(op, spec) {
+  const g={header:[],path:[],query:[],body:[]};
+  for (const param of op.parameters||[]) {
+    const p=resolveRef(param,spec), s=resolveRef(p.schema,spec)||{};
+    let t=s.type||'';
+    if (s.enum) t+=` (enum: ${s.enum.join(', ')})`;
+    if (s.format) t+=` <${s.format}>`;
+    (g[p.in]||g.header).push({field:p.name,type:t,required:p.required||false,desc:p.description||''});
+  }
+  const rb=resolveRef(op.requestBody,spec);
+  if (rb) {
+    const ct=rb.content?.['application/json']||rb.content?.[Object.keys(rb.content||{})[0]];
+    if (ct?.schema) g.body.push(...flattenSchema(resolveRef(ct.schema,spec),spec));
+  }
+  return g;
+}
+
+function extractResponse(op, spec) {
+  const resp=op.responses?.['200']||op.responses?.['201']||op.responses?.default;
+  if (!resp) return [];
+  const r=resolveRef(resp,spec);
+  const ct=r?.content?.['application/json']||r?.content?.[Object.keys(r?.content||{})[0]];
+  if (!ct?.schema) return [];
+  return flattenSchema(resolveRef(ct.schema,spec),spec);
+}
+
+function genExample(schema, spec, depth=0) {
+  if (!schema||depth>5) return null;
+  schema=resolveRef(schema,spec);
+  if (schema.example!==undefined) return schema.example;
+  if (schema.examples) return Object.values(schema.examples)[0]?.value;
+  if (schema.allOf){const m={};for(const s of schema.allOf)Object.assign(m,genExample(resolveRef(s,spec),spec,depth+1)||{});return m;}
+  if (schema.oneOf||schema.anyOf) return genExample(resolveRef((schema.oneOf||schema.anyOf)[0],spec),spec,depth+1);
+  if (schema.type==='object'||schema.properties){const o={};for(const[k,v]of Object.entries(schema.properties||{}))o[k]=genExample(resolveRef(v,spec),spec,depth+1);return o;}
+  if (schema.type==='array') return [genExample(resolveRef(schema.items,spec),spec,depth+1)];
+  if (schema.enum) return schema.enum[0];
+  return {string:'string',integer:0,number:0.0,boolean:true}[schema.type]??null;
+}
+
+function getReqEx(op, spec) {
+  const rb=resolveRef(op.requestBody,spec); if(!rb) return null;
+  const ct=rb.content?.['application/json']||rb.content?.[Object.keys(rb.content||{})[0]]; if(!ct) return null;
+  if(ct.example) return {single:true,value:ct.example};
+  if(ct.examples){const list=Object.entries(ct.examples).map(([k,ex])=>({key:k,summary:ex.summary||k,value:ex.value}));if(list.length===1)return{single:true,value:list[0].value};return{single:false,list};}
+  if(ct.schema) return {single:true,value:genExample(resolveRef(ct.schema,spec),spec)};
+  return null;
+}
+
+function getResEx(op, spec) {
+  const resp=op.responses?.['200']||op.responses?.['201']||op.responses?.default; if(!resp) return null;
+  const r=resolveRef(resp,spec);
+  const ct=r?.content?.['application/json']||r?.content?.[Object.keys(r?.content||{})[0]]; if(!ct) return null;
+  if(ct.example) return {single:true,value:ct.example};
+  if(ct.examples){const list=Object.entries(ct.examples).map(([k,ex])=>({key:k,summary:ex.summary||k,value:ex.value}));if(list.length===1)return{single:true,value:list[0].value};return{single:false,list};}
+  if(ct.schema) return {single:true,value:genExample(resolveRef(ct.schema,spec),spec)};
+  return null;
+}
+
+// ─── RENDERER ────────────────────────────────────
+function slugify(method,path){return`ep-${method}-${path}`.replace(/[^a-zA-Z0-9-]/g,'-').replace(/-+/g,'-');}
+function badge(method){return`<span class="method-badge method-${method.toUpperCase()}">${method.toUpperCase()}</span>`;}
+
+function renderTable(fields, cols) {
+  if (!fields?.length) return `<p class="empty-msg">— no fields —</p>`;
+  const ths = cols.map(c=>`<th>${c.label}</th>`).join('');
+  const trs = fields.map(f=>{
+    const tds = cols.map(c=>{
+      const v=f[c.key]??'';
+      if(c.key==='field') { const s=String(v); const d=(s.match(/\./g)||[]).length; const name=d?s.replace(/.*\./,''):s; const prefix=d?'└─ ':''; return `<td${d?` style="padding-left:${d*14}px"`:''}><span class="field-name">${prefix}${escHtml(name)}</span></td>`; }
+      if(c.key==='type')  return `<td><span class="field-type">${escHtml(String(v))}</span></td>`;
+      if(c.key==='required') { if(v==='conditional') return `<td><span class="field-conditional">Required*</span></td>`; return `<td><span class="${v?'field-required':'field-optional'}">${v?'Required':'Optional'}</span></td>`; }
+      if(c.key==='desc')  return `<td class="md-prose">${md(String(v))}</td>`;
+      return `<td>${escHtml(String(v))}</td>`;
+    }).join('');
+    return `<tr>${tds}</tr>`;
+  }).join('');
+  return `<table class="spec-table"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+}
+
+function renderCode(obj){
+  if(obj==null) return '';
+  return `<div class="code-wrap"><pre><code class="language-json">${escHtml(JSON.stringify(obj,null,2))}</code></pre></div>`;
+}
+
+function block(label, inner){
+  return `<div class="endpoint-block"><div class="block-label">${label}</div>${inner}</div>`;
+}
+
+function renderServerExtras(s) {
+  const xKeys = Object.keys(s).filter(k => k.startsWith('x-'));
+  if (!xKeys.length) return '';
+  const items = xKeys.map(k => {
+    const val = s[k];
+    const label = k.replace(/^x-/, '').replace(/-/g, ' ');
+    let display;
+    if (Array.isArray(val)) {
+      display = `<ul style="margin:3px 0 0;padding-left:16px">${val.map(v=>`<li>${escHtml(String(v))}</li>`).join('')}</ul>`;
+    } else if (val && typeof val === 'object') {
+      display = `<code style="font-size:11px;white-space:pre-wrap">${escHtml(JSON.stringify(val, null, 2))}</code>`;
+    } else {
+      display = `<code style="font-size:11px">${escHtml(String(val))}</code>`;
+    }
+    return `<div style="margin-top:5px">
+      <span style="font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--accent)">${escHtml(label)}</span>
+      <div style="font-size:12px;color:var(--text);margin-top:1px">${display}</div>
+    </div>`;
+  }).join('');
+  return `<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">${items}</div>`;
+}
+
+function renderInfo(spec) {
+  const info=spec.info||{}, servers=spec.servers||[];
+  let srv='';
+  if(servers.length){
+    const rows=servers.map(s=>`<tr>
+      <td style="font-family:var(--mono);font-size:12px;vertical-align:top">${escHtml(s.url)}</td>
+      <td style="vertical-align:top">${escHtml(s.description||'')}${renderServerExtras(s)}</td>
+    </tr>`).join('');
+    srv=`<div class="info-label" style="margin-top:14px">Servers</div>
+      <table class="servers-table"><thead><tr><th>URL</th><th>Info</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+  return `<div class="api-info">
+    <div class="api-title">${escHtml(info.title||'API Documentation')}</div>
+    <div class="api-version">v${escHtml(info.version||'?')}</div>
+    ${srv}
+  </div>`;
+}
+
+function renderTOC(endpoints) {
+  const items=endpoints.map(ep=>{
+    const id=slugify(ep.method,ep.path);
+    return `<li><a href="#${id}">${badge(ep.method)} <span style="font-family:var(--mono);font-size:13px">${escHtml(ep.path)}</span> <span style="color:var(--text-muted);font-size:12px">${escHtml(ep.summary||'')}</span></a></li>`;
+  }).join('');
+  return `<div id="toc"><div class="toc-title">Table of Contents</div><ul class="toc-list">${items}</ul></div>`;
+}
+
+function renderCodeWithExamples(exData) {
+  if(!exData) return '';
+  if(exData.single) return renderCode(exData.value);
+  const cards=exData.list.map(e=>`<div class="example-card"><div class="example-card-label">${escHtml(e.summary)}</div>${renderCode(e.value)}</div>`).join('');
+  return `<div class="examples-flat">${cards}</div>`;
+}
+
+function renderEndpoint(ep, spec) {
+  const id=slugify(ep.method,ep.path);
+  const rg=extractRequest(ep.operation,spec);
+  const resFields=extractResponse(ep.operation,spec);
+  const reqEx=getReqEx(ep.operation,spec);
+  const resEx=getResEx(ep.operation,spec);
+  const pCols=[{key:'field',label:'Field'},{key:'type',label:'Type'},{key:'required',label:'Required'},{key:'desc',label:'Description'}];
+  const rCols=[{key:'field',label:'Field'},{key:'type',label:'Type'},{key:'desc',label:'Description'}];
+  let blocks='';
+
+  if(rg.header?.length) blocks+=block('Request Header',renderTable(rg.header,pCols));
+
+  const bodyFields=[
+    ...(rg.path||[]).map(f=>({...f,_s:'path'})),
+    ...(rg.query||[]).map(f=>({...f,_s:'query'})),
+    ...(rg.body||[]).map(f=>({...f,_s:'body'})),
+  ];
+  if(bodyFields.length){
+    const sg={};for(const f of bodyFields)(sg[f._s]=sg[f._s]||[]).push(f);
+    const lbls={path:'Path Parameters',query:'Query Parameters',body:'Body'};
+    let inner='';
+    if(Object.keys(sg).length===1){inner=renderTable(bodyFields,pCols);}
+    else{for(const s of['path','query','body']){if(!sg[s]?.length)continue;inner+=`<div class="param-group"><div class="param-group-label">${lbls[s]}</div>${renderTable(sg[s],pCols)}</div>`;}}
+    blocks+=block('Request Body',inner);
+  }
+  if(resFields.length) blocks+=block('Response',renderTable(resFields,rCols));
+  if(reqEx!==null) blocks+=block('Request Example',renderCodeWithExamples(reqEx));
+  if(resEx!==null) blocks+=block('Response Example',renderCodeWithExamples(resEx));
+
+  return `<div class="endpoint-section" id="${id}">
+    <div class="endpoint-header">
+      ${badge(ep.method)}
+      <div>
+        <div class="endpoint-path">${escHtml(ep.path)}</div>
+        ${ep.summary?`<div class="endpoint-summary">${escHtml(ep.summary)}</div>`:''}
+        ${ep.operation.description?`<div class="endpoint-desc md-prose">${md(ep.operation.description)}</div>`:''}
+      </div>
+    </div>
+    <div class="endpoint-body">${blocks}</div>
+  </div>`;
+}
+
+function md(text) {
+  if(!text) return '';
+  try{return marked.parse(text,{breaks:true,gfm:true});}catch(e){return escHtml(text);}
+}
+
+function renderMermaidFlows(spec) {
+  const flows=spec['x-mermaid-flows'];
+  if(!flows||typeof flows!=='object') return '';
+  const items=Object.entries(flows).map(([name,diagram])=>`
+    <div class="mermaid-flow-item">
+      <div class="mermaid-flow-name">${escHtml(name)}</div>
+      <div class="mermaid-flow-diagram"><pre class="mermaid">${escHtml(String(diagram).trim())}</pre></div>
+    </div>`).join('');
+  return `<div id="mermaid-flows"><div class="mermaid-flows-title">API Flows</div>${items}</div>`;
+}
+
+function renderSpec(spec) {
+  globalSpec = spec;
+  const endpoints=[];
+  const order=['get','post','put','patch','delete','head','options'];
+  for(const[path,item]of Object.entries(spec.paths||{}))
+    for(const m of order){const op=item[m];if(op)endpoints.push({method:m,path,operation:op,summary:op.summary||op.operationId||''});}
+
+  let html=renderInfo(spec);
+  if(endpoints.length) html+=renderTOC(endpoints);
+  if(spec.info?.description) html+=`<div class="api-info" style="margin-bottom:28px"><div class="api-desc md-prose">${md(spec.info.description)}</div></div>`;
+  const mhtml=renderMermaidFlows(spec);
+  if(mhtml) html+=mhtml;
+  for(const ep of endpoints) html+=renderEndpoint(ep,spec);
+
+  document.getElementById('welcome').style.display='none';
+  const c=document.getElementById('content');
+  c.style.display='block';
+  c.innerHTML=html;
+  document.getElementById('pdf-btn').disabled=false;
+
+  document.querySelectorAll('pre code').forEach(el=>hljs.highlightElement(el));
+  mermaid.initialize({startOnLoad:false,theme:isDarkMode()?'dark':'neutral',fontFamily:'DM Sans, sans-serif'});
+  mermaid.run({querySelector:'.mermaid'});
+}
+
+// ─── DARK MODE (follows OS) ──────────────────────
+function isDarkMode() {
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (compareMode) return;
+    if (globalSpec) renderSpec(globalSpec);
+  });
+}
+</script>
+</body>
+</html>

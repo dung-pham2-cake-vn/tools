@@ -1,0 +1,1820 @@
+openapi: 3.0.3
+info:
+  title: Viettel Payday - Native API
+  description: |
+    ## Mô tả
+    API tích hợp giữa đối tác (Partner) và Cake Digital Bank cho sản phẩm **Payday**, theo mô hình Native API.
+
+    ## Changelog
+
+    | Thời gian | Email title | Cập nhật |
+    |-----------|-------|-------|
+    | 2026-08-10 | [VDS-CAKE] API SPEC SẢN PHẨM PAYDAY NATIVE | Khởi tạo tài liệu |
+
+    ## Cơ chế xác thực (Signature)
+    ```
+    rawBody  = {{body}} + {{partner_key}}
+    hash     = sha256(rawBody)
+    signature = base64_encode(rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA256, hash))
+    ```
+    Partner tạo cặp khóa RSA 1024 bit: private key (PKCS#8) và public key (X.509), gửi public key cho Cake.
+
+    ## Môi trường
+
+    ### SIT + UAT
+    | Key | Value | Mô tả |
+    |-----|-------|-------|
+    | CAKE_API_URL | `https://gw.stage.cakedigibank.tech/ext/loan/{group}/{product_id}` | Endpoint API |
+    | CAKE_PARTNER_ID | *(Cake cấp)* | Gắn ở header khi gọi API Cake |
+    | CAKE_PARTNER_KEY | *(Cake cấp)* | Gắn sau body khi ký request |
+    | CAKE_PUBLIC_KEY | *(Cake cấp, file riêng)* | Partner dùng để verify Cake-signed payloads |
+    | CAKE_IP_ADDRESS | `35.197.157.155/32` `34.87.136.147/32` `35.240.241.82/32` `34.142.212.108/32` `35.198.211.12/32` `34.143.164.202/32` `34.124.200.2/32` | Partner whitelist |
+    | PARTNER_PUBLIC_KEY | *(Partner cấp, file riêng)* | Cake dùng để verify Partner-signed payloads |
+    | PARTNER_API_URL | *(Partner cấp)* | Endpoint callback |
+    | PARTNER_IP_ADDRESS | `34.87.136.147` *(Cake auto)* | Cake whitelist |
+
+    ### PROD
+    | Key | Value | Mô tả |
+    |-----|-------|-------|
+    | CAKE_API_URL | `https://gw.cake.vn/ext/loan/{group}/{product_id}` | Endpoint API |
+    | CAKE_PARTNER_ID | *(Cake cấp)* | Gắn ở header |
+    | CAKE_PARTNER_KEY | *(Cake cấp)* | Gắn sau body khi ký |
+    | CAKE_PUBLIC_KEY | *(Cake cấp, file riêng)* | Partner dùng để verify Cake-signed payloads |
+    | CAKE_IP_ADDRESS | `34.87.56.148/32` `35.240.146.157/32` `34.87.175.195/32` `34.142.177.122/32` `34.87.39.41/32` `34.143.164.31/32` `34.143.174.79/32` | Partner whitelist |
+    | PARTNER_PUBLIC_KEY | *(Partner cấp, file riêng)* | Cake dùng để verify Partner-signed payloads |
+    | PARTNER_API_URL | *(Partner cấp)* | Endpoint callback |
+    | PARTNER_IP_ADDRESS | *(Partner cấp)* | Cake whitelist |
+
+    ## Error Codes
+
+    ### General
+    | Code | Thông báo | Mô tả |
+    |------|-----------|-------|
+    | `1` | Thành công | API call thành công |
+    | `2` | Deadline exceeded | Timeout |
+    | `500` | Internal server error | Lỗi nội bộ Cake |
+    | `501` | Not implemented | API chưa có trong môi trường này |
+    | `502` | An invalid response was received from the upstream server | Upstream Cake service trả về response không hợp lệ |
+    | `900000` | Có lỗi xảy ra, vui lòng thử lại sau! | Generic server error |
+    | `900001` | Hệ thống đang bảo trì | Bảo trì |
+    | `900002` | Request is processing | Request đang xử lý, chờ callback |
+    | `200000` | Chữ ký không hợp lệ | Signature RSA-SHA256 sai |
+    | `200001` | Mã đối tác không hợp lệ | partner_id sai hoặc chưa được cấp |
+    | `200003` | Request ID không hợp lệ | NID hoặc phone không hợp lệ |
+    | `400001` | Không có thông tin khoản vay | loan_code không tìm thấy |
+    | `100100` | COB Time. Yêu cầu thanh toán không được thực hiện | Ngoài giờ giao dịch |
+    | `500013` | Trường dữ liệu không hợp lệ | Field format sai |
+
+    ### Precheck / Onboarding
+    | Code | Thông báo | Mô tả |
+    |------|-----------|-------|
+    | `100008` | Hồ sơ của bạn không đủ điều kiện | Khách hàng không đủ điều kiện |
+    | `100009` | Thông tin GTTT đã tồn tại | ID document đã tồn tại |
+    | `100011` | Độ tuổi không đủ điều kiện | Dưới tuổi tối thiểu |
+    | `500001` | Hồ sơ không đủ điều kiện đăng ký sản phẩm | Không đáp ứng Product Policy |
+    | `500009` | Hồ sơ không đủ điều kiện đăng ký sản phẩm | Không đáp ứng Product Policy |
+    | `500010` | Hồ sơ mới bị từ chối gần đây | Cần chờ 7 ngày sau khi bị từ chối |
+    | `500015` | Đang có khoản vay tương tự đã giải ngân | KH đang có khoản vay active |
+    | `500016` | Giấy tờ tùy thân không còn đủ hiệu lực | ID document hết hạn |
+    | `500017` | Chưa thực hiện xác thực NFC | NFC chưa hoàn thành |
+    | `500018` | Hồ sơ không đủ điều kiện | Không đáp ứng Product Policy |
+    | `500019` | Giấy tờ tùy thân không còn đủ hiệu lực | ID document hết hạn |
+    | `500020` | Hồ sơ không trùng khớp với hồ sơ tại Cake | NID/phone/tên không khớp |
+    | `500021` | Hồ sơ không đủ điều kiện | Không đáp ứng Product Policy |
+    | `500024` | Tài khoản nhận giải ngân không hợp lệ | Tài khoản CASA không hợp lệ |
+    | `500029` | Đang có hồ sơ vay khác chưa hoàn tất | KH có application đang mở |
+    | `500030` | Tài khoản đang tạm khóa | Tài khoản bị khóa tạm thời |
+
+    ### eKYC
+    | Code | Thông báo | Mô tả |
+    |------|-----------|-------|
+    | `180000` | Có lỗi xác thực | Generic eKYC error |
+    | `180214` | Ảnh chưa đạt yêu cầu | Ảnh CCCD/selfie không đạt chất lượng |
+    | `180411` | Không đọc được thông tin chip CCCD | NFC chip lỗi |
+    | `180418` | Ảnh chụp chưa khớp với giấy tờ | Selfie không khớp CCCD |
+    | `180417` | Không nhận diện được khuôn mặt | Không có mặt trong ảnh selfie |
+    | `180215` | Vui lòng sử dụng CCCD gắn chip | Chỉ chấp nhận CCCD chip |
+    | `500012` | Yêu cầu thiếu dữ liệu | KH mới nhưng thiếu ảnh CCCD |
+    | `180203` | Giấy tờ đang xét duyệt | eKYC đang pending |
+
+    ### Contract
+    | Code | Thông báo | Mô tả |
+    |------|-----------|-------|
+    | `300001` | Hợp đồng hết hạn | Hồ sơ quá 30 ngày |
+    | `300002` | Hồ sơ cần facematch để ký hợp đồng | Quá 7 ngày kể từ approved |
+    | `300003` | Mã OTP đang bị chặn, thử lại sau 15 phút | Sau 3 lần gửi OTP liên tiếp |
+    | `300004` | Hợp đồng bị hủy, do vượt quá số lần lấy OTP | Lần get-otp thứ 7 hủy hợp đồng |
+    | `300005` | Nhập sai OTP | OTP sai, chưa bị block |
+    | `300006` | Hồ sơ bị chặn, thử lại sau 15 phút | Sai OTP 3 lần liên tiếp |
+    | `300007` | Hợp đồng bị hủy, do nhập sai số lần cho phép | OTP sai lần thứ 6 |
+    | `300000` | Yêu cầu không hợp lệ | Request quá 7 ngày |
+
+    ### Repayment
+    | Code | Thông báo | Mô tả |
+    |------|-----------|-------|
+    | `100100` | COB Time | Ngoài giờ giao dịch |
+    | `100103` | Số tiền thanh toán vượt quá dư nợ | payment_amount > outstanding balance |
+    | `400000` | Dữ liệu nhập không hợp lệ | partner_reference_id đã dùng |
+    | `400001` | Không có thông tin khoản vay | loan_code không tìm thấy hoặc phone không khớp |
+    | `600000` | Thông tin thanh toán không hợp lệ | loan_code và order_id không khớp, hoặc payment_amount = 0 |
+
+  version: "1.0.0"
+  contact:
+    name: Cake Digital Bank
+    url: https://cake.vn
+
+servers:
+  - url: https://gw.cake.vn/ext/loan/{group}/{product_id}
+    description: Production
+    variables:
+      group:
+        default: cashloan
+        description: Nhóm API
+      product_id:
+        default: pd_viettel
+        description: Mã sản phẩm
+  - url: https://gw.stage.cakedigibank.tech/ext/loan/{group}/{product_id}
+    description: SIT + UAT
+    variables:
+      group:
+        default: cashloan
+      product_id:
+        default: pd_viettel
+
+# ─────────────────────────────────────────────
+# COMMON COMPONENTS
+# ─────────────────────────────────────────────
+components:
+  parameters:
+    PartnerHeader:
+      name: partner
+      in: header
+      required: true
+      description: CAKE_PARTNER_ID được cấu hình trong môi trường
+      schema:
+        type: string
+        example: CAKE_PARTNER_ID
+
+    SignatureHeader:
+      name: signature
+      in: header
+      required: true
+      description: |
+        Chữ ký RSA-SHA256 của request body.
+        rawBody = body + partner_key → sha256 → RSA sign PKCS1v15 → base64
+      schema:
+        type: string
+
+    ContentTypeHeader:
+      name: Content-Type
+      in: header
+      required: true
+      schema:
+        type: string
+        default: application/json; charset=utf-8
+
+  schemas:
+    # ── Common Response Wrapper ──
+    BaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        code:
+          type: integer
+          example: 1
+        message:
+          type: string
+          example: "Thành công"
+        response_id:
+          type: string
+          example: "849KTQG7SQWLWQW5"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-12-11T09:45:00+07:00"
+
+    # ── Onboarding ──
+    DataConfigResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                city:
+                  type: array
+                  description: Danh sách tỉnh/thành phố
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        description: ID tỉnh/thành (dùng cho city_id / permanent_city_id)
+                      name:
+                        type: string
+                        description: Tên tỉnh/thành (dùng cho city_name / permanent_city_name)
+                      district:
+                        type: array
+                        description: "Danh sách quận/huyện. Mô hình 2 cấp: value=000"
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              description: "ID quận/huyện. Mô hình 2 cấp: dùng \"000\""
+                            name:
+                              type: string
+                              description: "Tên quận/huyện. Mô hình 2 cấp: gửi literal \"Không\""
+                            ward:
+                              type: array
+                              description: Danh sách phường/xã
+                              items:
+                                type: object
+                                properties:
+                                  id:
+                                    type: string
+                                    description: ID phường/xã (dùng cho ward_id / permanent_ward_id)
+                                  name:
+                                    type: string
+                                    description: Tên phường/xã (dùng cho ward_name / permanent_ward_name)
+                gender:
+                  type: array
+                  description: "1=Nam, 2=Nữ"
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                marital:
+                  type: array
+                  description: "1=Độc thân, 2=Đã kết hôn, 3=Khác"
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                occupation:
+                  type: array
+                  description: "1=Nhân viên VP/công chức, 2=Lao động phổ thông, 3=Tự kinh doanh, 4=Sinh viên, 5=Không đi làm, 6=Khác"
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                job_title:
+                  type: array
+                  description: "1=Công nhân/Lao động phổ thông, 2=Cấp nhân viên/Chuyên viên, 3=Quản lý, 4=Tự kinh doanh"
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                contact_relationship:
+                  type: array
+                  description: "1=Vợ, 2=Chồng, 3=Cha, 4=Mẹ, 5=Anh/Em trai, 6=Chị/Em gái, 7=Ông, 8=Bà, 9=Đồng nghiệp, 10=Bạn bè"
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                loan_purpose:
+                  type: array
+                  description: "1=Mua sắm đồ dùng gia đình, 2=Chi phí khám chữa bệnh, 3=Thanh toán chi phí du lịch, 6=Các mục đích tiêu dùng hợp pháp khác, 7=Đóng học phí"
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+
+    CheckProfileRequest:
+      type: object
+      required:
+        - phone_number
+        - partner_reference_id
+        - full_name
+        - document_id
+        - date_of_birth
+        - metadata
+      properties:
+        phone_number:
+          type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
+          example: "0345678900"
+        partner_reference_id:
+          type: string
+          description: ID định danh request, dùng xuyên suốt flow
+          example: "bf133c7c-8e10-45a2-b9d2-4d04a352917a"
+        full_name:
+          type: string
+          description: Họ tên KH (không bắt buộc có dấu)
+          example: "TRAN MINH TIEN"
+        document_id:
+          type: string
+          description: Số CCCD/CMND
+          example: "075099093845"
+        date_of_birth:
+          type: string
+          format: date
+          description: Ngày sinh (yyyy-mm-dd)
+          example: "1999-12-02"
+        metadata:
+          type: object
+          description: Dữ liệu bổ sung
+          required:
+            - partner_score
+            - partner_fraud_score
+            - partner_cake_score
+            - partner_non_viettel_score
+          properties:
+            partner_score:
+              type: string
+              description: Credit score của KH từ phía đối tác, dạng range (lấy chặn dưới)
+              example: "350-399"
+            partner_fraud_score:
+              type: string
+              description: Fraud score của KH từ phía đối tác, dạng range (lấy chặn trên)
+              example: "300-350"
+            partner_cake_score:
+              type: string
+              description: Điểm Cake score từ phía đối tác, dạng range (lấy chặn dưới)
+              example: "400-499"
+            partner_non_viettel_score:
+              type: string
+              description: Điểm sim ngoại mạng Viettel
+              example: "850"
+
+    CheckProfileResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                reject_code:
+                  type: integer
+                  nullable: true
+                  description: Mã lý do từ chối. null nếu đủ điều kiện
+                reject_message:
+                  type: string
+                  nullable: true
+                  description: Thông báo tương ứng với reject_code
+                challenge_level:
+                  type: array
+                  description: "Mức độ xác thực yêu cầu. Sản phẩm này luôn là [1] (None). 1=None, 2=Facematch, 3=SMS OTP, 4=DTN Cake OTP"
+                  items:
+                    type: integer
+                  example: [1]
+                challenge_id:
+                  type: string
+                  description: ID dùng cho client-create (phải truyền kể cả challenge_level=[1])
+                  example: "7b9e0d4f-3c4a-4e7c-9b92-92e6d5dcd781"
+                is_exists:
+                  type: boolean
+                  description: |
+                    Hồ sơ KH đã tồn tại tại Cake hay chưa.
+                    - `true`: KH đã có hồ sơ → client-update chỉ cần gửi ảnh selfie (face-auth), không cần ảnh CCCD/NFC.
+                    - `false`: KH mới → client-update cần gửi đầy đủ ảnh CCCD mặt trước, mặt sau và NFC.
+                  example: false
+
+    ClientCreateRequest:
+      type: object
+      required:
+        - challenge_id
+        - phone_number
+        - full_name
+        - date_of_birth
+        - gender
+        - document_id
+        - doc_issue_date
+        - doc_issue_place
+        - doc_exp_date
+        - marital_id
+        - nationality
+        - permanent_city_id
+        - permanent_dist_id
+        - permanent_ward_id
+        - permanent_address
+        - permanent_city_name
+        - permanent_dist_name
+        - permanent_ward_name
+        - city_id
+        - dist_id
+        - ward_id
+        - city_name
+        - dist_name
+        - ward_name
+        - occupation
+        - monthly_income
+        - contact_name_1
+        - contact_number_1
+        - contact_relationship_1
+        - contact_name_2
+        - contact_number_2
+        - contact_relationship_2
+        - proposed_amount
+        - proposed_term
+        - loan_insurance
+        - loan_purpose
+        - product_code
+        - tktt
+        - metadata
+      properties:
+        challenge_id:
+          type: string
+          description: challenge_id trả về từ check-profile
+          example: "7b9e0d4f-3c4a-4e7c-9b92-92e6d5dcd781"
+        phone_number:
+          type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
+          example: "0345678900"
+        full_name:
+          type: string
+          description: Họ tên KH
+          example: "TRAN MINH TIEN"
+        date_of_birth:
+          type: string
+          format: date
+          example: "1999-12-02"
+        gender:
+          type: string
+          description: "1=Nam, 2=Nữ"
+          example: "2"
+        email:
+          type: string
+          format: email
+          nullable: true
+          example: "abc@gmail.com"
+        document_id:
+          type: string
+          description: Số CCCD/CMND
+          example: "075099093845"
+        doc_issue_date:
+          type: string
+          format: date
+          description: Ngày cấp GTTT
+          example: "2021-11-01"
+        doc_issue_place:
+          type: string
+          description: Nơi cấp GTTT
+          example: "Cục CSQLHC về TTXH"
+        doc_exp_date:
+          type: string
+          format: date
+          description: Ngày hết hạn GTTT
+          example: "2035-05-20"
+        marital_id:
+          type: string
+          description: "1=Độc thân, 2=Đã kết hôn, 3=Khác"
+          example: "1"
+        nationality:
+          type: string
+          description: Quốc tịch
+          default: "Việt Nam"
+        permanent_city_id:
+          type: string
+          description: ID Tỉnh/TP thường trú
+          example: "79"
+        permanent_dist_id:
+          type: string
+          description: "ID Quận/Huyện thường trú. Mô hình 2 cấp: dùng \"000\""
+          example: "000"
+        permanent_ward_id:
+          type: string
+          description: ID Phường/Xã thường trú
+          example: "001"
+        permanent_address:
+          type: string
+          description: Số nhà, tên đường thường trú
+          example: "54 Chu Văn An"
+        permanent_city_name:
+          type: string
+          example: "Thành phố Hồ Chí Minh"
+        permanent_dist_name:
+          type: string
+          description: "Mô hình 2 cấp: gửi literal \"Không\""
+          example: "Không"
+        permanent_ward_name:
+          type: string
+          example: "Phường Hải Châu"
+        city_id:
+          type: string
+          description: ID Tỉnh/TP hiện tại
+          example: "79"
+        dist_id:
+          type: string
+          description: "ID Quận/Huyện hiện tại. Mô hình 2 cấp: dùng \"000\""
+          example: "000"
+        ward_id:
+          type: string
+          description: ID Phường/Xã hiện tại
+          example: "001"
+        address:
+          type: string
+          nullable: true
+          description: Số nhà, tên đường hiện tại
+          example: "54 Chu Văn An"
+        city_name:
+          type: string
+          example: "Thành phố Hồ Chí Minh"
+        dist_name:
+          type: string
+          description: "Mô hình 2 cấp: gửi literal \"Không\""
+          example: "Không"
+        ward_name:
+          type: string
+          example: "Phường Hải Châu"
+        occupation:
+          type: string
+          description: "1=Nhân viên VP/công chức, 2=Lao động phổ thông, 3=Tự kinh doanh, 4=Sinh viên, 5=Không đi làm, 6=Khác"
+          example: "1"
+        job_title:
+          type: string
+          nullable: true
+          description: "Chức vụ — required khi occupation=1. 1=Công nhân, 2=Nhân viên/Chuyên viên, 3=Quản lý, 4=Tự kinh doanh"
+          example: "2"
+        company_name:
+          type: string
+          nullable: true
+          description: Tên công ty
+          example: "Cake"
+        monthly_income:
+          type: string
+          description: Thu nhập hàng tháng (VNĐ)
+          example: "5000000"
+        contact_name_1:
+          type: string
+          description: Họ tên người tham chiếu 1 (Người thân)
+          example: "Phan Thi A"
+        contact_number_1:
+          type: string
+          description: SĐT người tham chiếu 1 (bắt đầu bằng số 0)
+          example: "0345678901"
+        contact_relationship_1:
+          type: string
+          description: Mối quan hệ người tham chiếu 1 (xem data-config và BRD)
+          example: "1"
+        contact_name_2:
+          type: string
+          description: Họ tên người tham chiếu 2 (Bạn bè)
+          example: "Phạm Thị B"
+        contact_number_2:
+          type: string
+          description: SĐT người tham chiếu 2 (bắt đầu bằng số 0)
+          example: "0345678902"
+        contact_relationship_2:
+          type: string
+          description: Mối quan hệ người tham chiếu 2 (xem data-config và BRD)
+          example: "10"
+        proposed_amount:
+          type: string
+          description: Số tiền đề nghị vay (không bao gồm bảo hiểm, VNĐ)
+          example: "3000000"
+        proposed_term:
+          type: string
+          description: Thời hạn đề nghị vay (ngày)
+          example: "30"
+        loan_insurance:
+          type: string
+          description: Có bảo hiểm khoản vay không
+          enum: ["True", "False"]
+          example: "True"
+        loan_purpose:
+          type: string
+          description: Mục đích vay (xem data-config)
+          example: "1"
+        product_code:
+          type: string
+          description: Mã sản phẩm theo BRD
+          example: "PD_01"
+        tktt:
+          type: string
+          description: Field nghiệp vụ riêng của Viettel — mã tài khoản thanh toán (TKTT) của KH bên hệ thống Viettel
+          example: "777777"
+        metadata:
+          type: object
+          description: Dữ liệu bổ sung
+          required:
+            - partner_score
+            - partner_fraud_score
+            - partner_cake_score
+            - partner_non_viettel_score
+          properties:
+            partner_score:
+              type: string
+              description: Credit score của KH từ phía đối tác, dạng range (lấy chặn dưới)
+              example: "350-399"
+            partner_fraud_score:
+              type: string
+              description: Fraud score của KH từ phía đối tác, dạng range (lấy chặn trên)
+              example: "300-350"
+            partner_cake_score:
+              type: string
+              description: Điểm Cake score từ phía đối tác, dạng range (lấy chặn dưới)
+              example: "400-499"
+            partner_non_viettel_score:
+              type: string
+              description: Điểm sim ngoại mạng Viettel
+              example: "850"
+
+    ClientCreateResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                request_id:
+                  type: string
+                  description: ID dùng cho client-update và loan-register. null nếu thất bại
+                  example: "req-abc123"
+
+    ClientUpdateRequest:
+      type: object
+      required:
+        - request_id
+        - phone_number
+        - document_id
+        - selfie_image
+      properties:
+        request_id:
+          type: string
+          description: request_id trả về từ client-create
+          example: "req-abc123"
+        phone_number:
+          type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
+          example: "0345678900"
+        document_id:
+          type: string
+          description: Số CCCD/CMND
+          example: "075099093845"
+        selfie_image:
+          type: string
+          format: byte
+          description: "Ảnh selfie (base64, tối đa 1MB, ảnh dọc). Required cho cả KH mới và KH đã có hồ sơ (dùng để face-auth)"
+        front_nid_image:
+          type: string
+          format: byte
+          nullable: true
+          description: "Ảnh CCCD mặt trước (base64, tối đa 1MB, ảnh ngang). Required khi is_exists=false (KH mới)"
+        back_nid_image:
+          type: string
+          format: byte
+          nullable: true
+          description: "Ảnh CCCD mặt sau (base64, tối đa 1MB, ảnh ngang). Required khi is_exists=false (KH mới)"
+        nfc_data:
+          type: object
+          nullable: true
+          description: "NFC data raw. Nếu cung cấp, tất cả các trường bên trong đều required"
+          properties:
+            sod:
+              type: string
+              description: NFC SOD value
+            dg1:
+              type: string
+              description: NFC data group 1
+            dg2:
+              type: string
+              description: NFC data group 2
+            dg13:
+              type: string
+              description: NFC data group 13
+            dg14:
+              type: string
+              description: NFC data group 14
+            dg15:
+              type: string
+              description: NFC data group 15
+            com:
+              type: string
+              description: NFC COM data
+
+    ClientUpdateResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                status:
+                  type: string
+                  description: |
+                    Trạng thái eKYC:
+                    - EKYC_UNKNOWN: Trạng thái không xác định
+                    - EKYC_PENDING: Đang chờ duyệt thủ công (không có callback)
+                    - EKYC_REJECT: Bị từ chối
+                    - EKYC_SUCCESS: Thành công → gọi loan-register
+                  enum:
+                    - EKYC_UNKNOWN
+                    - EKYC_PENDING
+                    - EKYC_REJECT
+                    - EKYC_SUCCESS
+                  example: EKYC_SUCCESS
+
+    LoanRegisterRequest:
+      type: object
+      required:
+        - request_id
+        - phone_number
+      properties:
+        request_id:
+          type: string
+          description: request_id trả về từ client-create
+          example: "req-abc123"
+        phone_number:
+          type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
+          example: "0345678900"
+
+    LoanRegisterResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                status:
+                  type: string
+                  description: |
+                    - LOAN_REVIEWING: Đang chờ phê duyệt → chờ callback
+                    - LOAN_REJECT: Bị từ chối (đăng ký lại sau 7 ngày)
+                    - LOAN_CANCEL: Bị hủy (đăng ký lại ngay)
+                    - LOAN_APPROVE: Đã phê duyệt → gọi get-esign
+                  enum:
+                    - LOAN_REVIEWING
+                    - LOAN_REJECT
+                    - LOAN_CANCEL
+                    - LOAN_APPROVE
+                loan_code:
+                  type: string
+                  nullable: true
+                  description: Mã khoản vay. null nếu REJECT
+                  example: "u8123123Sjsdb"
+
+    GetEsignRequest:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+      properties:
+        loan_code:
+          type: string
+          description: Mã khoản vay từ loan-register hoặc callback partner-update-status
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
+          example: "0345678900"
+
+    GetEsignResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                url:
+                  type: string
+                  description: URL hợp đồng HTML (hết hạn trong ngày)
+                  example: "https://esign.cake.vn/..."
+                url_pdf:
+                  type: string
+                  description: URL hợp đồng PDF (hết hạn trong ngày)
+                  example: "https://esign.cake.vn/....pdf"
+                expired_time:
+                  type: string
+                  format: date
+                  description: Ngày hết hạn hợp đồng (yyyy-mm-dd)
+                  example: "2025-12-12"
+
+    GetOtpRequest:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+      properties:
+        loan_code:
+          type: string
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          example: "0345678900"
+
+    GetOtpResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                blocked:
+                  type: boolean
+                  description: true nếu OTP đang bị chặn (phải chờ 15 phút)
+                  example: false
+                contract_is_rejected:
+                  type: boolean
+                  description: true nếu hợp đồng bị từ chối → cần bắt đầu lại flow
+                  example: false
+                otp_count:
+                  type: string
+                  description: Số lần OTP đã gửi
+                  example: "1"
+                otp_period:
+                  type: integer
+                  description: Thời gian cooldown OTP (phút). Trả về 1 khi < 3
+                  example: 2
+
+    VerifyEsignRequest:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+        - otp
+      properties:
+        loan_code:
+          type: string
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          example: "0345678900"
+        otp:
+          type: string
+          description: OTP KH nhập vào
+          example: "123456"
+
+    VerifyEsignResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                is_correct_otp:
+                  type: bool
+                  description: "true nếu OTP đúng, false nếu sai"
+                  example: true
+                verify_count:
+                  type: int
+                  description: Số lần gọi verify-esign
+                  example: 1
+
+    ContractCancelRequest:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+      properties:
+        loan_code:
+          type: string
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          example: "0345678900"
+
+    GetLoanDetailRequest:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+      properties:
+        loan_code:
+          type: string
+          description: Mã khoản vay từ loan-register hoặc callback partner-update-status
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          example: "0345678900"
+
+    GetLoanDetailResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                loan_account_status:
+                  type: string
+                  description: Trạng thái tài khoản vay
+                  enum:
+                    - LOAN_UNKNOWN
+                    - LOAN_INIT
+                    - LOAN_REVIEWING
+                    - LOAN_REJECT
+                    - LOAN_APPROVE
+                    - LOAN_EXPIRED
+                    - LOAN_CANCEL
+                    - LOAN_SIGNED
+                    - LOAN_ACTIVE
+                    - LOAN_LOCK
+                    - LOAN_LOCKED
+                    - LOAN_CLOSE
+                contract_id:
+                  type: string
+                  description: Mã hợp đồng (dùng cho nhắc nợ, đối soát)
+                  example: "1234567890"
+                loan_alias:
+                  type: string
+                  description: Mã thanh toán
+                  example: "G4JH5R"
+                contract_url:
+                  type: string
+                  description: URL hợp đồng đã ký song phương (hết hạn trong 1 giờ)
+                  example: "https://storage.googleapis.com/..."
+                full_name:
+                  type: string
+                  description: Họ tên KH lưu tại Cake
+                  example: "Nguyễn Hoàng Sơn"
+                document_id:
+                  type: string
+                  example: "075099093845"
+                approved_amount:
+                  type: string
+                  description: Số tiền được phê duyệt (VNĐ)
+                  example: "12000000"
+                approved_term:
+                  type: string
+                  description: Thời hạn vay (ngày)
+                  example: "30"
+                loan_insurance:
+                  type: string
+                  description: Số tiền bảo hiểm (VNĐ)
+                  example: "840000"
+                disburse_amount:
+                  type: string
+                  description: Số tiền đã giải ngân (VNĐ)
+                  example: "12840000"
+                disburse_date:
+                  type: string
+                  format: date
+                  description: Ngày giải ngân (yyyy-mm-dd)
+                  example: "2025-06-03"
+                interest_rate:
+                  type: string
+                  description: Lãi suất (%)
+                  example: "43"
+                principle_balance:
+                  type: string
+                  description: Dư nợ gốc còn lại (VNĐ)
+                  example: "12640000"
+                interest_balance:
+                  type: string
+                  description: Dư nợ lãi phát sinh (VNĐ)
+                  example: "197494"
+                penalty_principal_balance:
+                  type: string
+                  description: Lãi phạt gốc quá hạn (VNĐ)
+                  example: "2494265"
+                penalty_interest_balance:
+                  type: string
+                  description: Lãi phạt lãi quá hạn (VNĐ)
+                  example: "0"
+                due_date:
+                  type: string
+                  format: date
+                  description: Ngày đến hạn thanh toán gần nhất (yyyy-mm-dd)
+                  example: "2025-06-27"
+                day_arrears:
+                  type: string
+                  description: Số ngày quá hạn
+                  example: "191"
+                total_payment_amount:
+                  type: string
+                  description: Tổng tiền KH có thể thanh toán (VNĐ)
+                  example: "15331759"
+
+    RepaymentRequestBody:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+        - partner_reference_id
+        - payment_amount
+      properties:
+        loan_code:
+          type: string
+          description: Mã khoản vay
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
+          example: "0345678900"
+        partner_reference_id:
+          type: string
+          description: ID tạo mới mỗi request (idempotency key). Trùng → lỗi 400000
+          example: "pay-ref-001"
+        payment_amount:
+          type: integer
+          description: Số tiền thanh toán (VNĐ)
+          example: 5000000
+
+    RepaymentRequestResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                order_id:
+                  type: string
+                  description: Mã tham chiếu giao dịch do Cake tạo ra
+                  example: "ORD-20250603-001"
+
+    RepaymentConfirmRequest:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+        - partner_reference_id
+        - order_id
+        - payment_amount
+      properties:
+        loan_code:
+          type: string
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          example: "0345678900"
+        partner_reference_id:
+          type: string
+          description: partner_reference_id từ API /repayment-request
+          example: "pay-ref-001"
+        order_id:
+          type: string
+          description: order_id từ API /repayment-request
+          example: "ORD-20250603-001"
+        payment_amount:
+          type: integer
+          example: 5000000
+
+    # ── Callback ──
+    PartnerUpdateStatusRequest:
+      type: object
+      description: "Cake gọi endpoint này khi có thay đổi trạng thái khoản vay. Partner phải trả về {\"code\":1,\"message\":\"Success\"} và dedupe bằng request_id"
+      required:
+        - request_id
+        - partner_reference_id
+        - loan_code
+        - phone_number
+        - status
+      properties:
+        request_id:
+          type: string
+          description: ID được Cake tạo cho mỗi request
+          example: "cake-req-xyz"
+        partner_reference_id:
+          type: string
+          description: ID đối tác từ API check-profile
+          example: "bf133c7c-8e10-45a2-b9d2-4d04a352917a"
+        loan_code:
+          type: string
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          example: "0345678900"
+        status:
+          type: string
+          description: |
+            - LOAN_APPROVE: Đã phê duyệt
+            - LOAN_REJECT: Bị từ chối (đăng ký lại sau 7 ngày)
+            - LOAN_CANCEL: Bị hủy (đăng ký lại ngay)
+            - LOAN_EXPIRED: Hết hạn sau 7 ngày chưa ký
+            - LOAN_SIGNED: KH đã ký hợp đồng
+            - LOAN_ACTIVE: Giải ngân thành công
+            - LOAN_CLOSE: Khoản vay đã tất toán
+          enum:
+            - LOAN_APPROVE
+            - LOAN_REJECT
+            - LOAN_CANCEL
+            - LOAN_EXPIRED
+            - LOAN_SIGNED
+            - LOAN_ACTIVE
+            - LOAN_CLOSE
+
+    PartnerUpdateStatusResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          description: "1 = thành công, khác = lỗi (Cake sẽ retry)"
+          example: 1
+        message:
+          type: string
+          example: "Success"
+
+    # ── Legacy Support ──
+    GetLoanCodeFromLoanIdRequest:
+      type: object
+      required:
+        - loan_id
+        - phone_number
+      properties:
+        loan_id:
+          type: string
+          description: Mã khoản vay theo hệ thống cũ (DOP), dùng làm loan_id trong API LoanRepayment trước đây
+          example: "27614531"
+        phone_number:
+          type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
+          example: "0996908143"
+
+    GetLoanCodeFromLoanIdResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                loan_code:
+                  type: string
+                  description: Mã khoản vay theo hệ thống mới (Native), dùng cho get-loan-detail, repayment-request...
+                  example: "u8123123Sjsdb"
+
+# ─────────────────────────────────────────────
+# PATHS
+# ─────────────────────────────────────────────
+paths:
+  # ════════════════════
+  # PHASE 1 — PRECHECK
+  # ════════════════════
+  /data-config:
+    post:
+      tags: [Phase 1 - Precheck]
+      summary: Lấy danh sách cấu hình form onboarding
+      description: |
+        Trả về value list dùng để render form onboarding: tỉnh/thành, quận/huyện, phường/xã,
+        giới tính, hôn nhân, nghề nghiệp, chức vụ, mối quan hệ, mục đích vay.
+
+        Gọi sau khi KH nhập thông tin cơ bản và trước khi gọi client-create.
+        **Không cần request body.**
+      operationId: dataConfig
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Không cần body
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataConfigResponse"
+
+  /check-profile:
+    post:
+      tags: [Phase 1 - Precheck]
+      summary: Kiểm tra điều kiện trước khi mở khoản vay
+      description: |
+        Kiểm tra điều kiện hợp lệ trước khi tạo hồ sơ.
+
+        **Điều kiện tiếp tục:** `code=1` AND `reject_code=null`
+
+        Field `is_exists` cho biết KH đã có hồ sơ tại Cake chưa:
+        - `true`: KH đã tồn tại → client-update chỉ cần selfie (face-auth)
+        - `false`: KH mới → client-update cần ảnh CCCD mặt trước, mặt sau và NFC
+      operationId: checkProfile
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckProfileRequest"
+            example:
+              phone_number: "0345678900"
+              partner_reference_id: "bf133c7c-8e10-45a2-b9d2-4d04a352917a"
+              full_name: "TRAN MINH TIEN"
+              document_id: "075099093845"
+              date_of_birth: "1999-12-02"
+              metadata:
+                partner_score: "350-399"
+                partner_fraud_score: "300-350"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckProfileResponse"
+              example:
+                success: true
+                code: 1
+                message: "Thành công"
+                response_id: "849KTQG7SQWLWQW5"
+                timestamp: "2025-12-11T09:45:00+07:00"
+                data:
+                  reject_code: null
+                  reject_message: null
+                  challenge_level: [1]
+                  challenge_id: "7b9e0d4f-3c4a-4e7c-9b92-92e6d5dcd781"
+                  is_exists: false
+
+  # ════════════════════════════════════════
+  # PHASE 2 — ONBOARDING (eKYC & Loan)
+  # ════════════════════════════════════════
+  /client-create:
+    post:
+      tags: [Phase 2 - Onboarding]
+      summary: Tạo hồ sơ KH sau precheck
+      description: |
+        Tạo hồ sơ KH sau khi precheck thành công.
+
+        **Điều kiện tiếp tục:** `request_id != null` → gọi client-update.
+
+        Lưu ý: `job_title` chỉ required khi `occupation=1` (nhân viên VP/công chức).
+      operationId: clientCreate
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientCreateRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientCreateResponse"
+              example:
+                success: true
+                code: 1
+                message: "Thành công"
+                response_id: "849KTQG7SQWLWQW5"
+                timestamp: "2025-12-11T09:45:00+07:00"
+                data:
+                  request_id: "req-abc123"
+
+  /client-update:
+    post:
+      tags: [Phase 2 - Onboarding]
+      summary: Cập nhật hồ sơ và upload ảnh eKYC
+      description: |
+        Upload ảnh selfie, CCCD mặt trước/sau và NFC data.
+
+        **Điều kiện tiếp tục:** `status=EKYC_SUCCESS` → gọi loan-register.
+
+        Nếu `status=EKYC_PENDING`: không có callback, chờ xử lý thủ công bởi Cake.
+
+        **Lưu ý về ảnh:**
+        - `selfie_image`: **Required** cho mọi KH (dùng để xác thực khuôn mặt)
+        - `front_nid_image` và `back_nid_image`: **Required** khi `is_exists=false` (KH mới), optional khi KH đã có hồ sơ
+        - `nfc_data`: Optional, nhưng nếu cung cấp thì tất cả các trường bên trong đều required
+      operationId: clientUpdate
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClientUpdateRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClientUpdateResponse"
+              example:
+                success: true
+                code: 1
+                message: "Thành công"
+                response_id: "849KTQG7SQWLWQW5"
+                timestamp: "2025-12-11T09:45:00+07:00"
+                data:
+                  status: "EKYC_SUCCESS"
+
+  /loan-register:
+    post:
+      tags: [Phase 2 - Onboarding]
+      summary: Đăng ký khoản vay mới
+      description: |
+        Đăng ký khoản vay sau khi eKYC thành công.
+
+        **Điều kiện tiếp tục:**
+        - Nếu `status=LOAN_APPROVE` → gọi get-esign ngay
+        - Nếu `status=LOAN_REVIEWING` → chờ callback partner-update-status
+      operationId: loanRegister
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoanRegisterRequest"
+            example:
+              request_id: "req-abc123"
+              phone_number: "0345678900"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoanRegisterResponse"
+              example:
+                success: true
+                code: 1
+                message: "Thành công"
+                response_id: "849KTQG7SQWLWQW5"
+                timestamp: "2025-12-11T09:45:00+07:00"
+                data:
+                  status: "LOAN_REVIEWING"
+                  loan_code: "u8123123Sjsdb"
+
+  # ════════════════════
+  # PHASE 3 — CONTRACT
+  # ════════════════════
+  /get-esign:
+    post:
+      tags: [Phase 3 - Contract]
+      summary: Lấy URL hợp đồng điện tử
+      description: |
+        Trả về URL hợp đồng để KH xem và ký.
+
+        **Quan trọng:**
+        - Phải gọi ít nhất 1 lần/ngày để tạo link mới (link hết hạn trong ngày)
+        - Phải gọi trước get-otp trong mỗi phiên ký
+      operationId: getEsign
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetEsignRequest"
+            example:
+              loan_code: "u8123123Sjsdb"
+              phone_number: "0345678900"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetEsignResponse"
+
+  /get-otp:
+    post:
+      tags: [Phase 3 - Contract]
+      summary: Gửi OTP để ký hợp đồng
+      description: |
+        Gửi SMS OTP dùng để xác thực ký hợp đồng.
+
+        **get-esign phải được gọi ít nhất 1 lần trong ngày trước khi gọi API này.**
+      operationId: getOtp
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetOtpRequest"
+            example:
+              loan_code: "u8123123Sjsdb"
+              phone_number: "0345678900"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetOtpResponse"
+
+  /verify-esign:
+    post:
+      tags: [Phase 3 - Contract]
+      summary: Xác thực OTP để ký hợp đồng
+      description: |
+        Xác thực OTP để hoàn tất ký hợp đồng điện tử.
+      operationId: verifyEsign
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEsignRequest"
+            example:
+              loan_code: "u8123123Sjsdb"
+              phone_number: "0345678900"
+              otp: "123456"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyEsignResponse"
+
+  /contract-cancel:
+    post:
+      tags: [Phase 3 - Contract]
+      summary: Hủy hợp đồng điện tử
+      description: |
+        Hủy hợp đồng theo yêu cầu của KH hoặc partner.
+        Sau khi hủy, KH có thể đăng ký lại ngay lập tức.
+      operationId: contractCancel
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContractCancelRequest"
+            example:
+              loan_code: "u8123123Sjsdb"
+              phone_number: "0345678900"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BaseResponse"
+
+  # ══════════════════════════════════════════════════
+  # PHASE 4 — LOAN MANAGEMENT & REPAYMENT
+  # ══════════════════════════════════════════════════
+  /get-loan-detail:
+    post:
+      tags: [Phase 4 - Loan Management & Repayment]
+      summary: Truy vấn thông tin chi tiết khoản vay
+      description: Truy vấn thông tin khoản vay bao gồm số dư, lịch thanh toán và trạng thái.
+      operationId: getLoanDetail
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetLoanDetailRequest"
+            example:
+              loan_code: "u8123123Sjsdb"
+              phone_number: "0345678900"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetLoanDetailResponse"
+
+  /repayment-request:
+    post:
+      tags: [Phase 4 - Loan Management & Repayment]
+      summary: Tạo yêu cầu thanh toán khoản vay
+      description: |
+        Tạo yêu cầu thanh toán khoản vay. `partner_reference_id` phải unique mỗi request.
+        Trùng → lỗi 400000. Không thể thực hiện trong giờ COB (23:50–4:00).
+      operationId: repaymentRequest
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepaymentRequestBody"
+            example:
+              loan_code: "u8123123Sjsdb"
+              phone_number: "0345678900"
+              partner_reference_id: "pay-ref-001"
+              payment_amount: 5000000
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepaymentRequestResponse"
+
+  /repayment-confirm:
+    post:
+      tags: [Phase 4 - Loan Management & Repayment]
+      summary: Xác nhận giao dịch thanh toán hoàn tất
+      description: Xác nhận giao dịch thanh toán đã hoàn tất theo order_id trả về từ /repayment-request.
+      operationId: repaymentConfirm
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepaymentConfirmRequest"
+            example:
+              loan_code: "u8123123Sjsdb"
+              phone_number: "0345678900"
+              partner_reference_id: "pay-ref-001"
+              order_id: "ORD-20250603-001"
+              payment_amount: 5000000
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BaseResponse"
+
+  # ════════════════════════════════════
+  # ASYNC CALLBACK (Cake → Partner)
+  # ════════════════════════════════════
+  /partner-update-status:
+    post:
+      tags: [Callback - Cake → Partner]
+      summary: Cake thông báo thay đổi trạng thái khoản vay
+      description: |
+        **Chiều: Cake → Partner**
+
+        Cake gọi endpoint này trên hệ thống partner khi có thay đổi trạng thái.
+        Partner phải expose endpoint tại path `/partner-update-status`.
+
+        **Partner phải:**
+        1. Trả về `{"code":1,"message":"Success"}` khi xử lý thành công
+        2. Dedupe bằng `request_id` (Cake retry khi nhận code != 1)
+
+        **Cake gọi callback khi:**
+        | Sự kiện | Status |
+        |---------|--------|
+        | Sau loan-register | LOAN_APPROVE hoặc LOAN_REJECT |
+        | Sau verify-esign | LOAN_SIGNED |
+        | Sau giải ngân | LOAN_ACTIVE |
+        | KH tất toán | LOAN_CLOSE |
+        | Sau 7 ngày chưa ký | LOAN_EXPIRED |
+
+        **Signature:** Cake ký bằng private key của mình → Partner verify bằng CAKE_PUBLIC_KEY
+      operationId: partnerUpdateStatus
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerUpdateStatusRequest"
+            example:
+              request_id: "cake-req-xyz"
+              partner_reference_id: "bf133c7c-8e10-45a2-b9d2-4d04a352917a"
+              loan_code: "u8123123Sjsdb"
+              phone_number: "0345678900"
+              status: "LOAN_APPROVE"
+      responses:
+        "200":
+          description: Partner xác nhận nhận callback
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerUpdateStatusResponse"
+              example:
+                code: 1
+                message: "Success"
+
+  # ════════════════════════════════════
+  # LEGACY SUPPORT
+  # ════════════════════════════════════
+  /get-loan-code-from-loan-id:
+    post:
+      tags: [Legacy Support]
+      summary: Tra cứu loan_code từ loan_id hệ thống cũ
+      description: |
+        Trước đây (mô hình DOP) các khoản vay được định danh bằng `loan_id`
+        (xem API `LoanRepayment` cũ). Sản phẩm chuyển sang mô hình Native dùng `loan_code`.
+
+        API này hỗ trợ các khoản vay cũ: truyền `loan_id` để lấy `loan_code` tương ứng,
+        dùng cho các API Native khác (get-loan-detail, repayment-request...).
+      operationId: getLoanCodeFromLoanId
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetLoanCodeFromLoanIdRequest"
+            example:
+              loan_id: "27614531"
+              phone_number: "0996908143"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetLoanCodeFromLoanIdResponse"
+
+# ─────────────────────────────────────────────
+# TAGS
+# ─────────────────────────────────────────────
+tags:
+  - name: Phase 1 - Precheck
+    description: |
+      Kiểm tra điều kiện và lấy cấu hình trước khi tạo hồ sơ. Không có callback trong phase này.
+
+      **Luồng:** `data-config` → `check-profile`
+  - name: Phase 2 - Onboarding
+    description: |
+      Tạo hồ sơ KH, upload ảnh eKYC, đăng ký khoản vay.
+
+      **Luồng:** `client-create` → `client-update` → `loan-register`
+
+      Điều kiện vào phase 3: `loan_code` với status `LOAN_APPROVE`
+  - name: Phase 3 - Contract
+    description: |
+      KH xem hợp đồng, nhận OTP SMS, ký. Hoặc hủy.
+
+      **Luồng ký:** `get-esign` → `get-otp` → `verify-esign`
+
+      **Luồng hủy:** `contract-cancel`
+
+      Callback sau phase này: `LOAN_SIGNED` → `LOAN_ACTIVE`
+  - name: Phase 4 - Loan Management & Repayment
+    description: |
+      Sau giải ngân: xem thông tin khoản vay, tạo yêu cầu thanh toán, xác nhận hoàn tất.
+
+      **Luồng:** `get-loan-detail` → `repayment-request` → `repayment-confirm`
+
+      Callback khi tất toán: `LOAN_CLOSE`
+  - name: Callback - Cake → Partner
+    description: |
+      Cake gọi endpoint này trên hệ thống partner khi có thay đổi trạng thái.
+
+      Partner phải expose endpoint `/partner-update-status` và trả về `{"code":1,"message":"Success"}`.
+
+      **Xác thực ngược:** Cake ký bằng private key → Partner verify bằng `CAKE_PUBLIC_KEY`.
+  - name: Legacy Support
+    description: |
+      Hỗ trợ các khoản vay cũ (mô hình DOP, định danh bằng `loan_id`) chuyển sang dùng
+      `loan_code` theo mô hình Native.
+
+# ─────────────────────────────────────────────
+# SEQUENCE DIAGRAMS
+# ─────────────────────────────────────────────
+x-mermaid-flows:
+
+  onboarding: |
+    sequenceDiagram
+      autonumber
+      participant P as Partner
+      participant C as Cake
+
+      Note over P,C: PHASE 1 - PRECHECK
+      P->>C: data-config()
+      C-->>P: city, gender, occupation, loan_purpose...
+      P->>C: check-profile(phone, full_name, document_id, dob)
+      alt reject_code != null
+        C-->>P: REJECT - hiển thị thông báo từ chối
+      else code=1 AND reject_code=null
+        C-->>P: challenge_level=[1], challenge_id, is_exists
+
+        Note over P,C: PHASE 2 - ONBOARDING (eKYC & Loan)
+        P->>C: client-create(challenge_id, thông tin KH)
+        C-->>P: request_id
+
+        alt is_exists = false (KH mới)
+          P->>C: client-update(request_id, selfie + front_nid + back_nid + nfc?)
+        else is_exists = true (KH đã có hồ sơ tại Cake)
+          P->>C: client-update(request_id, selfie only)
+        end
+
+        alt status = EKYC_PENDING
+          C-->>P: EKYC_PENDING (xử lý thủ công, không có callback)
+        else status = EKYC_SUCCESS
+          C-->>P: EKYC_SUCCESS
+
+          P->>C: loan-register(request_id, phone)
+          C-->>P: loan_code + status
+
+          alt status = LOAN_REVIEWING
+            Note over P: Chờ callback partner-update-status: LOAN_APPROVE
+          else status = LOAN_APPROVE
+            Note over P: Chuyển sang Phase 3 - Contract
+          end
+        end
+      end
+
+  contract_signing: |
+    sequenceDiagram
+      autonumber
+      participant P as Partner
+      participant C as Cake
+
+      Note over P,C: Điều kiện vào: loan_code có status LOAN_APPROVE
+
+      Note over P,C: PHASE 3 - CONTRACT
+      P->>C: get-esign(loan_code, phone)
+      C-->>P: url HTML, url_pdf, expired_time
+      Note over P: Hiển thị hợp đồng cho KH xem
+
+      alt KH đồng ý ký
+        P->>C: get-otp(loan_code, phone)
+        C-->>P: otp_count, blocked, otp_period
+        Note over P: KH nhập OTP nhận qua SMS
+
+        P->>C: verify-esign(loan_code, phone, otp)
+        alt is_correct_otp = true
+          C-->>P: is_correct_otp="true"
+          Note over C: Callback: LOAN_SIGNED → LOAN_ACTIVE
+        else OTP sai
+          C-->>P: is_correct_otp="false", verify_count
+        end
+      else KH từ chối ký
+        P->>C: contract-cancel(loan_code, phone)
+        C-->>P: success
+        Note over P: KH có thể đăng ký lại ngay
+      end
+
+  repayment: |
+    sequenceDiagram
+      autonumber
+      participant P as Partner
+      participant C as Cake
+
+      Note over P,C: Điều kiện vào: loan_code có status LOAN_ACTIVE
+
+      Note over P,C: PHASE 4 - LOAN MANAGEMENT & REPAYMENT
+      P->>C: get-loan-detail(loan_code, phone)
+      C-->>P: balance, due_date, overdue_amount, total_payment_amount
+
+      Note over P: KH chọn số tiền thanh toán
+      P->>C: repayment-request(loan_code, phone, partner_reference_id, payment_amount)
+      C-->>P: order_id
+
+      Note over P: Partner xử lý thanh toán
+
+      P->>C: repayment-confirm(loan_code, phone, partner_reference_id, order_id, payment_amount)
+      C-->>P: success
+
+      alt Khoản vay tất toán
+        C->>P: partner-update-status: LOAN_CLOSE
+      end

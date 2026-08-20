@@ -1,0 +1,811 @@
+openapi: 3.0.3
+info:
+  title: Be_Cashloan - BE x CAKE Lending APIs
+  description: |
+    API tích hợp giữa BE (Partner) và hệ thống Cake Digital Bank cho sản phẩm Be_Cashloan,
+    mở rộng luồng DOP (Digital Onboarding Process) cho khách hàng/tài xế BE.
+
+    ## Cơ chế xác thực (Signature)
+
+    Tất cả request gọi sang Cake đều phải ký signature để tránh thay đổi thông tin trong body.
+    Partner cần tạo cặp khóa RSA 1024 bit: private key (PKCS#8) và public key (X.509),
+    gửi public key cho Cake.
+
+    ```
+    rawBody = {{các field trong body sắp xếp theo alphabet A→Z}} + {{partner_key}}
+    hash = sha256(rawBody)
+    signature = base64_encode(rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA256, hash))
+    ```
+
+    > `{{param}}` nghĩa là **giá trị** của param. Ví dụ: `param=123` → thay `{{param}}` bằng `123`.
+    > Signature chỉ áp dụng cho các cột trong body param, sắp xếp alphabet từ A đến Z.
+
+    **Lưu ý:** Các API callback chiều Cake → BE (`update-status`, `get-be-score`) dùng
+    chữ ký **HMACSHA256** trên nội dung body (nếu body có file thì hash filename).
+
+    ## Môi trường
+
+    ### PRODUCTION
+
+    | Key | Value | Description |
+    |-----|-------|-------------|
+    | product_id | `10` | Mã sản phẩm Be_Cashloan |
+    | partner_id | `16` | Mã đối tác BE (gắn ở header khi gọi API Cake) |
+    | partner_key | `5cd3e263725a8fcd4be81cd24f05a562` | Gắn sau body khi ký |
+    | IP | `34.87.56.148` | IP whitelist |
+    | partner_id (callback be_cashloan) | `7` | Dùng cho `update-status` / `get-be-score` |
+
+    ### Staging
+
+    | Key | Value | Description |
+    |-----|-------|-------------|
+    | Partner_ID | *(Cake cấp)* | |
+    | Partner_Key | *(Cake cấp)* | |
+
+    ## Định nghĩa Status (status code)
+
+    | Process | Status | Description |
+    |---------|--------|-------------|
+    | EKYC | `INIT` | Profile vừa được khởi tạo |
+    | EKYC | `EKYC_PROCESSING` | Đang chờ phê duyệt từ CS của Cake |
+    | EKYC | `EKYC_PASSED` | Profile hoàn tất (update từ PROFILE_APPROVE) |
+    | EKYC | `EKYC_REJECTED` | Profile bị Cake từ chối, có thể retry theo eKYC code |
+    | EKYC | `EKYC_RESET` | Profile vừa init và được Cake reset eKYC |
+    | REGISTER | `LOAN_REVIEWING` | Thông tin đang được review, chờ từ Cake |
+    | REGISTER | `LOAN_APPROVED` | Hồ sơ đã được phê duyệt, chuyển sang ký hợp đồng |
+    | REGISTER | `LOAN_REJECTED` | Từ chối thông tin của khách hàng |
+    | REGISTER | `LOAN_CANCELLED` | Timeout hoặc thiếu thông tin trong hồ sơ |
+    | CONTRACT | `ECONTRACT_SIGNED` | Khách hàng đã hoàn thành ký hợp đồng |
+    | CONTRACT | `EXPIRED` | Hồ sơ hết hạn đăng ký, bắt đầu lại từ create/update |
+    | CONTRACT | `ECONTRACT_CANCELLED` | Khách hàng tự hủy, không có nhu cầu vay |
+    | LOANS | `DISBURSE_FAILED` | Giải ngân thất bại |
+    | LOANS | `DISBURSE_SUCCESS` | Giải ngân thành công |
+    | LOANS | `EXISTING_LOAN` | Khoản vay đã tồn tại |
+
+    ## Error Codes
+
+    ### Callback (update-status / get-be-score)
+    | Code | Message | Description |
+    |------|---------|-------------|
+    | `143` | Successfully | Gửi trạng thái cho BE thành công |
+    | `144` | Generic Error | Gửi trạng thái cho BE KHÔNG thành công → Retry 3 lần (mỗi phút) |
+    | `9001` | Signed Value Invalid | Chữ ký không hợp lệ → kiểm tra lại đầu generate signature |
+    | `700` | User doesn't agreement consent | (get-be-score) KH chưa đồng ý consent |
+    | `702` | User does not exist | (get-be-score) KH không tồn tại |
+
+    ### General
+    | Code | Action | Message |
+    |------|--------|---------|
+    | `1` | Direction | Thành công |
+    | `900000` | Retry | Có lỗi xảy ra, vui lòng thử lại sau! |
+    | `900001` | Retry | Hệ thống đang bảo trì |
+    | `900002` | Direction | Request is processing |
+    | `200000` | Ended | Chữ ký không hợp lệ |
+    | `200001` | Ended | Mã đối tác không hợp lệ |
+    | `200003` | Ended | Request ID không hợp lệ (NID hoặc Phone không khớp) |
+    | `400001` | Direction | Không có thông tin khoản vay |
+
+    > Các code có action "Retry" có thể retry tối đa 3 lần.
+
+    ### Onboarding
+    | Code | Action | Message |
+    |------|--------|---------|
+    | `100000` | Ended | Mặt trước CMND không hợp lệ |
+    | `100001` | Ended | Mặt sau CMND không hợp lệ |
+    | `100002` | Ended | Hình selfie không đúng |
+    | `100003` | Direction | Không tìm thấy thông tin hồ sơ người dùng |
+    | `100004` | Retry | Lỗi khi tạo tài khoản người dùng |
+    | `100005` | Retry | Lỗi cập nhật tài khoản |
+    | `100006` | Direction | Tài khoản đã được duyệt |
+    | `100007` | Ended | Tên đăng nhập đã tồn tại |
+    | `100008` | Ended | Số điện thoại đã được xác nhận |
+    | `100009` | Ended | Thông tin CMND đã tồn tại trong hệ thống |
+    | `100010` | Ended | Email đã tồn tại |
+    | `100011` | Ended | Yêu cầu từ 18 tuổi trở lên |
+    | `100012` | Retry | Ngày sinh nhật không hợp lệ |
+    | `100013` | Ended | Tài khoản đã tồn tại trên hệ thống |
+    | `100014` | Ended | Không tìm thấy hình ảnh tài khoản |
+    | `100015` | Ended | Không tìm thấy hình ảnh tài khoản để loại bỏ trùng lặp |
+    | `100016` | Ended | Tài khoản đang đợi duyệt |
+    | `100017` | Ended | Hình ảnh tài khoản đã được duyệt |
+    | `100018` | Retry | Không thể đăng hình ảnh |
+    | `100019` | Retry | Lỗi cập nhật tài liệu |
+    | `100020` | Retry | Hồ sơ chưa được xác minh |
+    | `500000` | Direction | Tài khoản đang đợi xử lý |
+    | `500001` | Ended | Tài khoản bị từ chối |
+    | `500002` | Ended | Tài khoản nằm trong danh sách bị cấm |
+    | `500003` | Ended | Không thể đăng ký do tài khoản đang bị hạn chế |
+    | `500004` | Ended | Hồ sơ khách hàng trùng lặp, liên hệ hotline 1900 636 686 |
+
+    ### Contract
+    | Code | Action | Message | API |
+    |------|--------|---------|-----|
+    | `300000` | Ended | Yêu cầu không hợp lệ | get-esign: yêu cầu quá 7 ngày bị hết hạn |
+    | `300001` | Ended | Hợp đồng hết hạn | get-esign: hồ sơ quá 30 ngày |
+    | `300002` | Direction | Hồ sơ cần facematch để ký hợp đồng | get-esign: quá 7 ngày kể từ approved |
+    | `300003` | Retry | Mã OTP đang bị chặn, thử lại sau 15 phút | get-otp: sau 3 lần re-send/get OTP |
+    | `300004` | Ended | Hợp đồng bị hủy, do vượt quá số lần lấy OTP | get-otp: get-otp lần thứ 7 |
+    | `300005` | Retry | Nhập sai OTP | verify-esign |
+    | `300006` | Retry | Hồ sơ bị chặn, thử lại sau 15 phút | verify-esign: sai OTP 3 lần liên tiếp |
+    | `300007` | Ended | Hợp đồng bị hủy, do nhập sai số lần cho phép | verify-esign: sai OTP lần thứ 6 |
+    | `124522` | Retry | Có lỗi xảy ra, vui lòng thử lại sau! | verify-esign: block 5 lần verify sai OTP |
+    | `1245300` | Retry | Thao tác quá nhanh! Vui lòng thử lại sau 5 phút | verify-esign: gọi API verify liên tục |
+
+  version: "1.0.0"
+  contact:
+    name: Cake Digital Bank Support
+    url: https://cake.vn
+
+servers:
+  - url: https://gw.cake.vn/ext/loan/cashloan/10
+    description: Production (product_id=10)
+  - url: "{API_URL}"
+    description: Staging
+    variables:
+      API_URL:
+        default: https://gw.stage.cakedigibank.tech/ext/loan/cashloan/10
+
+# ─────────────────────────────────────────────
+# COMMON COMPONENTS
+# ─────────────────────────────────────────────
+components:
+  parameters:
+    PartnerHeader:
+      name: partner_id
+      in: header
+      required: true
+      description: partner_id được cấu hình trong môi trường (PROD = 16)
+      schema:
+        type: string
+        example: "16"
+
+    SignatureHeader:
+      name: signature
+      in: header
+      required: true
+      description: |
+        Chữ ký của request body.
+        rawBody = (body sắp xếp alphabet A→Z) + partner_key → sha256 → RSA sign PKCS1v15 → base64
+      schema:
+        type: string
+
+    ContentTypeHeader:
+      name: Content-Type
+      in: header
+      required: true
+      schema:
+        type: string
+        default: application/json; charset=utf-8
+
+  schemas:
+    # ── Common Response Wrapper ──
+    BaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Kết quả xử lý yêu cầu (true/false)
+          example: true
+        code:
+          type: integer
+          description: Mã trạng thái hệ thống. Theo định nghĩa status code
+          example: 1
+        message:
+          type: string
+          description: Thông báo phản hồi từ hệ thống
+          example: Thành công
+        response_id:
+          type: string
+          description: Mã định danh duy nhất của mỗi phản hồi
+          example: "849KTQG7SQWLWQW5"
+        timestamp:
+          type: string
+          format: date-time
+          description: Thời gian phản hồi (ISO 8601)
+          example: "2025-11-03T07:00:00+07:00"
+
+    # ── BCL-01 create-link ──
+    CreateLinkRequest:
+      type: object
+      required:
+        - product_id
+      properties:
+        product_id:
+          type: integer
+          format: int64
+          description: Column product_id trong Environment
+          example: 10
+
+    CreateLinkResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                link_id:
+                  type: string
+                  description: ID của link webview (định danh KH theo từng partner)
+                  example: "123456"
+                start_date:
+                  type: string
+                  format: date
+                  description: Ngày bắt đầu hiệu lực của webview link (yyyy-mm-dd)
+                  example: "2025-05-13"
+                end_date:
+                  type: string
+                  format: date
+                  description: Ngày kết thúc hiệu lực của webview link (yyyy-mm-dd)
+                  example: "2025-06-13"
+                url:
+                  type: string
+                  description: Webview URL. Cần gọi create-token để lấy full URL
+                  example: "https://dop.cake.vn/..."
+                jwt_field:
+                  type: string
+                  description: JWT field. Định danh user theo từng partner (dùng làm user_identity ở create-token)
+                  example: "phone_number"
+                link_expiration:
+                  type: string
+                  description: Thời gian hết hạn của link
+                  example: "2025-06-13T23:59:59+07:00"
+                link_token:
+                  type: string
+                  description: Token của link (dùng cho create-token)
+                  example: "a27f5d0e8b434e3f9bfa"
+
+    # ── BCL-02 create-token ──
+    CreateTokenRequest:
+      type: object
+      required:
+        - user_identity
+        - link_id
+        - link_token
+        - phone_number
+        - data
+      properties:
+        user_identity:
+          type: string
+          description: Field định danh user của mỗi partner. Value = jwt_field trong create-link
+          example: "0345678900"
+        link_id:
+          type: integer
+          format: int64
+          description: Link ID từ API create-link
+          example: 123456
+        link_token:
+          type: string
+          description: Link token lấy từ API create-link
+          example: "a27f5d0e8b434e3f9bfa"
+        phone_number:
+          type: string
+          description: Số điện thoại KH
+          example: "0xxxxxxxxx"
+        data:
+          $ref: "#/components/schemas/CreateTokenData"
+
+    CreateTokenData:
+      type: object
+      required:
+        - reference_id
+        - user_segment
+      properties:
+        reference_id:
+          type: string
+          description: UUID định danh request
+          example: "1"
+        user_segment:
+          type: string
+          description: "Phân loại KH: user, driver"
+          enum: [ user, driver ]
+          example: "driver"
+        driver_qualified:
+          type: boolean
+          description: |
+            true khi driver thỏa các điều kiện:
+            - Thu nhập mỗi tháng trong 3 tháng gần nhất >= 3 triệu
+            - Thời gian active (first trip) >= 90 ngày
+            - Account status hiện tại = completed
+            false nếu không thỏa các điều kiện trên
+          example: true
+        driver_data:
+          $ref: "#/components/schemas/DriverData"
+
+    DriverData:
+      type: object
+      description: Truyền dữ liệu nếu KH là tài xế đủ điều kiện
+      required:
+        - full_name
+        - document_id
+        - phone_number
+        - register_date
+        - rank
+        - account_status
+        - income
+      properties:
+        full_name:
+          type: string
+          description: Họ tên
+          example: "Nguyễn Văn A"
+        document_id:
+          type: string
+          description: Số CCCD
+          example: "xxxxxxxxxxxx"
+        phone_number:
+          type: string
+          description: Số điện thoại đăng ký làm tài xế
+          example: "0xxxxxxxxx"
+        register_date:
+          type: string
+          format: date
+          description: Ngày đăng ký hoạt động với BE (yyyy-mm-dd)
+          example: "2020-12-02"
+        rank:
+          type: string
+          description: "Hạng tài xế hiện tại: Pro+, Pro, Vàng, Bạc, Không xếp hạng"
+          example: "Pro+"
+        account_status:
+          type: string
+          description: |
+            Account status hiện tại của tài xế:
+            - Completed: Đang hoạt động
+            - Tempoblocked: Khóa tạm thời
+            - Permanentblocked: Khóa vĩnh viễn
+          enum: [ Completed, Tempoblocked, Permanentblocked ]
+          example: "Completed"
+        income:
+          type: array
+          description: Thu nhập thực nhận của tài xế trong 03 tháng gần nhất
+          items:
+            type: object
+            required:
+              - month
+              - income
+            properties:
+              month:
+                type: string
+                description: Tháng thu nhập (yyyymm)
+                example: "202604"
+              income:
+                type: string
+                description: Thu nhập trong tháng (VNĐ)
+                example: "10000000"
+
+    CreateTokenResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                jwt_token:
+                  type: string
+                  description: |
+                    JWT token. Được gắn ở Header của webview url.
+                    Format: `Authorization: {{jwt_token}}`
+                  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                url:
+                  type: string
+                  description: Webview URL đầy đủ để hiển thị cho KH
+                  example: "https://dop.cake.vn/...?token=..."
+
+    # ── BCL-04 get-loan-detail ──
+    GetLoanDetailRequest:
+      type: object
+      required:
+        - loan_code
+        - phone_number
+      properties:
+        loan_code:
+          type: string
+          description: Mã khoản vay, từ API /loan-register
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          description: SĐT của KH (định dạng bắt đầu bằng số 0)
+          example: "0xxxxxxxxx"
+
+    GetLoanDetailResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                loan_account_status:
+                  type: string
+                  description: Trạng thái tài khoản vay (Follow status definition)
+                  enum:
+                    - LOAN_UNKNOWN
+                    - LOAN_APPROVE
+                    - LOAN_EXPIRED
+                    - LOAN_CANCEL
+                    - LOAN_SIGNED
+                    - LOAN_ACTIVE
+                    - LOAN_CLOSE
+                  example: "LOAN_ACTIVE"
+                contract_id:
+                  type: string
+                  description: Mã hợp đồng. Dùng cho luồng nhắc nợ, đối soát
+                  example: "1234567890"
+                loan_alias:
+                  type: string
+                  description: Mã thanh toán
+                  example: "G4JH5R"
+                contract_url:
+                  type: string
+                  description: URL hợp đồng cuối (đã ký song phương). Link hết hạn trong 1h
+                  example: "https://storage.googleapis.com/..."
+                full_name:
+                  type: string
+                  description: Họ và tên KH
+                  example: "Nguyễn Hoàng Sơn"
+                document_id:
+                  type: string
+                  description: Số GTTT của KH
+                  example: "xxxxxxxxxxxx"
+                approved_amount:
+                  type: string
+                  description: Số tiền được phê duyệt
+                  example: "12000000"
+                approved_term:
+                  type: string
+                  description: Thời hạn vay phê duyệt
+                  example: "12"
+                loan_insurance:
+                  type: string
+                  description: Số tiền bảo hiểm khoản vay
+                  example: "840000"
+                disburse_amount:
+                  type: string
+                  description: Số tiền đã giải ngân
+                  example: "12840000"
+                disburse_date:
+                  type: string
+                  format: date
+                  description: Ngày giải ngân khoản vay (yyyy-mm-dd)
+                  example: "2025-06-03"
+                interest_rate:
+                  type: string
+                  description: Lãi suất
+                  example: "43"
+                principle_balance:
+                  type: string
+                  description: Dư nợ gốc khả dụng còn lại
+                  example: "12640000"
+                interest_balance:
+                  type: string
+                  description: Dư nợ lãi phát sinh (nếu có)
+                  example: "197494"
+                penalty_principal_balance:
+                  type: string
+                  description: Lãi phạt gốc quá hạn (nếu có)
+                  example: "2494265"
+                penalty_interest_balance:
+                  type: string
+                  description: Lãi phạt lãi quá hạn (nếu có)
+                  example: "0"
+                payment_period:
+                  type: string
+                  description: Kỳ thanh toán số
+                  example: "12"
+                due_date:
+                  type: string
+                  format: date
+                  description: Ngày đến hạn thanh toán gần nhất (yyyy-mm-dd), đã bao gồm holiday nếu có
+                  example: "2025-06-27"
+                day_arrears:
+                  type: string
+                  description: Số ngày quá hạn (nếu có)
+                  example: "191"
+                monthly_payment_amount:
+                  type: string
+                  description: Số tiền KH có thể thanh toán sớm
+                  example: "0"
+                overdue_payment_amount:
+                  type: string
+                  description: Số tiền KH buộc phải thanh toán
+                  example: "15331759"
+                total_payment_amount:
+                  type: string
+                  description: Tổng tiền KH có thể thanh toán (monthly_payment_amount + overdue_payment_amount)
+                  example: "15331759"
+                paid_amount:
+                  type: string
+                  description: Số tiền KH đã thanh toán
+                  example: "200000"
+                prepayment_amount:
+                  type: string
+                  description: Số tiền KH đã thanh toán trước trong kỳ
+                  example: "0"
+
+    # ── BCL-03 update-status (Cake → BE callback) ──
+    UpdateStatusRequest:
+      type: object
+      required:
+        - partner_id
+        - loan_code
+        - phone_no
+        - references_id
+        - status
+        - order_level
+        - signature
+      properties:
+        partner_id:
+          type: integer
+          description: "Default: partner_id (be_cashloan) = 7"
+          example: 7
+        loan_code:
+          type: string
+          description: Mã khoản vay, từ API /loan-register
+          example: "u8123123Sjsdb"
+        phone_no:
+          type: string
+          description: Phone number registration
+          example: "0345678900"
+        references_id:
+          type: string
+          description: Ref được generate từ BE (gửi sang Cake khi gọi API DOP Cake)
+          example: "1"
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: 'Ví dụ: { "bank_account": "0935007397" }'
+          example:
+            bank_account: "0935007397"
+        status:
+          type: string
+          description: Key status gửi từ Cake (theo định nghĩa status code)
+          example: "LOAN_APPROVED"
+        order_level:
+          type: integer
+          description: Sort by status
+          example: 1
+        signature:
+          type: string
+          description: HMACSHA256 content (nếu body có file thì hash filename)
+
+    UpdateStatusResponse:
+      type: object
+      properties:
+        result_code:
+          type: integer
+          format: int32
+          description: Mã kết quả (143 = thành công, 144 = lỗi, 9001 = chữ ký không hợp lệ)
+          example: 143
+        message:
+          type: string
+          description: Thông báo phản hồi
+          example: "Successfully"
+
+    # ── get-be-score (Cake → BE callback) ──
+    GetBeScoreRequest:
+      type: object
+      required:
+        - partner_type
+        - phone_no
+        - signature
+      properties:
+        partner_type:
+          type: integer
+          description: "Default: partner_id (be_cashloan) = 7"
+          example: 7
+        phone_no:
+          type: string
+          description: Phone number registration
+          example: "0345678900"
+        signature:
+          type: string
+          description: HMACSHA256 content (nếu body có file thì hash filename)
+
+    GetBeScoreResponse:
+      type: object
+      properties:
+        flag:
+          type: integer
+          description: Mã kết quả (143/144/9001/700/702)
+          example: 143
+        message:
+          type: string
+          description: Thông báo phản hồi
+          example: "Successfully"
+        data:
+          type: object
+          properties:
+            score:
+              type: string
+              description: beScore value
+              example: "650"
+            band:
+              type: string
+              description: The band of the score
+              example: "A"
+            pct_trip_paid_cash_3m:
+              type: string
+              description: Tỷ lệ chuyến thanh toán bằng tiền mặt trong 3 tháng
+              example: "0.35"
+
+# ─────────────────────────────────────────────
+# PATHS
+# ─────────────────────────────────────────────
+paths:
+  # ════════════════════
+  # ONBOARDING (BE → Cake)
+  # ════════════════════
+  /create-link:
+    post:
+      tags: [ Onboarding ]
+      summary: BCL-01 - Tạo link để access vào DOP
+      description: |
+        Get-token để access vào DOP với User lần đầu vào DOP.
+        Response trả về URL + LinkID. Cần gọi `create-token` để lấy full URL.
+      operationId: createLink
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLinkRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateLinkResponse"
+
+  /create-token:
+    post:
+      tags: [ Onboarding ]
+      summary: BCL-02 - Tạo token để user tiếp tục đăng ký/kiểm tra trạng thái khoản vay
+      description: |
+        API để user tiếp tục đăng ký/kiểm tra trạng thái đăng ký khoản vay.
+        Response jwt_token (gắn ở Header webview url) và full URL để hiển thị webview cho KH.
+      operationId: createToken
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTokenRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateTokenResponse"
+
+  /get-loan-detail:
+    post:
+      tags: [ Onboarding ]
+      summary: BCL-04 - Truy vấn thông tin chi tiết khoản vay
+      description: API để user lấy thông tin khoản vay.
+      operationId: getLoanDetail
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetLoanDetailRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetLoanDetailResponse"
+
+  # ════════════════════
+  # PARTNER CALLBACKS (Cake → BE)
+  # ════════════════════
+  /update-status:
+    post:
+      tags: [ Partner Callbacks ]
+      summary: BCL-03 - Cake cập nhật thông tin khoản vay sang BE
+      description: |
+        **Chiều: Cake → BE**
+        API để CAKE gọi update thông tin khoản vay (PHÊ DUYỆT/GIẢI NGÂN).
+        BE cần expose endpoint này. Chữ ký dùng HMACSHA256.
+        Nếu thất bại (code 144) → Cake retry 3 lần (mỗi phút).
+      operationId: updateStatus
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStatusRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateStatusResponse"
+
+  /get-be-score:
+    post:
+      tags: [ Partner Callbacks ]
+      summary: Cake truy vấn beScore của KH từ BE
+      description: |
+        **Chiều: Cake → BE**
+        Cake gọi sang BE để lấy beScore của khách hàng. Chữ ký dùng HMACSHA256.
+        Trả về 700 nếu KH chưa đồng ý consent, 702 nếu KH không tồn tại.
+      operationId: getBeScore
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetBeScoreRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetBeScoreResponse"
+
+# ─────────────────────────────────────────────
+# TAGS
+# ─────────────────────────────────────────────
+tags:
+  - name: Onboarding
+    description: |
+      Luồng onboarding mở rộng DOP với BE:
+      create-link → create-token → (DOP onboarding process) → get-loan-detail
+  - name: Partner Callbacks
+    description: |
+      API Cake gọi sang BE (webhook/callback). BE phải expose các endpoint này.
+      Xác thực bằng HMACSHA256 (Cake ký, BE verify).
+
+# ─────────────────────────────────────────────
+# SEQUENCE DIAGRAMS - API FLOWS (x-extension)
+# ─────────────────────────────────────────────
+x-mermaid-flows:
+
+  onboarding: |
+    sequenceDiagram
+      autonumber
+      participant BE as BE
+      participant DOP as DOP (Cake)
+
+      Note over BE,DOP: BCL-01 - CREATE LINK
+      BE->>DOP: create-link(product_id)
+      DOP-->>BE: Get access token lần đầu. Response url + link_id
+
+      Note over BE,DOP: BCL-02 - CREATE TOKEN
+      BE->>DOP: create-token(user_identity, link_id, link_token, phone_number, data)
+      DOP-->>BE: Response jwt_token + full url
+
+      Note over BE: Display webview cho Customer
+      BE->>DOP: Customer onboarding & submit profile
+      Note over DOP: DOP Onboarding process
+
+      Note over BE,DOP: BCL-03 - UPDATE STATUS (Cake → BE)
+      DOP->>BE: update-status(loan_code, status, references_id, ...)
+      BE-->>DOP: Response result_code (143 success / 144 retry)
+
+      Note over BE,DOP: BCL-04 - GET LOAN DETAIL
+      BE->>DOP: get-loan-detail(loan_code, phone_number)
+      DOP-->>BE: loan_account_status + chi tiết khoản vay

@@ -26,6 +26,7 @@ const navItems: NavItem[] = [
     icon: '🏃',
     children: [
       { label: 'Sprint Alignment', path: '/sprints' },
+      { label: 'Tạo Sprint', path: '/sprints/create' },
       { label: 'Sprint Management', path: '/sprints/management' },
     ],
   },

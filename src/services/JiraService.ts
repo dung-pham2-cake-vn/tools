@@ -43,6 +43,37 @@ interface JiraSprint {
   originBoardId?: number;
 }
 
+export interface SprintCreatePayload {
+  name: string;
+  originBoardId: number;
+  startDate?: string;
+  endDate?: string;
+  goal?: string;
+}
+
+export interface SprintSuggestion {
+  name: string;
+  number: number | null;
+  originBoardId: number;
+  startDate: string;
+  endDate: string;
+  exists: boolean;
+}
+
+export interface SprintSuggestionResult {
+  boardId: number;
+  cadenceDays: number;
+  lastSprint: JiraSprint | null;
+  suggestions: SprintSuggestion[];
+}
+
+export interface SprintCreateResult {
+  name: string;
+  success: boolean;
+  sprint?: JiraSprint;
+  error?: string;
+}
+
 interface JiraVersion {
   id: string;
   name: string;
@@ -78,6 +109,10 @@ export interface ConfluencePage {
 export interface ConfluencePageWithBody extends ConfluencePage {
   body: string;
 }
+
+const SPRINT_LENGTH_DAYS = 14;
+const SPRINT_LENGTH_MS = SPRINT_LENGTH_DAYS * 24 * 60 * 60 * 1000;
+const UTC7_OFFSET_MS = 7 * 60 * 60 * 1000;
 
 export class JiraService {
   private axiosInstance: AxiosInstance;
@@ -403,6 +438,140 @@ export class JiraService {
     }
   }
 
+  async getAllBoardSprints(boardId: number): Promise<JiraSprint[]> {
+    return this.getBoardSprints(boardId, 'future,active,closed');
+  }
+
+  async createSprint(payload: SprintCreatePayload): Promise<JiraSprint> {
+    if (!payload?.name?.trim()) {
+      throw new Error('Sprint name is required');
+    }
+    if (!payload?.originBoardId) {
+      throw new Error('originBoardId is required');
+    }
+
+    try {
+      const response = await this.agileAxiosInstance.post('/sprint', {
+        name: payload.name.trim(),
+        originBoardId: payload.originBoardId,
+        ...(payload.startDate ? { startDate: payload.startDate } : {}),
+        ...(payload.endDate ? { endDate: payload.endDate } : {}),
+        ...(payload.goal ? { goal: payload.goal } : {}),
+      });
+      return response.data;
+    } catch (error) {
+      console.error(`Error creating sprint "${payload.name}":`, this.formatAxiosError(error));
+      throw error;
+    }
+  }
+
+  // Tạo tuần tự để giữ đúng thứ tự sprint trên board và không nuốt lỗi từng dòng.
+  async createSprints(payloads: SprintCreatePayload[]): Promise<SprintCreateResult[]> {
+    const results: SprintCreateResult[] = [];
+
+    for (const payload of payloads) {
+      try {
+        const sprint = await this.createSprint(payload);
+        results.push({ name: payload.name, success: true, sprint });
+      } catch (error) {
+        results.push({ name: payload.name, success: false, error: this.describeError(error) });
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Đề xuất N sprint kế tiếp cho một board, suy ra từ chính sprint cuối của board đó:
+   * - tên: giữ nguyên prefix/suffix, tăng số cuối cùng trong tên
+   * - thời gian: nối tiếp liền mạch, mỗi sprint SPRINT_LENGTH_DAYS ngày
+   */
+  async suggestSprints(boardId: number, count = 5): Promise<SprintSuggestionResult> {
+    const total = Math.min(Math.max(count, 1), 20);
+    const allSprints = await this.getAllBoardSprints(boardId);
+    // Board có thể hiển thị sprint của board khác (shared backlog) — chỉ suy luận từ sprint do board này sở hữu.
+    const owned = allSprints.filter((sprint) => sprint.originBoardId === boardId);
+    const pool = owned.length > 0 ? owned : allSprints;
+
+    const ranked = pool
+      .map((sprint) => ({ sprint, number: this.parseSprintNumber(sprint.name) }))
+      .sort((a, b) => {
+        const numberDiff = (a.number ?? -1) - (b.number ?? -1);
+        if (numberDiff !== 0) return numberDiff;
+        return (a.sprint.startDate || '').localeCompare(b.sprint.startDate || '');
+      });
+
+    const latest = ranked.length > 0 ? ranked[ranked.length - 1] : null;
+    const template = this.parseSprintNameTemplate(latest?.sprint.name || '');
+    const existingNames = new Set(allSprints.map((sprint) => sprint.name.trim().toLowerCase()));
+
+    let cursor = this.resolveNextSprintStart(latest?.sprint);
+    const suggestions: SprintSuggestion[] = [];
+
+    for (let index = 0; index < total; index += 1) {
+      const number = template.number === null ? null : template.number + index + 1;
+      const name =
+        number === null
+          ? `${(latest?.sprint.name || 'Sprint').trim()} +${index + 1}`
+          : `${template.prefix}${number}${template.suffix}`;
+      const start = new Date(cursor);
+      const end = new Date(cursor.getTime() + SPRINT_LENGTH_MS);
+
+      suggestions.push({
+        name,
+        number,
+        originBoardId: boardId,
+        startDate: start.toISOString(),
+        endDate: end.toISOString(),
+        exists: existingNames.has(name.trim().toLowerCase()),
+      });
+
+      cursor = end;
+    }
+
+    return {
+      boardId,
+      cadenceDays: SPRINT_LENGTH_DAYS,
+      lastSprint: latest?.sprint ?? null,
+      suggestions,
+    };
+  }
+
+  private parseSprintNumber(name: string): number | null {
+    const match = /(\d+)[^\d]*$/.exec(name || '');
+    return match ? Number(match[1]) : null;
+  }
+
+  private parseSprintNameTemplate(name: string): { prefix: string; number: number | null; suffix: string } {
+    const match = /^([\s\S]*?)(\d+)([^\d]*)$/.exec(name || '');
+    if (!match) {
+      return { prefix: 'Sprint ', number: null, suffix: '' };
+    }
+    return { prefix: match[1], number: Number(match[2]), suffix: match[3] };
+  }
+
+  // Sprint kế tiếp nối liền sprint cuối. Board chưa có sprint nào thì lấy mốc thứ Hai kế tiếp (00:00 UTC+7).
+  private resolveNextSprintStart(latest?: JiraSprint | null): Date {
+    if (latest?.endDate) {
+      return new Date(latest.endDate);
+    }
+    if (latest?.startDate) {
+      return new Date(new Date(latest.startDate).getTime() + SPRINT_LENGTH_MS);
+    }
+    return this.nextMondayUtc7();
+  }
+
+  private nextMondayUtc7(): Date {
+    const nowUtc7 = new Date(Date.now() + UTC7_OFFSET_MS);
+    const daysUntilMonday = (8 - nowUtc7.getUTCDay()) % 7 || 7;
+    const mondayUtc7 = Date.UTC(
+      nowUtc7.getUTCFullYear(),
+      nowUtc7.getUTCMonth(),
+      nowUtc7.getUTCDate() + daysUntilMonday
+    );
+    return new Date(mondayUtc7 - UTC7_OFFSET_MS);
+  }
+
   async getProjectVersions(projectKeyOrId: string): Promise<JiraVersion[]> {
     try {
       const versions: JiraVersion[] = [];
@@ -599,6 +768,30 @@ export class JiraService {
       });
 
     return mapped.filter((item): item is NormalizedFixVersionDetail => item !== null);
+  }
+
+  // Gộp lỗi Jira thành một dòng đọc được để trả về cho UI.
+  private describeError(error: unknown): string {
+    const detail = this.formatAxiosError(error) as {
+      message?: string;
+      status?: number;
+      errorMessages?: string[];
+      errors?: Record<string, string>;
+    };
+    const parts: string[] = [];
+
+    if (detail.status) parts.push(`HTTP ${detail.status}`);
+    if (detail.errorMessages?.length) parts.push(detail.errorMessages.join('; '));
+    if (detail.errors && Object.keys(detail.errors).length) {
+      parts.push(
+        Object.entries(detail.errors)
+          .map(([field, message]) => `${field}: ${message}`)
+          .join('; ')
+      );
+    }
+    if (parts.length === 0 && detail.message) parts.push(detail.message);
+
+    return parts.join(' — ') || 'Unknown error';
   }
 
   private formatAxiosError(error: unknown) {

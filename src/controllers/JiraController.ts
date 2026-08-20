@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { jiraService } from '../services/JiraService';
+import { jiraService, SprintCreatePayload } from '../services/JiraService';
 import { taskService } from '../services/TaskService';
 
 export class JiraController {
@@ -102,6 +102,48 @@ export class JiraController {
       const { state } = req.query;
       const sprints = await jiraService.getBoardSprints(Number(boardId), (state as string) || 'active');
       res.status(200).json({ success: true, data: sprints });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async suggestBoardSprints(req: Request, res: Response): Promise<void> {
+    try {
+      const { boardId } = req.params;
+      const { count } = req.query;
+      const result = await jiraService.suggestSprints(
+        Number(boardId),
+        count ? Number(count) : 5
+      );
+      res.status(200).json({ success: true, data: result });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async createSprint(req: Request, res: Response): Promise<void> {
+    try {
+      const sprint = await jiraService.createSprint(req.body as SprintCreatePayload);
+      res.status(201).json({ success: true, data: sprint });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async createSprints(req: Request, res: Response): Promise<void> {
+    try {
+      const { sprints } = req.body as { sprints?: SprintCreatePayload[] };
+      if (!Array.isArray(sprints) || sprints.length === 0) {
+        res.status(400).json({ success: false, error: 'sprints must be a non-empty array' });
+        return;
+      }
+
+      const results = await jiraService.createSprints(sprints);
+      const created = results.filter((result) => result.success).length;
+      res.status(200).json({
+        success: results.every((result) => result.success),
+        data: { created, failed: results.length - created, results },
+      });
     } catch (error: any) {
       res.status(400).json({ success: false, error: error.message });
     }

@@ -90,6 +90,43 @@ export const sprintManagementAPI = {
   reloadTickets: (ticketIds: string[]) => apiClient.post('/sprint-management/tickets/reload', { ticketIds }),
 };
 
+export interface SprintCreatePayload {
+  name: string;
+  originBoardId: number;
+  startDate?: string;
+  endDate?: string;
+  goal?: string;
+}
+
+export interface SprintSuggestion {
+  name: string;
+  number: number | null;
+  originBoardId: number;
+  startDate: string;
+  endDate: string;
+  exists: boolean;
+}
+
+export interface SprintSuggestionResult {
+  boardId: number;
+  cadenceDays: number;
+  lastSprint: {
+    id: number;
+    name: string;
+    state?: string;
+    startDate?: string;
+    endDate?: string;
+  } | null;
+  suggestions: SprintSuggestion[];
+}
+
+export interface SprintCreateResult {
+  name: string;
+  success: boolean;
+  sprint?: { id: number; name: string };
+  error?: string;
+}
+
 // Jira API
 export const jiraAPI = {
   getIssue: (issueKey: string) => apiClient.get(`/jira/issue/${issueKey}`),
@@ -110,6 +147,9 @@ export const jiraAPI = {
   getBoards: (projectKeyOrId: string) => apiClient.get('/jira/boards', { params: { projectKeyOrId } }),
   getBoardSprints: (boardId: number, state = 'active') =>
     apiClient.get(`/jira/boards/${boardId}/sprints`, { params: { state } }),
+  suggestBoardSprints: (boardId: number, count = 5) =>
+    apiClient.get(`/jira/boards/${boardId}/sprints/suggest`, { params: { count } }),
+  createSprints: (sprints: SprintCreatePayload[]) => apiClient.post('/jira/sprints/bulk', { sprints }),
   getProjectVersions: (projectKeyOrId: string) => apiClient.get(`/jira/projects/${projectKeyOrId}/versions`),
   syncTask: (jiraKey: string) => apiClient.post(`/jira/sync/${jiraKey}`),
   createIssue: (data: any) => apiClient.post('/jira/create', data),

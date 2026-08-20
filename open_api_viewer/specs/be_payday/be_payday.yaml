@@ -327,7 +327,7 @@ components:
       properties:
         code:
           type: integer
-          description: Mã trạng thái
+          description: "Mã trạng thái (1 = Thành công; khác 1 = lỗi)"
           example: 1
         message:
           type: string

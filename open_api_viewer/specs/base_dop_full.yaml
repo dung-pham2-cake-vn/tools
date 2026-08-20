@@ -627,12 +627,17 @@ components:
     PartnerCallbackResponse:
       type: object
       required:
+        - success
         - code
         - message
       properties:
+        success:
+          type: boolean
+          description: Kết quả xử lý yêu cầu (true/false)
+          example: true
         code:
           type: integer
-          description: Mã trạng thái
+          description: "Mã trạng thái (1 = Thành công; khác 1 = lỗi)"
           example: 1
         message:
           type: string
@@ -837,6 +842,7 @@ paths:
       operationId: partnerUpdateStatus
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:

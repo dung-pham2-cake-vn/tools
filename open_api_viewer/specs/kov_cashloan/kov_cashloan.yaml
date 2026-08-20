@@ -1108,20 +1108,23 @@ components:
 
     PartnerCallbackResponse:
       type: object
+      required:
+        - success
+        - code
+        - message
       properties:
         success:
           type: boolean
+          description: Kết quả xử lý yêu cầu (true/false)
           example: true
         code:
           type: integer
+          description: "Mã trạng thái (1 = Thành công; khác 1 = lỗi)"
           example: 1
         message:
           type: string
+          description: Thông báo phản hồi
           example: "Thành công"
-        timestamp:
-          type: string
-          format: date-time
-          example: "2025-11-03T07:00:00+07:00"
 
   # ── Reusable request headers ──
   requestBodies:
@@ -1470,6 +1473,7 @@ paths:
       operationId: partnerUpdateStatus
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:
@@ -1494,6 +1498,7 @@ paths:
       operationId: partnerRepaymentStatus
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
         content:

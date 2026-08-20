@@ -204,6 +204,26 @@ components:
           description: Thời gian phản hồi (ISO 8601)
           example: "2025-12-11T09:45:00+07:00"
 
+    PartnerCallbackResponse:
+      type: object
+      required:
+        - success
+        - code
+        - message
+      properties:
+        success:
+          type: boolean
+          description: Kết quả xử lý yêu cầu (true/false)
+          example: true
+        code:
+          type: integer
+          description: "Mã trạng thái (1 = Thành công; khác 1 = lỗi)"
+          example: 1
+        message:
+          type: string
+          description: Thông báo phản hồi
+          example: "Thành công"
+
     # ── Onboarding ──
     DataConfigResponse:
       allOf:
@@ -1179,26 +1199,6 @@ components:
             - FAILURE
           example: "SUCCESS"
 
-    PartnerDisburseResponse:
-      type: object
-      required:
-        - success
-        - code
-        - message
-      properties:
-        success:
-          type: boolean
-          description: Kết quả xử lý yêu cầu (true/false)
-          example: true
-        code:
-          type: integer
-          description: "Mã trạng thái, tuân theo định nghĩa của hệ thống (1 = Thành công)"
-          example: 1
-        message:
-          type: string
-          description: Thông báo phản hồi từ hệ thống
-          example: "Thành công"
-
     PartnerDisburseStatusRequest:
       type: object
       required:
@@ -1301,21 +1301,6 @@ components:
             - LOAN_SIGNED
             - LOAN_ACTIVE
             - LOAN_CLOSE
-
-    PartnerUpdateStatusResponse:
-      type: object
-      required:
-        - code
-        - message
-      properties:
-        code:
-          type: integer
-          description: "1 = thành công, khác = lỗi (Cake sẽ retry)"
-          example: 1
-        message:
-          type: string
-          description: Thông báo phản hồi
-          example: "Success"
 
     # ── Legacy Support ──
     GetLoanCodeFromLoanIdRequest:
@@ -1819,7 +1804,7 @@ paths:
         Partner phải expose endpoint tại path `/partner-update-status`.
 
         **Partner phải:**
-        1. Trả về `{"code":1,"message":"Success"}` khi xử lý thành công
+        1. Trả về `{"success":true,"code":1,"message":"Thành công"}` khi xử lý thành công
         2. Dedupe bằng `request_id` (Cake retry khi nhận code != 1)
 
         **Cake gọi callback khi:**
@@ -1835,7 +1820,6 @@ paths:
       operationId: partnerUpdateStatus
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
-        - $ref: "#/components/parameters/PartnerHeader"
         - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
@@ -1855,8 +1839,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PartnerUpdateStatusResponse"
+                $ref: "#/components/schemas/PartnerCallbackResponse"
               example:
+                success: true
                 code: 1
                 message: "Success"
 
@@ -1870,11 +1855,10 @@ paths:
         Cake gửi yêu cầu giải ngân khoản vay tới đối tác.
         Partner thực hiện giải ngân và gọi lại API /disburse-update để xác nhận kết quả.
 
-        **Response code:** `1` = Thành công.
+        **Response:** `success`, `code`, `message`. `code` = `1` là thành công.
       operationId: partnerDisburseRequest
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
-        - $ref: "#/components/parameters/PartnerHeader"
         - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
@@ -1897,7 +1881,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PartnerDisburseResponse"
+                $ref: "#/components/schemas/PartnerCallbackResponse"
               example:
                 success: true
                 code: 1
@@ -1912,11 +1896,10 @@ paths:
 
         Cake gọi API này (do đối tác expose) trong luồng giải ngân để lấy trạng thái giải ngân hiện tại từ phía đối tác.
 
-        **Response code:** `1` = Thành công.
+        **Response:** `success`, `code`, `message`. `code` = `1` là thành công.
       operationId: partnerDisburseStatus
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
-        - $ref: "#/components/parameters/PartnerHeader"
         - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
@@ -2014,7 +1997,7 @@ tags:
     description: |
       Cake gọi endpoint này trên hệ thống partner khi có thay đổi trạng thái.
 
-      Partner phải expose endpoint `/partner-update-status` và trả về `{"code":1,"message":"Success"}`.
+      Partner phải expose endpoint `/partner-update-status` và trả về `{"success":true,"code":1,"message":"Thành công"}`.
 
       **Xác thực ngược:** Cake ký bằng private key → Partner verify bằng `CAKE_PUBLIC_KEY`.
   - name: Legacy Support

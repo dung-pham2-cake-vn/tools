@@ -206,6 +206,26 @@ components:
           description: Thời gian phản hồi (ISO 8601)
           example: "2025-11-03T07:00:00+07:00"
 
+    PartnerCallbackResponse:
+      type: object
+      required:
+        - success
+        - code
+        - message
+      properties:
+        success:
+          type: boolean
+          description: Kết quả xử lý yêu cầu (true/false)
+          example: true
+        code:
+          type: integer
+          description: "Mã trạng thái (1 = Thành công; khác 1 = lỗi)"
+          example: 1
+        message:
+          type: string
+          description: Thông báo phản hồi
+          example: "Thành công"
+
     # ── Challenge ──
     ChallengeGetOtpRequest:
       type: object
@@ -2932,7 +2952,6 @@ paths:
       operationId: partnerUpdateStatus
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
-        - $ref: "#/components/parameters/PartnerHeader"
         - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
@@ -2946,7 +2965,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BaseResponse"
+                $ref: "#/components/schemas/PartnerCallbackResponse"
 
   /partner-disburse-request:
     post:
@@ -2959,7 +2978,6 @@ paths:
       operationId: partnerDisburseRequest
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
-        - $ref: "#/components/parameters/PartnerHeader"
         - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
@@ -2973,7 +2991,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BaseResponse"
+                $ref: "#/components/schemas/PartnerCallbackResponse"
 
   /partner-repayment-status:
     post:
@@ -2985,7 +3003,6 @@ paths:
       operationId: partnerRepaymentStatus
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
-        - $ref: "#/components/parameters/PartnerHeader"
         - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
@@ -2999,7 +3016,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BaseResponse"
+                $ref: "#/components/schemas/PartnerCallbackResponse"
 
   /partner-payment-status:
     post:
@@ -3011,7 +3028,6 @@ paths:
       operationId: partnerPaymentStatus
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
-        - $ref: "#/components/parameters/PartnerHeader"
         - $ref: "#/components/parameters/SignatureHeader"
       requestBody:
         required: true
@@ -3025,7 +3041,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BaseResponse"
+                $ref: "#/components/schemas/PartnerCallbackResponse"
 
 # ─────────────────────────────────────────────
 # TAGS

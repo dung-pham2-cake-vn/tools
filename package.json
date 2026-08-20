@@ -10,7 +10,9 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "lint": "eslint src --ext .ts",
-    "format": "prettier --write src"
+    "format": "prettier --write src",
+    "specs:index": "node open_api_viewer/build-specs-index.mjs",
+    "viewer": "node open_api_viewer/build-specs-index.mjs && python3 -m http.server 8777 --directory open_api_viewer"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",

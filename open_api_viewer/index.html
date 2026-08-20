@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" media="(prefers-color-scheme: dark)">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="specs/specs-index.js" onerror="window.SPECS_INDEX_MISSING=1"></script>
 <style>
   :root {
     --bg: #f8f7f4;
@@ -65,6 +66,17 @@
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+  .pick-prompt { max-width: 460px; margin: 14vh auto 0; text-align: center; }
+  .pick-icon { font-size: 34px; opacity: 0.75; }
+  .pick-title { font-family: var(--sans); font-size: 24px; margin: 6px 0 6px; }
+  .pick-sub { font-size: 13px; color: var(--text-muted); line-height: 1.7; }
+  .pick-sub code { font-family: var(--mono); font-size: 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+
+  /* embedded in Tools Manager — folder picker/upload are irrelevant there */
+  body.embedded .btn-open-folder,
+  body.embedded .btn-builtin,
+  body.embedded .sidebar-bottom { display: none; }
+
   body {
     background: var(--bg);
     color: var(--text);
@@ -118,6 +130,27 @@
   }
   .btn-open-folder:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-tint); }
   .btn-open-folder svg { flex-shrink: 0; }
+
+  .btn-builtin {
+    width: 100%;
+    margin-top: 6px;
+    padding: 7px 12px;
+    border-radius: 7px;
+    border: 1.5px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--ui);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s;
+  }
+  .btn-builtin:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-tint); }
+  .btn-builtin.active { border-color: var(--accent); color: var(--accent); background: var(--accent-tint); }
+  .btn-builtin svg { flex-shrink: 0; }
 
   .btn-compare-toggle {
     width: 100%;
@@ -285,6 +318,30 @@
     flex: 1; display: flex; flex-direction: column;
     height: 100vh; overflow: hidden; min-width: 0;
   }
+  /* ── SIDEBAR COLLAPSE ── */
+  #sidebar { transition: width 0.18s ease, min-width 0.18s ease; }
+  body.sidebar-collapsed #sidebar {
+    width: 0;
+    min-width: 0;
+    border-right: none;
+    overflow: hidden;
+  }
+  .btn-sidebar-toggle {
+    flex-shrink: 0;
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    cursor: pointer;
+    font-family: var(--ui);
+    font-size: 13px;
+    line-height: 1;
+    transition: all 0.15s;
+  }
+  .btn-sidebar-toggle:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-tint); }
+
   #top-bar {
     flex-shrink: 0;
     background: var(--topbar-bg);
@@ -572,6 +629,10 @@
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
       Open folder
     </button>
+    <button class="btn-builtin" onclick="loadBuiltInSpecs()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      Built-in specs
+    </button>
     <button class="btn-compare-toggle" id="compare-toggle-btn" onclick="toggleCompareMode()" style="display:none">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
       Compare specs
@@ -612,6 +673,7 @@
 <!-- MAIN -->
 <div id="main-wrapper">
   <div id="top-bar">
+    <button class="btn-sidebar-toggle" onclick="toggleSidebar()" id="topbar-toggle" title="Toggle spec list (Ctrl+B)" aria-label="Toggle spec list">»</button>
     <span id="current-file-name">OpenAPI Viewer</span>
     <span id="reload-indicator">
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
@@ -633,6 +695,10 @@
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
           Open Folder
         </button>
+        <button class="welcome-btn" style="margin-top:8px" onclick="loadBuiltInSpecs()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          Browse Built-in Specs
+        </button>
       </div>
       <div class="no-api-note">Works in Chrome / Edge · No server needed</div>
     </div>
@@ -644,11 +710,15 @@
 // ─── STATE ───────────────────────────────────────
 let dirHandle = null;
 let fileHandles = {};       // path → FileSystemFileHandle
+let fileReaders = {};       // path → async () => text   (works for folder + built-in mode)
+let sourceMode = null;      // 'folder' | 'builtin'
+let currentReader = null;
 let fileTree = [];          // nested tree structure
 let folderCollapsed = new Set();
 let currentFileName = null;
 let currentFileHandle = null;
 let lastModified = null;
+let lastText = null;
 let pollTimer = null;
 let reloadFlashTimer = null;
 let globalSpec = null;
@@ -736,6 +806,8 @@ async function openFolder() {
 }
 
 async function useDirHandle(handle) {
+  sourceMode = 'folder';
+  document.querySelector('.btn-builtin').classList.remove('active');
   dirHandle = handle;
   document.getElementById('folder-name').textContent = handle.name;
   document.getElementById('folder-name').style.display = 'block';
@@ -761,6 +833,7 @@ async function scanDir(handle, pathPrefix) {
       }
     } else if (h.kind === 'file' && /\.(yaml|yml)$/i.test(name)) {
       fileHandles[fullPath] = h;
+      fileReaders[fullPath] = async () => (await h.getFile()).text();
       entries.push({ name, type: 'file', path: fullPath, handle: h });
     }
   }
@@ -774,6 +847,7 @@ async function scanDir(handle, pathPrefix) {
 async function refreshFileList() {
   if (!dirHandle) return;
   fileHandles = {};
+  fileReaders = {};
   fileTree = await scanDir(dirHandle, '');
   renderTree(fileTree);
 }
@@ -855,10 +929,11 @@ function handleFileClick(path) {
 }
 
 async function selectFile(path) {
-  const handle = fileHandles[path];
-  if (!handle) return;
+  const reader = fileReaders[path];
+  if (!reader) return;
   currentFileName = path;
-  currentFileHandle = handle;
+  currentReader = reader;
+  currentFileHandle = fileHandles[path] || null;
   const displayName = path.split('/').pop();
   document.getElementById('current-file-name').textContent = fileDisplayName(displayName);
   renderTree(fileTree);
@@ -869,9 +944,9 @@ async function loadCurrentFile(preserveScroll) {
   const scrollArea = document.getElementById('scroll-area');
   const savedScroll = preserveScroll ? scrollArea.scrollTop : 0;
   try {
-    const file = await currentFileHandle.getFile();
-    lastModified = file.lastModified;
-    const text = await file.text();
+    if (currentFileHandle) lastModified = (await currentFileHandle.getFile()).lastModified;
+    const text = await currentReader();
+    lastText = text;
     const spec = jsyaml.load(text);
     renderSpec(spec);
     requestAnimationFrame(() => { scrollArea.scrollTop = savedScroll; });
@@ -917,14 +992,13 @@ async function selectForCompare(path) {
   if (compareSelections.find(s => s.path === path)) return;
   if (compareSelections.length >= 2) return;
 
-  const handle = fileHandles[path];
-  if (!handle) return;
+  const reader = fileReaders[path];
+  if (!reader) return;
 
   try {
-    const file = await handle.getFile();
-    const text = await file.text();
+    const text = await reader();
     const spec = jsyaml.load(text);
-    compareSelections.push({ path, handle, spec });
+    compareSelections.push({ path, handle: fileHandles[path] || null, spec });
   } catch (e) {
     showError('Cannot read file: ' + e.message);
     return;
@@ -1199,17 +1273,143 @@ function exitCompare() {
   renderTree(fileTree);
 }
 
+// ─── BUILT-IN SPECS (bundled ./specs folder) ─────
+// Data baked by build-specs-index.mjs into specs/specs-index.js so this works
+// on file:// too. When served over http we re-fetch the file for fresh content.
+const SERVED_OVER_HTTP = /^https?:$/.test(location.protocol);
+// Tools Manager embeds this page at /api/openapi/viewer and serves the specs
+// folder through /api/openapi/*. `?api=` overrides the base for other hosts.
+const SPEC_API = new URLSearchParams(location.search).get('api')
+  || (SERVED_OVER_HTTP ? '/api/openapi' : null);
+let specApiLive = false;   // set once the listing endpoint answered
+
+function encodePath(path) {
+  return path.split('/').map(encodeURIComponent).join('/');
+}
+
+async function fetchSpecList() {
+  if (!SPEC_API) return null;
+  try {
+    const r = await fetch(`${SPEC_API}/specs`, { cache: 'no-store' });
+    if (!r.ok) return null;
+    const data = await r.json();
+    return data.files?.length ? data.files : null;
+  } catch (e) { return null; }
+}
+
+function builtInReader(path) {
+  return async () => {
+    if (specApiLive) {
+      const r = await fetch(`${SPEC_API}/file?path=${encodeURIComponent(path)}`, { cache: 'no-store' });
+      if (r.ok) return await r.text();
+    } else if (SERVED_OVER_HTTP) {
+      try {
+        const r = await fetch('specs/' + encodePath(path), { cache: 'no-store' });
+        if (r.ok) return await r.text();
+      } catch (e) {}
+    }
+    const baked = window.SPECS_DATA?.[path];
+    if (baked == null) throw new Error('cannot read ' + path + ' — start the API or re-run build-specs-index.mjs');
+    return baked;
+  };
+}
+
+function treeFromPaths(paths) {
+  const root = { children: [], byName: {} };
+  for (const path of paths) {
+    const parts = path.split('/');
+    let node = root;
+    parts.forEach((part, i) => {
+      const isFile = i === parts.length - 1;
+      const full = parts.slice(0, i + 1).join('/');
+      if (isFile) {
+        node.children.push({ name: part, type: 'file', path: full });
+      } else {
+        let dir = node.byName[part];
+        if (!dir) {
+          dir = { name: part, type: 'folder', path: full, children: [], byName: {} };
+          node.byName[part] = dir;
+          node.children.push(dir);
+        }
+        node = dir;
+      }
+    });
+  }
+  const strip = n => {
+    delete n.byName;
+    if (n.children) {
+      n.children.sort((a, b) => a.type !== b.type ? (a.type === 'folder' ? -1 : 1) : a.name.localeCompare(b.name));
+      n.children.forEach(strip);
+    }
+    return n;
+  };
+  return strip(root).children;
+}
+
+async function loadBuiltInSpecs() {
+  const apiFiles = await fetchSpecList();
+  specApiLive = !!apiFiles;
+  const files = apiFiles || window.SPECS_INDEX?.files;
+  if (!files?.length) {
+    showError('No specs available. Start Tools Manager (npm run dev in client/) or bake them: node open_api_viewer/build-specs-index.mjs');
+    return;
+  }
+  sourceMode = 'builtin';
+  dirHandle = null;
+  currentFileHandle = null;
+  clearInterval(pollTimer);
+  if (compareMode) toggleCompareMode();
+
+  fileHandles = {};
+  fileReaders = {};
+  for (const f of files) fileReaders[f.path] = builtInReader(f.path);
+  fileTree = treeFromPaths(files.map(f => f.path));
+
+  document.querySelector('.btn-builtin').classList.add('active');
+  document.getElementById('folder-name').textContent = `specs/ · ${files.length} specs · ${specApiLive ? 'live' : SERVED_OVER_HTTP ? 'static' : 'baked'}`;
+  document.getElementById('folder-name').style.display = 'block';
+  document.getElementById('live-status').style.display = (specApiLive || SERVED_OVER_HTTP) ? 'flex' : 'none';
+  document.getElementById('files-label').style.display = 'block';
+  document.getElementById('compare-toggle-btn').style.display = 'flex';
+  document.getElementById('welcome').style.display = 'none';
+  renderTree(fileTree);
+  startPolling();
+
+  // deep link: ?spec=<relative path inside specs/>
+  const wanted = new URLSearchParams(location.search).get('spec');
+  if (wanted && fileReaders[wanted]) await selectFile(wanted);
+  else showPickPrompt(files.length);
+}
+
+// Empty state for embedded mode, where the welcome screen is hidden.
+function showPickPrompt(total) {
+  const c = document.getElementById('content');
+  c.style.display = 'block';
+  c.innerHTML = `<div class="pick-prompt">
+    <div class="pick-icon">📄</div>
+    <div class="pick-title">Pick a spec</div>
+    <div class="pick-sub">${total} spec files from <code>open_api_viewer/specs</code>.
+      Select one on the left, or hit <b>Compare specs</b> to diff two of them.</div>
+  </div>`;
+  document.getElementById('pdf-btn').disabled = true;
+}
+
 // ─── POLLING (live reload) ────────────────────────
 function startPolling() {
   clearInterval(pollTimer);
   pollTimer = setInterval(async () => {
-    if (!currentFileHandle || compareMode) return;
+    if (compareMode || !currentReader) return;
     try {
-      const file = await currentFileHandle.getFile();
-      if (file.lastModified !== lastModified) {
-        await loadCurrentFile(true);
-        flashReload();
+      if (currentFileHandle) {
+        const file = await currentFileHandle.getFile();
+        if (file.lastModified === lastModified) return;
+      } else if (sourceMode === 'builtin' && (specApiLive || SERVED_OVER_HTTP)) {
+        if (await currentReader() === lastText) return;
+      } else {
+        return;   // baked file:// data never changes
       }
+      await loadCurrentFile(true);
+      flashReload();
     } catch (e) {}
   }, 800);
 }
@@ -1560,6 +1760,36 @@ if (window.matchMedia) {
     if (compareMode) return;
     if (globalSpec) renderSpec(globalSpec);
   });
+}
+// ─── SIDEBAR COLLAPSE ────────────────────────────
+const SIDEBAR_KEY = 'openapi-viewer-sidebar-collapsed';
+
+function applySidebarState(collapsed) {
+  document.body.classList.toggle('sidebar-collapsed', collapsed);
+  const top = document.getElementById('topbar-toggle');
+  top.textContent = collapsed ? '»' : '«';
+  top.title = (collapsed ? 'Show' : 'Hide') + ' spec list (Ctrl+B)';
+}
+
+function toggleSidebar() {
+  const collapsed = !document.body.classList.contains('sidebar-collapsed');
+  try { localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0'); } catch (e) {}
+  applySidebarState(collapsed);
+}
+
+try { applySidebarState(localStorage.getItem(SIDEBAR_KEY) === '1'); } catch (e) {}
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+    e.preventDefault();
+    toggleSidebar();
+  }
+});
+
+// Embedded in Tools Manager: skip the welcome screen, open bundled specs.
+if (new URLSearchParams(location.search).get('embed') === '1') {
+  document.body.classList.add('embedded');
+  loadBuiltInSpecs();
 }
 </script>
 </body>

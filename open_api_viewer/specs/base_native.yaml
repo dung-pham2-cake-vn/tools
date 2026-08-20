@@ -701,8 +701,9 @@ components:
               example: "350-399"
             partner_onboarding_channel:
               type: string
-              description: Kênh KH truy cập
-              example: "ZALO"
+              description: Kênh KH truy cập, truyền mặc định `APP_DEFAULT`
+              default: "APP_DEFAULT"
+              example: "APP_DEFAULT"
             partner_business_info:
               type: object
               nullable: true
@@ -1468,17 +1469,11 @@ components:
           type: string
         partner_service_name:
           type: string
-        installment_offer:
-          type: object
+        installment_tenor:
+          type: integer
           nullable: true
-          properties:
-            tenor:
-              type: number
-              description: Kỳ hạn (tháng)
-              example: 3
-            fee_rate:
-              type: number
-              example: 0.1
+          description: Kỳ hạn trả góp (tháng), lấy từ danh sách gói trả góp. Không truyền / null = thanh toán 1 lần, không trả góp.
+          example: 3
 
     PaymentRequestResponse:
       allOf:
@@ -3257,7 +3252,7 @@ x-mermaid-flows:
       end
 
       Note over P,C: BƯỚC 1 - TẠO YÊU CẦU THANH TOÁN DỊCH VỤ
-      P->>C: payment-request(loan_code, partner_reference_id, payment_amount, service_code, installment_offer?)
+      P->>C: payment-request(loan_code, partner_reference_id, payment_amount, service_code, installment_tenor?)
       C-->>P: order_id, payment_fee, challenge_level, challenge_id
 
       alt challenge_level = [1] None

@@ -241,8 +241,9 @@ components:
           example: "800-800"
         partner_onboarding_channel:
           type: string
-          description: Kênh KH truy cập
-          example: "ZALO"
+          description: Kênh KH truy cập, truyền mặc định `APP_DEFAULT`
+          default: "APP_DEFAULT"
+          example: "APP_DEFAULT"
 
     NfcData:
       type: object

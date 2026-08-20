@@ -256,8 +256,9 @@ components:
           example: "800-800"
         partner_onboarding_channel:
           type: string
-          description: Kênh KH truy cập
-          example: "ZALO"
+          description: Kênh KH truy cập, truyền mặc định `APP_DEFAULT`
+          default: "APP_DEFAULT"
+          example: "APP_DEFAULT"
 
     NfcData:
       type: object
@@ -458,7 +459,7 @@ components:
           example: "0xxxxxxxxx"
         order_id:
           type: string
-          description: order_id từ API /repayment-request
+          description: order_id trả về từ API /repayment-van
 
     RepaymentStatusResponse:
       allOf:
@@ -611,17 +612,11 @@ components:
           type: string
         partner_service_name:
           type: string
-        installment_offer:
-          type: object
+        installment_tenor:
+          type: integer
           nullable: true
-          properties:
-            tenor:
-              type: number
-              description: Kỳ hạn (tháng)
-              example: 3
-            fee_rate:
-              type: number
-              example: 0.1
+          description: Kỳ hạn trả góp (tháng), lấy từ danh sách gói trả góp. Không truyền / null = thanh toán 1 lần, không trả góp.
+          example: 3
 
     PaymentRequestResponse:
       allOf:
@@ -1293,6 +1288,7 @@ paths:
     post:
       tags: [ Repayment ]
       summary: Kiểm tra trạng thái thanh toán
+      description: Truy vấn trạng thái giao dịch thanh toán khoản vay theo `order_id` trả về từ API `/repayment-van`.
       operationId: repaymentStatus
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"

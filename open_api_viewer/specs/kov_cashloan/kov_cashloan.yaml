@@ -562,8 +562,9 @@ components:
               example: "350-399"
             partner_onboarding_channel:
               type: string
-              description: Kênh KH truy cập
-              example: "ZALO"
+              description: Kênh KH truy cập, truyền mặc định `APP_DEFAULT`
+              default: "APP_DEFAULT"
+              example: "APP_DEFAULT"
             partner_business_info:
               type: object
               nullable: true

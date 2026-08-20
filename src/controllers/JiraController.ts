@@ -33,6 +33,50 @@ export class JiraController {
     }
   }
 
+  async getAssignableUsers(req: Request, res: Response): Promise<void> {
+    try {
+      const { projectKeys } = req.query;
+      const keys =
+        typeof projectKeys === 'string'
+          ? projectKeys.split(',').map((k) => k.trim()).filter(Boolean)
+          : [];
+      if (!keys.length) {
+        res.status(400).json({ success: false, error: 'projectKeys is required' });
+        return;
+      }
+      const users = await jiraService.getAssignableUsers(keys);
+      res.status(200).json({ success: true, data: users });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async assignIssue(req: Request, res: Response): Promise<void> {
+    try {
+      const { issueKey } = req.params;
+      const { accountId } = req.body;
+      await jiraService.assignIssue(issueKey, accountId || null);
+      res.status(200).json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async setIssueFixVersions(req: Request, res: Response): Promise<void> {
+    try {
+      const { issueKey } = req.params;
+      const { versionIds } = req.body as { versionIds?: unknown };
+      if (!Array.isArray(versionIds) || versionIds.some((id) => typeof id !== 'string')) {
+        res.status(400).json({ success: false, error: 'versionIds must be an array of string' });
+        return;
+      }
+      await jiraService.setIssueFixVersions(issueKey, versionIds as string[]);
+      res.status(200).json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
   async getProjects(req: Request, res: Response): Promise<void> {
     try {
       const projects = await jiraService.getProjects();

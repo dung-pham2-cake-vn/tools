@@ -9,6 +9,7 @@ import {
   getSvkNotes,
   saveSvkNote,
   getSvkTickets,
+  getSvkHistoryTickets,
   scanSvk,
   svkAiStatus,
   svkAiRunAll,
@@ -22,6 +23,7 @@ router.get('/tickets', getTickets);
 router.get('/svk-notes', getSvkNotes);
 router.put('/svk-notes/:key', saveSvkNote);
 router.get('/svk/tickets', getSvkTickets);
+router.get('/svk/history', getSvkHistoryTickets);
 router.post('/svk/scan', scanSvk);
 router.get('/svk/ai-status', svkAiStatus);
 router.post('/svk/ai-run', svkAiRunAll);

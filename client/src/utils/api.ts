@@ -56,6 +56,7 @@ export const supportAPI = {
   saveSvkNote: (key: string, note: string) =>
     apiClient.put(`/support/svk-notes/${key}`, { note }),
   getSvkTickets: () => apiClient.get('/support/svk/tickets'),
+  getSvkHistory: () => apiClient.get('/support/svk/history'),
   scanSvk: () => apiClient.post('/support/svk/scan'),
   svkAiStatus: () => apiClient.get('/support/svk/ai-status'),
   svkAiRunAll: (force = false) => apiClient.post(`/support/svk/ai-run?force=${force}`),
@@ -115,4 +116,10 @@ export const jiraAPI = {
   transitionIssue: (issueKey: string, targetStatus: string) =>
     apiClient.post(`/jira/transition/${issueKey}`, { targetStatus }),
   getIssueTransitions: (issueKey: string) => apiClient.get(`/jira/issue/${issueKey}/transitions`),
+  getAssignableUsers: (projectKeys: string[]) =>
+    apiClient.get('/jira/assignable-users', { params: { projectKeys: projectKeys.join(',') } }),
+  assignIssue: (issueKey: string, accountId: string | null) =>
+    apiClient.put(`/jira/issue/${issueKey}/assignee`, { accountId }),
+  setIssueFixVersions: (issueKey: string, versionIds: string[]) =>
+    apiClient.put(`/jira/issue/${issueKey}/fix-versions`, { versionIds }),
 };

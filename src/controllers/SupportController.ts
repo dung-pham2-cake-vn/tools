@@ -7,6 +7,7 @@ import { analyzeTicketWithAI } from '../services/AIService';
 import {
   scanSvkTickets,
   getSvkTickets as fetchSvkTickets,
+  getSvkHistory as fetchSvkHistory,
   startPendingAiJob,
   getAiJobState,
   runAiForTicket,
@@ -17,6 +18,14 @@ export const getSvkTickets = async (_req: Request, res: Response) => {
     res.status(200).json(await fetchSvkTickets());
   } catch (error: any) {
     res.status(500).json({ message: 'Failed to fetch SVK tickets', error: error?.message });
+  }
+};
+
+export const getSvkHistoryTickets = async (_req: Request, res: Response) => {
+  try {
+    res.status(200).json(await fetchSvkHistory());
+  } catch (error: any) {
+    res.status(500).json({ message: 'Failed to fetch SVK history', error: error?.message });
   }
 };
 

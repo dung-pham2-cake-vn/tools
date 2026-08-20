@@ -43,7 +43,7 @@ export interface ISvkTicket extends Document {
   lastScanAt?: Date;
 }
 
-const CommentSchema = new Schema<ISvkComment>(
+export const CommentSchema = new Schema<ISvkComment>(
   {
     id: { type: String },
     author: { type: String, default: '' },
@@ -55,7 +55,7 @@ const CommentSchema = new Schema<ISvkComment>(
   { _id: false }
 );
 
-const LinkedPlSchema = new Schema<ILinkedPl>(
+export const LinkedPlSchema = new Schema<ILinkedPl>(
   {
     key: { type: String, required: true },
     summary: { type: String, default: '' },

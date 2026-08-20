@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { jiraService } from './JiraService';
 import { SvkTicket, ISvkTicket, ISvkComment } from '../models/SvkTicket';
+import { SvkHistory } from '../models/SvkHistory';
 import { SupportTicket } from '../models/SupportTicket';
 import { analyzeWithCustomPrompt } from './AIService';
 import { SVK_REVIEW_PROMPT } from './svkReviewPrompt';
@@ -99,6 +100,23 @@ function buildAiInputHash(doc: {
   return crypto.createHash('sha1').update(parts.join('##')).digest('hex');
 }
 
+/**
+ * Mirror a freshly loaded ticket into the history log: overwrite the snapshot,
+ * bump the load counter, keep the original first-load timestamp.
+ */
+async function recordHistory(snapshot: Record<string, any>, keepAi: { aiResult: string; aiError: string; aiRunAt?: Date } | null) {
+  const now = new Date();
+  await SvkHistory.updateOne(
+    { key: snapshot.key },
+    {
+      $set: { ...snapshot, ...(keepAi || { aiResult: '', aiError: '', aiRunAt: undefined }), lastLoadedAt: now },
+      $inc: { loadCount: 1 },
+      $setOnInsert: { firstLoadedAt: now },
+    },
+    { upsert: true }
+  );
+}
+
 export const scanSvkTickets = async (): Promise<{ total: number; pendingAi: number }> => {
   const svkIssues = await fetchAllPages(SVK_JQL, SVK_FIELDS);
 
@@ -164,7 +182,7 @@ export const scanSvkTickets = async (): Promise<{ total: number; pendingAi: numb
     const description = adfToText(f.description);
     const aiInputHash = buildAiInputHash({ description, comments, linkedPl });
 
-    const existing = await SvkTicket.findOne({ key: svk.key }).select('aiInputHash aiResult').lean();
+    const existing = await SvkTicket.findOne({ key: svk.key }).select('aiInputHash aiResult aiError aiRunAt').lean();
     const needsAi = !existing || existing.aiInputHash !== aiInputHash || !existing.aiResult;
     if (needsAi) pendingAi++;
 
@@ -190,6 +208,27 @@ export const scanSvkTickets = async (): Promise<{ total: number; pendingAi: numb
         ...(needsAi ? { aiResult: '', aiError: '' } : {}),
       },
       { upsert: true, new: true }
+    );
+
+    // history keeps this snapshot even after the ticket leaves the JQL; a still-valid
+    // AI result is carried over, a stale one is cleared like on the live ticket
+    await recordHistory(
+      {
+        jiraId: svk.id,
+        key: svk.key,
+        summary: f.summary || '',
+        status: f.normalizedStatusName || f.status?.name || '',
+        priority: f.normalizedPriorityName || f.priority?.name || '',
+        created: f.created || '',
+        updated: f.updated || '',
+        hyperlink: `${SVK_PORTAL_BASE}/${svk.key}`,
+        description,
+        descriptionAdf: f.description ?? null,
+        comments,
+        linkedPlKeys: plKeys,
+        linkedPl,
+      },
+      needsAi ? null : { aiResult: existing!.aiResult || '', aiError: existing!.aiError || '', aiRunAt: existing!.aiRunAt }
     );
 
     // kick AI off right away — don't wait for the rest of the scan
@@ -317,6 +356,10 @@ export const runAiForTicket = async (key: string): Promise<string> => {
   doc.aiError = '';
   doc.aiRunAt = new Date();
   await doc.save();
+  await SvkHistory.updateOne(
+    { key },
+    { $set: { aiResult: result, aiError: '', aiRunAt: doc.aiRunAt } }
+  ).catch(() => {});
   return result;
 };
 
@@ -419,3 +462,6 @@ export const startPendingAiJob = async (force = false): Promise<AiJobState> => {
 
 export const getSvkTickets = async () =>
   SvkTicket.find().sort({ created: -1 }).lean();
+
+export const getSvkHistory = async () =>
+  SvkHistory.find().sort({ lastLoadedAt: -1 }).lean();

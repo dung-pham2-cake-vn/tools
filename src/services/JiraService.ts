@@ -217,6 +217,56 @@ export class JiraService {
     }
   }
 
+  /** Users assignable across the given projects — dùng cho dropdown đổi assignee hàng loạt. */
+  async getAssignableUsers(projectKeys: string[]): Promise<Array<{ accountId: string; displayName: string }>> {
+    try {
+      const response = await this.axiosInstance.get('/user/assignable/multiProjectSearch', {
+        params: { projectKeys: projectKeys.join(','), maxResults: 1000 },
+      });
+      return ((response.data || []) as Array<Record<string, any>>)
+        .filter((u) => u.accountId && u.active !== false)
+        .map((u) => ({ accountId: u.accountId, displayName: u.displayName || u.emailAddress || u.accountId }))
+        .sort((a, b) => a.displayName.localeCompare(b.displayName));
+    } catch (error) {
+      console.error('Error fetching assignable users:', this.formatAxiosError(error));
+      throw error;
+    }
+  }
+
+  /** accountId = null để bỏ assign. */
+  async assignIssue(issueKey: string, accountId: string | null): Promise<void> {
+    try {
+      await this.axiosInstance.put(`/issue/${issueKey}/assignee`, { accountId });
+    } catch (error) {
+      const detail = this.formatAxiosError(error);
+      console.error(`Error assigning Jira issue ${issueKey}:`, detail);
+      // "Request failed with status code 404" vô nghĩa khi đổi hàng loạt — đẩy message thật của Jira ra
+      const reason =
+        detail.errorMessages?.join('; ') ||
+        (detail.errors ? Object.values(detail.errors).join('; ') : '') ||
+        detail.message;
+      throw new Error(reason);
+    }
+  }
+
+  /** Ghi đè fixVersions của issue. Mảng rỗng = xoá hết fix version. */
+  async setIssueFixVersions(issueKey: string, versionIds: string[]): Promise<void> {
+    try {
+      await this.axiosInstance.put(`/issue/${issueKey}`, {
+        fields: { fixVersions: versionIds.map((id) => ({ id })) },
+      });
+    } catch (error) {
+      const detail = this.formatAxiosError(error);
+      console.error(`Error setting fixVersions for ${issueKey}:`, detail);
+      // Jira trả 400 kèm lý do thật (version thuộc project khác, field không có trên screen...)
+      const reason =
+        detail.errorMessages?.join('; ') ||
+        (detail.errors ? Object.values(detail.errors).join('; ') : '') ||
+        detail.message;
+      throw new Error(reason);
+    }
+  }
+
   async getIssueTransitions(issueKey: string): Promise<Array<{ id: string; name: string; to?: { name?: string } }>> {
     try {
       const response = await this.axiosInstance.get(`/issue/${issueKey}/transitions`);
@@ -385,9 +435,15 @@ export class JiraService {
 
   private async getFieldDefinitions(): Promise<JiraFieldDefinition[]> {
     if (!this.fieldDefinitionsPromise) {
+      // a rejected promise must not stay cached — otherwise one transient network error
+      // makes every later call fail instantly with the same stale error until restart
       this.fieldDefinitionsPromise = this.axiosInstance
         .get('/field')
-        .then((response) => response.data as JiraFieldDefinition[]);
+        .then((response) => response.data as JiraFieldDefinition[])
+        .catch((error) => {
+          this.fieldDefinitionsPromise = null;
+          throw error;
+        });
     }
 
     return this.fieldDefinitionsPromise;

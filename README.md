@@ -53,7 +53,7 @@ Server sẽ chạy tại `http://localhost:3000`
 ## Lệnh
 
 - `npm run dev` - Khởi động development server với hot-reload
-- `npm run dev:all` - Khởi động development server&client với hot-reload
+- `npm run dev:all` - Khởi động development server&client với hot-reload (backend `:3002`, frontend `:3456`)
 - `npm run build` - Build project sang folder dist
 - `npm start` - Khởi động server production
 - `npm run lint` - Chạy ESLint

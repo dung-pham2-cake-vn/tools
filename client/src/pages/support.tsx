@@ -140,6 +140,12 @@ interface SvkTicketDoc {
   lastScanAt?: string;
 }
 
+interface SvkHistoryDoc extends SvkTicketDoc {
+  firstLoadedAt?: string;
+  lastLoadedAt?: string;
+  loadCount?: number;
+}
+
 interface AiJobState {
   running: boolean;
   total: number;
@@ -811,7 +817,9 @@ const SvkDetailPanel: React.FC<{
   row: SvkRow;
   onClose: () => void;
   onAiUpdated: (key: string, aiResult: string) => void;
-}> = ({ row, onClose, onAiUpdated }) => {
+  /** history rows may point at a ticket no longer in the live collection — AI can't re-run there */
+  allowAiRerun?: boolean;
+}> = ({ row, onClose, onAiUpdated, allowAiRerun = true }) => {
   const { doc } = row;
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -923,16 +931,18 @@ const SvkDetailPanel: React.FC<{
               </span>
             }
           >
-            <div className="flex items-center gap-2 mb-3">
-              <button
-                onClick={handleRerun}
-                disabled={running}
-                className="text-xs px-3 py-1.5 bg-violet-600 text-white rounded hover:bg-violet-700 disabled:opacity-50"
-              >
-                {running ? '⏳ Đang chạy...' : doc.aiResult ? '↻ Chạy lại AI' : '✦ Chạy AI'}
-              </button>
-              {error && <span className="text-xs text-red-600">✗ {error}</span>}
-            </div>
+            {allowAiRerun && (
+              <div className="flex items-center gap-2 mb-3">
+                <button
+                  onClick={handleRerun}
+                  disabled={running}
+                  className="text-xs px-3 py-1.5 bg-violet-600 text-white rounded hover:bg-violet-700 disabled:opacity-50"
+                >
+                  {running ? '⏳ Đang chạy...' : doc.aiResult ? '↻ Chạy lại AI' : '✦ Chạy AI'}
+                </button>
+                {error && <span className="text-xs text-red-600">✗ {error}</span>}
+              </div>
+            )}
             {doc.aiResult ? (
               <MarkdownLite text={doc.aiResult} />
             ) : doc.aiError ? (
@@ -1335,8 +1345,171 @@ const SVKTicketsTab: React.FC = () => {
   );
 };
 
+// ── SVK History tab ──────────────────────────────────────────────────────────
+// Every SVK ticket ever loaded, kept even after it drops out of the scan JQL.
+// A re-load overwrites the stored snapshot, so this is always "last known state".
+const SvkHistoryTab: React.FC = () => {
+  const [docs, setDocs] = useState<SvkHistoryDoc[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<'lastLoadedAt' | 'firstLoadedAt' | 'created'>('lastLoadedAt');
+
+  useEffect(() => {
+    supportAPI.getSvkNotes().then((res) => setNotes(res.data || {})).catch(() => {});
+    supportAPI
+      .getSvkHistory()
+      .then((res) => setDocs(res.data || []))
+      .catch((err) => setError(err?.response?.data?.message || err?.message || 'Load failed'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleNoteChange = (key: string, note: string) =>
+    setNotes((prev) => ({ ...prev, [key]: note }));
+
+  const q = query.trim().toLowerCase();
+  const filtered = docs.filter((d) =>
+    !q ||
+    d.key.toLowerCase().includes(q) ||
+    (d.summary || '').toLowerCase().includes(q) ||
+    (d.linkedPlKeys || []).some((k) => k.toLowerCase().includes(q))
+  );
+
+  const ts = (v?: string) => (v ? new Date(v).getTime() : 0);
+  const sorted = [...filtered].sort((a, b) =>
+    sort === 'created' ? ts(b.created) - ts(a.created) : ts(b[sort]) - ts(a[sort])
+  );
+
+  const selectedDoc = sorted.find((d) => d.key === selectedKey) || null;
+  const selectedRow: SvkRow | null = selectedDoc ? buildRows([selectedDoc])[0] : null;
+
+  const fmt = (v?: string) => (v ? new Date(v).toLocaleString('vi-VN') : '—');
+
+  return (
+    <>
+      {selectedRow && (
+        <SvkDetailPanel
+          row={selectedRow}
+          onClose={() => setSelectedKey(null)}
+          onAiUpdated={() => {}}
+          allowAiRerun={false}
+        />
+      )}
+
+      <div className="bg-white rounded-lg shadow p-4 mb-4 flex items-center gap-3 flex-wrap">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Tìm theo SVK key, tiêu đề, PL key..."
+          className="text-sm border border-gray-300 rounded px-3 py-1.5 w-72 focus:outline-none focus:ring-1 focus:ring-blue-400"
+        />
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value as typeof sort)}
+          className="text-sm border border-gray-300 rounded px-2 py-1.5"
+        >
+          <option value="lastLoadedAt">Sắp xếp: Load gần nhất</option>
+          <option value="firstLoadedAt">Sắp xếp: Load đầu tiên</option>
+          <option value="created">Sắp xếp: Ngày tạo ticket</option>
+        </select>
+        {!loading && (
+          <span className="text-sm text-gray-600">
+            {sorted.length}/{docs.length} ticket đã lưu
+          </span>
+        )}
+        {error && <span className="text-sm text-red-600">✗ {error}</span>}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-gray-500">Loading...</p>
+      ) : docs.length === 0 ? (
+        <p className="text-sm text-gray-500">
+          Chưa có lịch sử. Mỗi lần Scan ở tab SVK Tickets sẽ lưu ticket vào đây.
+        </p>
+      ) : (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                <tr>
+                  <th className="px-3 py-3 text-left w-[100px]">Ticket SVK</th>
+                  <th className="px-3 py-3 text-left">Tiêu đề</th>
+                  <th className="px-3 py-3 text-left w-[110px]">PL Linked</th>
+                  <th className="px-3 py-3 text-left w-[130px]">TT SVK</th>
+                  <th className="px-3 py-3 text-left w-[150px]">Ngày tạo</th>
+                  <th className="px-3 py-3 text-left w-[150px]">Load đầu tiên</th>
+                  <th className="px-3 py-3 text-left w-[150px]">Load gần nhất</th>
+                  <th className="px-3 py-3 text-center w-[70px]">Số lần</th>
+                  <th className="px-3 py-3 text-left w-[220px]">Note</th>
+                  <th className="px-3 py-3 text-center w-[90px]">Detail</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((doc) => (
+                  <tr key={doc.key} className="border-t border-gray-100 hover:bg-gray-50 align-top">
+                    <td className="px-3 py-3 font-mono text-xs whitespace-nowrap">
+                      <a href={doc.hyperlink} target="_blank" rel="noopener noreferrer" onClick={cmdClick} className="text-blue-600 hover:underline cursor-default">
+                        {doc.key}
+                      </a>
+                    </td>
+                    <td className="px-3 py-3 text-xs text-gray-700">{doc.summary || '—'}</td>
+                    <td className="px-3 py-3">
+                      {(doc.linkedPlKeys || []).length === 0 ? (
+                        <span className="text-gray-400 text-xs">—</span>
+                      ) : (
+                        <div className="space-y-1">
+                          {doc.linkedPlKeys.map((key) => (
+                            <a key={key} href={`${JIRA_BASE}/browse/${key}`} target="_blank" rel="noopener noreferrer" onClick={cmdClick} className="block font-mono text-xs text-blue-600 hover:underline cursor-default">
+                              {key}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusBadge(doc.status)}`}>
+                        {doc.status || '—'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{fmt(doc.created)}</td>
+                    <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{fmt(doc.firstLoadedAt)}</td>
+                    <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{fmt(doc.lastLoadedAt)}</td>
+                    <td className="px-3 py-3 text-center text-xs text-gray-700">{doc.loadCount ?? 0}</td>
+                    <td className="px-3 py-3 align-top">
+                      <NoteCell svkKey={doc.key} value={notes[doc.key] || ''} onChange={handleNoteChange} />
+                    </td>
+                    <td className="px-3 py-3 text-center whitespace-nowrap">
+                      <button
+                        onClick={() => setSelectedKey(doc.key)}
+                        className="text-xs px-2.5 py-1.5 border border-gray-300 rounded hover:bg-gray-100 text-gray-700"
+                      >
+                        Detail
+                      </button>
+                      <div className="mt-1 text-[10px] leading-3">
+                        {doc.aiResult ? (
+                          <span className="text-violet-600" title="Đã có kết quả AI">✦ AI</span>
+                        ) : doc.aiError ? (
+                          <span className="text-red-500" title={doc.aiError}>✗ AI</span>
+                        ) : (
+                          <span className="text-gray-300">✦ AI</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
 // ── Page ──────────────────────────────────────────────────────────────────────
-type Tab = 'svk' | 'pl' | 'scan';
+type Tab = 'svk' | 'history' | 'pl' | 'scan';
 
 const Support: React.FC = () => {
   const [tab, setTab] = useState<Tab>('svk');
@@ -1347,7 +1520,7 @@ const Support: React.FC = () => {
 
       {/* sub-menu */}
       <div className="flex gap-1 mb-6 border-b border-gray-200">
-        {([['svk', 'SVK Tickets'], ['pl', 'PL Tickets'], ['scan', 'Scan']] as [Tab, string][]).map(([key, label]) => (
+        {([['svk', 'SVK Tickets'], ['history', 'Lịch sử SVK'], ['pl', 'PL Tickets'], ['scan', 'Scan']] as [Tab, string][]).map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -1362,7 +1535,15 @@ const Support: React.FC = () => {
         ))}
       </div>
 
-      {tab === 'svk' ? <SVKTicketsTab /> : tab === 'scan' ? <ScanTab /> : <SavedTicketsTab />}
+      {tab === 'svk' ? (
+        <SVKTicketsTab />
+      ) : tab === 'history' ? (
+        <SvkHistoryTab />
+      ) : tab === 'scan' ? (
+        <ScanTab />
+      ) : (
+        <SavedTicketsTab />
+      )}
     </div>
   );
 };

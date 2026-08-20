@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { jiraService, SprintCreatePayload } from '../services/JiraService';
+import { jiraService, SprintCreatePayload, VersionCreatePayload } from '../services/JiraService';
 import { taskService } from '../services/TaskService';
 
 export class JiraController {
@@ -154,6 +154,46 @@ export class JiraController {
       const { projectKeyOrId } = req.params;
       const versions = await jiraService.getProjectVersions(projectKeyOrId);
       res.status(200).json({ success: true, data: versions });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async suggestProjectVersions(req: Request, res: Response): Promise<void> {
+    try {
+      const { projectKeyOrId } = req.params;
+      const { count, boardId } = req.query;
+      const result = await jiraService.suggestVersions(
+        projectKeyOrId,
+        count ? Number(count) : 5,
+        boardId ? Number(boardId) : undefined
+      );
+      res.status(200).json({ success: true, data: result });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async createProjectVersions(req: Request, res: Response): Promise<void> {
+    try {
+      const { projectKeyOrId } = req.params;
+      const { versions } = req.body as { versions?: VersionCreatePayload[] };
+      if (!Array.isArray(versions) || versions.length === 0) {
+        res.status(400).json({ success: false, error: 'versions must be a non-empty array' });
+        return;
+      }
+      const invalid = versions.find((version) => !version?.name || !String(version.name).trim());
+      if (invalid) {
+        res.status(400).json({ success: false, error: 'every version needs a name' });
+        return;
+      }
+
+      const results = await jiraService.createVersions(projectKeyOrId, versions);
+      const created = results.filter((result) => result.success).length;
+      res.status(200).json({
+        success: results.every((result) => result.success),
+        data: { created, failed: results.length - created, results },
+      });
     } catch (error: any) {
       res.status(400).json({ success: false, error: error.message });
     }

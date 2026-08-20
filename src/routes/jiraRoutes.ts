@@ -15,11 +15,15 @@ router.get('/boards', (req, res) => jiraController.getBoards(req, res));
 router.get('/boards/:boardId/sprints', (req, res) => jiraController.getBoardSprints(req, res));
 router.get('/boards/:boardId/sprints/suggest', (req, res) => jiraController.suggestBoardSprints(req, res));
 router.get('/projects/:projectKeyOrId/versions', (req, res) => jiraController.getProjectVersions(req, res));
+router.get('/projects/:projectKeyOrId/versions/suggest', (req, res) => jiraController.suggestProjectVersions(req, res));
 
 // Jira sync endpoints
 router.post('/sync/:jiraKey', (req, res) => jiraController.syncTaskFromJira(req, res));
 router.post('/create', (req, res) => jiraController.createJiraIssue(req, res));
 router.post('/transition/:issueKey', (req, res) => jiraController.transitionIssue(req, res));
+
+// Fix version creation endpoints
+router.post('/projects/:projectKeyOrId/versions', (req, res) => jiraController.createProjectVersions(req, res));
 
 // Sprint creation endpoints
 router.post('/sprints', (req, res) => jiraController.createSprint(req, res));

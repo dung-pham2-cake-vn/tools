@@ -120,6 +120,49 @@ export interface SprintSuggestionResult {
   suggestions: SprintSuggestion[];
 }
 
+export interface JiraVersion {
+  id: string;
+  name: string;
+  description?: string;
+  released?: boolean;
+  archived?: boolean;
+  startDate?: string;
+  releaseDate?: string;
+  projectId?: number;
+}
+
+export interface VersionCreatePayload {
+  name: string;
+  /** YYYY-MM-DD */
+  startDate?: string;
+  /** YYYY-MM-DD */
+  releaseDate?: string;
+  description?: string;
+}
+
+export interface VersionSuggestion {
+  name: string;
+  number: number | null;
+  startDate: string;
+  releaseDate: string;
+  exists: boolean;
+  fromSprint: boolean;
+}
+
+export interface VersionSuggestionResult {
+  projectKey: string;
+  cadenceDays: number;
+  lastVersion: JiraVersion | null;
+  suggestions: VersionSuggestion[];
+}
+
+export interface VersionCreateResult {
+  name: string;
+  success: boolean;
+  version?: JiraVersion;
+  error?: string;
+}
+
 export interface SprintCreateResult {
   name: string;
   success: boolean;
@@ -151,6 +194,12 @@ export const jiraAPI = {
     apiClient.get(`/jira/boards/${boardId}/sprints/suggest`, { params: { count } }),
   createSprints: (sprints: SprintCreatePayload[]) => apiClient.post('/jira/sprints/bulk', { sprints }),
   getProjectVersions: (projectKeyOrId: string) => apiClient.get(`/jira/projects/${projectKeyOrId}/versions`),
+  suggestProjectVersions: (projectKeyOrId: string, count = 5, boardId?: number) =>
+    apiClient.get(`/jira/projects/${projectKeyOrId}/versions/suggest`, {
+      params: { count, ...(boardId ? { boardId } : {}) },
+    }),
+  createProjectVersions: (projectKeyOrId: string, versions: VersionCreatePayload[]) =>
+    apiClient.post(`/jira/projects/${projectKeyOrId}/versions`, { versions }),
   syncTask: (jiraKey: string) => apiClient.post(`/jira/sync/${jiraKey}`),
   createIssue: (data: any) => apiClient.post('/jira/create', data),
   transitionIssue: (issueKey: string, targetStatus: string) =>

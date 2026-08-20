@@ -1,38 +1,38 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { jiraAPI } from '@/utils/api';
 import type {
-  SprintCreatePayload,
-  SprintCreateResult,
-  SprintSuggestionResult,
+  VersionCreatePayload,
+  VersionCreateResult,
+  VersionSuggestionResult,
 } from '@/utils/api';
 
 const JIRA_BASE = 'https://cakedigitalbank.atlassian.net';
 const DEFAULT_COUNT = 5;
-const UTC7_MS = 7 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-interface BoardOption {
+interface ProjectOption {
   key: string;
+  projectKey: string;
   boardId: number;
   label: string;
-  projectKey: string;
   hint: string;
 }
 
-// Board scrum sở hữu sprint. Sprint name pattern lấy từ chính sprint cuối của board, không hardcode.
-const BOARDS: BoardOption[] = [
+// Fix version ở đây luôn trùng tên sprint, nên boardId dùng để lấy đúng ngày của sprint.
+const PROJECTS: ProjectOption[] = [
   {
     key: 'PL',
+    projectKey: 'PL',
     boardId: 4,
     label: 'PL — Lending',
-    projectKey: 'PL',
-    hint: 'Board "Lending: All teams" · sprint đặt tên "Sprint N - Lending"',
+    hint: 'Fix version đặt tên "Sprint N - Lending", ngày lấy từ sprint cùng tên trên board Lending',
   },
   {
     key: 'DOP',
+    projectKey: 'DOP',
     boardId: 51,
     label: 'DOP',
-    projectKey: 'DOP',
-    hint: 'Board "DOP: All teams" · sprint đặt tên "Sprint N - DOP"',
+    hint: 'Fix version đặt tên theo version cuối của project DOP, ngày lấy từ sprint cùng tên',
   },
 ];
 
@@ -40,96 +40,70 @@ interface DraftRow {
   id: string;
   selected: boolean;
   name: string;
-  /** datetime-local value, giờ UTC+7 */
+  /** YYYY-MM-DD */
   start: string;
-  end: string;
-  goal: string;
+  release: string;
+  description: string;
   exists: boolean;
+  fromSprint: boolean;
 }
 
-/** ISO (UTC) -> value cho input datetime-local, hiển thị theo giờ UTC+7. */
-function isoToLocalInput(iso: string): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return new Date(d.getTime() + UTC7_MS).toISOString().slice(0, 16);
+function durationDays(start: string, release: string): number | null {
+  if (!start || !release) return null;
+  const from = new Date(`${start}T00:00:00.000Z`).getTime();
+  const to = new Date(`${release}T00:00:00.000Z`).getTime();
+  if (Number.isNaN(from) || Number.isNaN(to)) return null;
+  return Math.round((to - from) / DAY_MS);
 }
 
-/** value datetime-local (giờ UTC+7) -> ISO UTC gửi lên Jira. */
-function localInputToIso(value: string): string {
-  if (!value) return '';
-  const asUtc = new Date(`${value}:00.000Z`);
-  if (Number.isNaN(asUtc.getTime())) return '';
-  return new Date(asUtc.getTime() - UTC7_MS).toISOString();
+function formatDate(value?: string): string {
+  return value ? value : '—';
 }
 
-function formatUtc7(iso?: string): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return new Date(d.getTime() + UTC7_MS).toISOString().slice(0, 16).replace('T', ' ');
-}
-
-function durationDays(startLocal: string, endLocal: string): number | null {
-  if (!startLocal || !endLocal) return null;
-  const start = new Date(`${startLocal}:00.000Z`).getTime();
-  const end = new Date(`${endLocal}:00.000Z`).getTime();
-  if (Number.isNaN(start) || Number.isNaN(end)) return null;
-  return Math.round(((end - start) / (24 * 60 * 60 * 1000)) * 10) / 10;
-}
-
-function stateBadgeClass(state?: string): string {
-  if (state === 'active') return 'bg-green-100 text-green-700 border-green-200';
-  if (state === 'future') return 'bg-blue-100 text-blue-700 border-blue-200';
-  return 'bg-gray-100 text-gray-600 border-gray-200';
-}
-
-const CreateSprintPage: React.FC = () => {
-  const [board, setBoard] = useState<BoardOption>(BOARDS[0]);
+const FixVersionsPage: React.FC = () => {
+  const [project, setProject] = useState<ProjectOption>(PROJECTS[0]);
   const [count, setCount] = useState(DEFAULT_COUNT);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [meta, setMeta] = useState<SprintSuggestionResult | null>(null);
+  const [meta, setMeta] = useState<VersionSuggestionResult | null>(null);
   const [rows, setRows] = useState<DraftRow[]>([]);
-  const [dryRun, setDryRun] = useState<SprintCreatePayload[] | null>(null);
+  const [dryRun, setDryRun] = useState<VersionCreatePayload[] | null>(null);
   const [creating, setCreating] = useState(false);
-  const [results, setResults] = useState<SprintCreateResult[] | null>(null);
+  const [results, setResults] = useState<VersionCreateResult[] | null>(null);
 
-  const load = useCallback(
-    async (target: BoardOption, howMany: number) => {
-      setLoading(true);
-      setError(null);
-      setDryRun(null);
-      setResults(null);
-      try {
-        const response = await jiraAPI.suggestBoardSprints(target.boardId, howMany);
-        const data: SprintSuggestionResult = response.data.data;
-        setMeta(data);
-        setRows(
-          data.suggestions.map((suggestion, index) => ({
-            id: `${target.boardId}-${suggestion.name}-${index}`,
-            selected: !suggestion.exists,
-            name: suggestion.name,
-            start: isoToLocalInput(suggestion.startDate),
-            end: isoToLocalInput(suggestion.endDate),
-            goal: '',
-            exists: suggestion.exists,
-          }))
-        );
-      } catch (err: any) {
-        setError(err?.response?.data?.error || err?.message || 'Không tải được đề xuất sprint');
-        setMeta(null);
-        setRows([]);
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
+  const load = useCallback(async (target: ProjectOption, howMany: number) => {
+    setLoading(true);
+    setError(null);
+    setDryRun(null);
+    setResults(null);
+    try {
+      const response = await jiraAPI.suggestProjectVersions(target.projectKey, howMany, target.boardId);
+      const data: VersionSuggestionResult = response.data.data;
+      setMeta(data);
+      setRows(
+        data.suggestions.map((suggestion, index) => ({
+          id: `${target.projectKey}-${suggestion.name}-${index}`,
+          selected: !suggestion.exists,
+          name: suggestion.name,
+          start: suggestion.startDate,
+          release: suggestion.releaseDate,
+          description: '',
+          exists: suggestion.exists,
+          fromSprint: suggestion.fromSprint,
+        }))
+      );
+    } catch (err: any) {
+      setError(err?.response?.data?.error || err?.message || 'Không tải được đề xuất fix version');
+      setMeta(null);
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    load(board, count);
-  }, [board, count, load]);
+    load(project, count);
+  }, [project, count, load]);
 
   const patchRow = (id: string, patch: Partial<DraftRow>) => {
     setRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
@@ -145,28 +119,28 @@ const CreateSprintPage: React.FC = () => {
 
     selectedRows.forEach((row) => {
       const name = row.name.trim();
-      if (!name) problems.push('Có sprint chưa đặt tên');
+      if (!name) problems.push('Có fix version chưa đặt tên');
       if (seen.has(name.toLowerCase())) problems.push(`Trùng tên trong danh sách: ${name}`);
       seen.add(name.toLowerCase());
-      if (!row.start || !row.end) {
-        problems.push(`${name || 'Sprint'}: thiếu ngày bắt đầu/kết thúc`);
+      if (row.exists) problems.push(`${name}: đã tồn tại trên project — bỏ chọn dòng này`);
+      if (!row.start || !row.release) {
+        problems.push(`${name || 'Fix version'}: thiếu ngày bắt đầu/release`);
         return;
       }
-      if (new Date(`${row.end}:00.000Z`) <= new Date(`${row.start}:00.000Z`)) {
-        problems.push(`${name}: ngày kết thúc phải sau ngày bắt đầu`);
+      if (new Date(`${row.release}T00:00:00.000Z`) <= new Date(`${row.start}T00:00:00.000Z`)) {
+        problems.push(`${name}: ngày release phải sau ngày bắt đầu`);
       }
     });
 
     return Array.from(new Set(problems));
   }, [selectedRows]);
 
-  const buildPayloads = (): SprintCreatePayload[] =>
+  const buildPayloads = (): VersionCreatePayload[] =>
     selectedRows.map((row) => ({
       name: row.name.trim(),
-      originBoardId: board.boardId,
-      startDate: localInputToIso(row.start),
-      endDate: localInputToIso(row.end),
-      ...(row.goal.trim() ? { goal: row.goal.trim() } : {}),
+      startDate: row.start,
+      releaseDate: row.release,
+      ...(row.description.trim() ? { description: row.description.trim() } : {}),
     }));
 
   const handleDryRun = () => {
@@ -177,19 +151,19 @@ const CreateSprintPage: React.FC = () => {
   const handleCreate = async () => {
     const payloads = dryRun ?? buildPayloads();
     const confirmed = window.confirm(
-      `Tạo ${payloads.length} sprint trên board "${board.label}" (id ${board.boardId})?\n\n` +
-        payloads.map((p) => `• ${p.name}`).join('\n')
+      `Tạo ${payloads.length} fix version trên project "${project.projectKey}"?\n\n` +
+        payloads.map((p) => `• ${p.name} (${p.startDate} → ${p.releaseDate})`).join('\n')
     );
     if (!confirmed) return;
 
     setCreating(true);
     setError(null);
     try {
-      const response = await jiraAPI.createSprints(payloads);
-      setResults(response.data.data.results as SprintCreateResult[]);
-      await load(board, count);
+      const response = await jiraAPI.createProjectVersions(project.projectKey, payloads);
+      setResults(response.data.data.results as VersionCreateResult[]);
+      await load(project, count);
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || 'Tạo sprint thất bại');
+      setError(err?.response?.data?.error || err?.message || 'Tạo fix version thất bại');
     } finally {
       setCreating(false);
     }
@@ -203,17 +177,17 @@ const CreateSprintPage: React.FC = () => {
     <div>
       <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Tạo Sprint</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Tạo Fix Version</h1>
           <p className="text-gray-500 mt-1 text-sm">
-            Đề xuất {count} sprint kế tiếp cho board, chu kỳ{' '}
-            <span className="font-semibold">{meta?.cadenceDays ?? 14} ngày</span> tính từ sprint cuối của
-            chính board đó — sprint mới bắt đầu <span className="font-semibold">1 ngày sau</span> khi
-            sprint trước kết thúc. Ngày giờ hiển thị theo <span className="font-semibold">UTC+7</span> và
-            sửa được trước khi tạo.
+            Đề xuất {count} fix version kế tiếp cho project, suy ra từ version cuối. Nếu sprint cùng tên
+            đã có trên board thì <span className="font-semibold">lấy đúng ngày của sprint</span>, nếu chưa
+            thì nối tiếp theo chu kỳ{' '}
+            <span className="font-semibold">{meta?.cadenceDays ?? 14} ngày</span>. Ngày sửa được trước khi
+            tạo.
           </p>
         </div>
         <button
-          onClick={() => load(board, count)}
+          onClick={() => load(project, count)}
           disabled={loading || creating}
           className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors shrink-0"
         >
@@ -223,15 +197,15 @@ const CreateSprintPage: React.FC = () => {
 
       <div className="bg-white rounded-lg shadow-md p-4 mb-4 flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-gray-700">Board</span>
+          <span className="text-sm font-semibold text-gray-700">Project</span>
           <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-            {BOARDS.map((option) => (
+            {PROJECTS.map((option) => (
               <button
                 key={option.key}
-                onClick={() => setBoard(option)}
+                onClick={() => setProject(option)}
                 disabled={creating}
                 className={`px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
-                  option.boardId === board.boardId
+                  option.projectKey === project.projectKey
                     ? 'bg-blue-600 text-white'
                     : 'bg-white text-gray-600 hover:bg-gray-50'
                 }`}
@@ -243,7 +217,7 @@ const CreateSprintPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-gray-700">Số sprint</span>
+          <span className="text-sm font-semibold text-gray-700">Số version</span>
           <select
             value={count}
             onChange={(event) => setCount(Number(event.target.value))}
@@ -258,7 +232,7 @@ const CreateSprintPage: React.FC = () => {
           </select>
         </div>
 
-        <span className="text-xs text-gray-500">{board.hint}</span>
+        <span className="text-xs text-gray-500">{project.hint}</span>
       </div>
 
       {error && (
@@ -267,26 +241,28 @@ const CreateSprintPage: React.FC = () => {
         </div>
       )}
 
-      {meta?.lastSprint && (
+      {meta?.lastVersion && (
         <div className="mb-4 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 flex flex-wrap items-center gap-2">
-          <span className="font-semibold">Sprint cuối trên board:</span>
+          <span className="font-semibold">Version cuối trên project:</span>
           <a
-            href={`${JIRA_BASE}/jira/software/c/projects/${board.projectKey}/boards/${board.boardId}/backlog`}
+            href={`${JIRA_BASE}/projects/${project.projectKey}?selectedItem=com.atlassian.jira.jira-projects-plugin:release-page`}
             target="_blank"
             rel="noreferrer"
             className="text-blue-600 hover:underline font-semibold"
           >
-            {meta.lastSprint.name}
+            {meta.lastVersion.name}
           </a>
           <span
-            className={`px-2 py-0.5 rounded-full border text-xs font-semibold ${stateBadgeClass(
-              meta.lastSprint.state
-            )}`}
+            className={`px-2 py-0.5 rounded-full border text-xs font-semibold ${
+              meta.lastVersion.released
+                ? 'bg-green-100 text-green-700 border-green-200'
+                : 'bg-blue-100 text-blue-700 border-blue-200'
+            }`}
           >
-            {meta.lastSprint.state}
+            {meta.lastVersion.released ? 'released' : 'unreleased'}
           </span>
           <span className="text-gray-500">
-            {formatUtc7(meta.lastSprint.startDate)} → {formatUtc7(meta.lastSprint.endDate)}
+            {formatDate(meta.lastVersion.startDate)} → {formatDate(meta.lastVersion.releaseDate)}
           </span>
         </div>
       )}
@@ -294,7 +270,7 @@ const CreateSprintPage: React.FC = () => {
       <div className="bg-white rounded-lg shadow-md overflow-hidden mb-4">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <span className="text-sm font-semibold text-gray-700">
-            {loading ? 'Đang tải…' : `${selectedRows.length}/${rows.length} sprint được chọn`}
+            {loading ? 'Đang tải…' : `${selectedRows.length}/${rows.length} version được chọn`}
           </span>
           <button
             onClick={() =>
@@ -311,7 +287,7 @@ const CreateSprintPage: React.FC = () => {
         </div>
 
         {loading ? (
-          <div className="py-12 text-center text-gray-500 text-sm">Đang lấy sprint từ Jira…</div>
+          <div className="py-12 text-center text-gray-500 text-sm">Đang lấy version từ Jira…</div>
         ) : rows.length === 0 ? (
           <div className="py-12 text-center text-gray-500 text-sm">Không có đề xuất nào.</div>
         ) : (
@@ -320,16 +296,16 @@ const CreateSprintPage: React.FC = () => {
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold w-10"> </th>
-                  <th className="px-4 py-3 text-left font-semibold">Tên sprint</th>
-                  <th className="px-4 py-3 text-left font-semibold">Bắt đầu (UTC+7)</th>
-                  <th className="px-4 py-3 text-left font-semibold">Kết thúc (UTC+7)</th>
+                  <th className="px-4 py-3 text-left font-semibold">Tên fix version</th>
+                  <th className="px-4 py-3 text-left font-semibold">Start date</th>
+                  <th className="px-4 py-3 text-left font-semibold">Release date</th>
                   <th className="px-4 py-3 text-left font-semibold w-20">Số ngày</th>
-                  <th className="px-4 py-3 text-left font-semibold">Goal (tùy chọn)</th>
+                  <th className="px-4 py-3 text-left font-semibold">Description (tùy chọn)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {rows.map((row) => {
-                  const days = durationDays(row.start, row.end);
+                  const days = durationDays(row.start, row.release);
                   return (
                     <tr key={row.id} className={row.selected ? '' : 'opacity-50'}>
                       <td className="px-4 py-3 align-middle">
@@ -348,13 +324,21 @@ const CreateSprintPage: React.FC = () => {
                           onChange={(event) => patchRow(row.id, { name: event.target.value })}
                           className="w-64 rounded border border-gray-200 px-2 py-1 font-semibold text-gray-900"
                         />
-                        {row.exists && (
-                          <div className="mt-1 text-xs text-amber-600">⚠ Tên này đã tồn tại trên board</div>
+                        {row.exists ? (
+                          <div className="mt-1 text-xs text-amber-600">
+                            ⚠ Version này đã tồn tại trên project
+                          </div>
+                        ) : row.fromSprint ? (
+                          <div className="mt-1 text-xs text-green-600">✓ Ngày khớp sprint cùng tên</div>
+                        ) : (
+                          <div className="mt-1 text-xs text-gray-400">
+                            Chưa có sprint cùng tên — ngày suy ra theo chu kỳ
+                          </div>
                         )}
                       </td>
                       <td className="px-4 py-3">
                         <input
-                          type="datetime-local"
+                          type="date"
                           value={row.start}
                           disabled={creating}
                           onChange={(event) => patchRow(row.id, { start: event.target.value })}
@@ -363,10 +347,10 @@ const CreateSprintPage: React.FC = () => {
                       </td>
                       <td className="px-4 py-3">
                         <input
-                          type="datetime-local"
-                          value={row.end}
+                          type="date"
+                          value={row.release}
                           disabled={creating}
-                          onChange={(event) => patchRow(row.id, { end: event.target.value })}
+                          onChange={(event) => patchRow(row.id, { release: event.target.value })}
                           className="rounded border border-gray-200 px-2 py-1"
                         />
                       </td>
@@ -374,10 +358,10 @@ const CreateSprintPage: React.FC = () => {
                       <td className="px-4 py-3">
                         <input
                           type="text"
-                          value={row.goal}
+                          value={row.description}
                           disabled={creating}
                           placeholder="—"
-                          onChange={(event) => patchRow(row.id, { goal: event.target.value })}
+                          onChange={(event) => patchRow(row.id, { description: event.target.value })}
                           className="w-full min-w-[200px] rounded border border-gray-200 px-2 py-1"
                         />
                       </td>
@@ -415,7 +399,7 @@ const CreateSprintPage: React.FC = () => {
           title={!dryRun ? 'Chạy dry-run trước' : undefined}
           className="px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
         >
-          {creating ? 'Đang tạo…' : `✓ Tạo ${selectedRows.length} sprint`}
+          {creating ? 'Đang tạo…' : `✓ Tạo ${selectedRows.length} fix version`}
         </button>
         {!dryRun && selectedRows.length > 0 && (
           <span className="text-xs text-gray-500">Chạy dry-run để xem payload trước khi tạo.</span>
@@ -426,7 +410,7 @@ const CreateSprintPage: React.FC = () => {
         <div className="bg-white rounded-lg shadow-md overflow-hidden mb-4">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <span className="text-sm font-semibold text-gray-700">
-              Dry-run · POST {`{JIRA_HOST}`}/rest/agile/1.0/sprint × {dryRun.length}
+              Dry-run · POST {`{JIRA_HOST}`}/rest/api/3/version × {dryRun.length}
             </span>
             <span className="text-xs text-gray-500">Chưa gọi Jira — chỉ hiển thị payload</span>
           </div>
@@ -449,8 +433,11 @@ const CreateSprintPage: React.FC = () => {
                   {result.success ? '✓' : '✗'}
                 </span>
                 <span className="font-semibold text-gray-900">{result.name}</span>
-                {result.success && result.sprint && (
-                  <span className="text-gray-500">id {result.sprint.id}</span>
+                {result.success && result.version && (
+                  <span className="text-gray-500">
+                    id {result.version.id} · {formatDate(result.version.startDate)} →{' '}
+                    {formatDate(result.version.releaseDate)}
+                  </span>
                 )}
                 {!result.success && <span className="text-red-600">{result.error}</span>}
               </li>
@@ -462,4 +449,4 @@ const CreateSprintPage: React.FC = () => {
   );
 };
 
-export default CreateSprintPage;
+export default FixVersionsPage;

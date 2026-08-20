@@ -74,13 +74,48 @@ export interface SprintCreateResult {
   error?: string;
 }
 
-interface JiraVersion {
+export interface JiraVersion {
   id: string;
   name: string;
+  description?: string;
   released?: boolean;
   archived?: boolean;
   startDate?: string;
   releaseDate?: string;
+  projectId?: number;
+}
+
+export interface VersionCreatePayload {
+  name: string;
+  /** YYYY-MM-DD */
+  startDate?: string;
+  /** YYYY-MM-DD */
+  releaseDate?: string;
+  description?: string;
+}
+
+export interface VersionSuggestion {
+  name: string;
+  number: number | null;
+  startDate: string;
+  releaseDate: string;
+  exists: boolean;
+  /** true khi ngày lấy từ sprint cùng tên trên board thay vì suy ra theo chu kỳ */
+  fromSprint: boolean;
+}
+
+export interface VersionSuggestionResult {
+  projectKey: string;
+  cadenceDays: number;
+  lastVersion: JiraVersion | null;
+  suggestions: VersionSuggestion[];
+}
+
+export interface VersionCreateResult {
+  name: string;
+  success: boolean;
+  version?: JiraVersion;
+  error?: string;
 }
 
 interface NormalizedSprintDetail {
@@ -111,7 +146,8 @@ export interface ConfluencePageWithBody extends ConfluencePage {
 }
 
 const SPRINT_LENGTH_DAYS = 14;
-const SPRINT_LENGTH_MS = SPRINT_LENGTH_DAYS * 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const SPRINT_LENGTH_MS = SPRINT_LENGTH_DAYS * DAY_MS;
 const UTC7_OFFSET_MS = 7 * 60 * 60 * 1000;
 
 export class JiraService {
@@ -484,7 +520,8 @@ export class JiraService {
   /**
    * Đề xuất N sprint kế tiếp cho một board, suy ra từ chính sprint cuối của board đó:
    * - tên: giữ nguyên prefix/suffix, tăng số cuối cùng trong tên
-   * - thời gian: nối tiếp liền mạch, mỗi sprint SPRINT_LENGTH_DAYS ngày
+   * - thời gian: sprint mới bắt đầu ngày kế tiếp sau khi sprint trước kết thúc
+   *   (không trùng ngày), mốc kết thúc vẫn giữ chu kỳ SPRINT_LENGTH_DAYS ngày
    */
   async suggestSprints(boardId: number, count = 5): Promise<SprintSuggestionResult> {
     const total = Math.min(Math.max(count, 1), 20);
@@ -514,7 +551,9 @@ export class JiraService {
         number === null
           ? `${(latest?.sprint.name || 'Sprint').trim()} +${index + 1}`
           : `${template.prefix}${number}${template.suffix}`;
-      const start = new Date(cursor);
+      // cursor = ngày kết thúc sprint trước. Bắt đầu sau đó 1 ngày để 2 sprint không
+      // trùng ngày; mốc kết thúc vẫn theo lưới 14 ngày nên nhịp sprint không lệch.
+      const start = new Date(cursor.getTime() + DAY_MS);
       const end = new Date(cursor.getTime() + SPRINT_LENGTH_MS);
 
       suggestions.push({
@@ -551,6 +590,7 @@ export class JiraService {
   }
 
   // Sprint kế tiếp nối liền sprint cuối. Board chưa có sprint nào thì lấy mốc thứ Hai kế tiếp (00:00 UTC+7).
+  /** Trả về mốc kết thúc của sprint trước — điểm neo để tính sprint kế tiếp. */
   private resolveNextSprintStart(latest?: JiraSprint | null): Date {
     if (latest?.endDate) {
       return new Date(latest.endDate);
@@ -558,7 +598,9 @@ export class JiraService {
     if (latest?.startDate) {
       return new Date(new Date(latest.startDate).getTime() + SPRINT_LENGTH_MS);
     }
-    return this.nextMondayUtc7();
+    // Không có sprint nào: coi Chủ nhật trước thứ Hai kế tiếp là mốc kết thúc ảo,
+    // để sprint đầu tiên bắt đầu đúng thứ Hai.
+    return new Date(this.nextMondayUtc7().getTime() - DAY_MS);
   }
 
   private nextMondayUtc7(): Date {
@@ -600,6 +642,150 @@ export class JiraService {
       console.error(`Error fetching versions for ${projectKeyOrId}:`, this.formatAxiosError(error));
       throw error;
     }
+  }
+
+  /**
+   * Đề xuất N fix version kế tiếp cho project, suy ra từ chính version cuối:
+   * - tên: giữ prefix/suffix, tăng số cuối trong tên (vd "Sprint 195 - Lending")
+   * - ngày: nếu truyền boardId và có sprint cùng tên thì lấy đúng ngày của sprint đó,
+   *   nếu không thì nối tiếp version cuối theo chu kỳ SPRINT_LENGTH_DAYS ngày
+   *   (bắt đầu 1 ngày sau ngày release trước, giống quy ước sprint).
+   */
+  async suggestVersions(
+    projectKeyOrId: string,
+    count = 5,
+    boardId?: number
+  ): Promise<VersionSuggestionResult> {
+    const total = Math.min(Math.max(count, 1), 20);
+    const versions = await this.getProjectVersions(projectKeyOrId);
+    const active = versions.filter((version) => !version.archived);
+    const pool = active.length > 0 ? active : versions;
+
+    const ranked = pool
+      .map((version) => ({ version, number: this.parseSprintNumber(version.name) }))
+      .sort((a, b) => {
+        const numberDiff = (a.number ?? -1) - (b.number ?? -1);
+        if (numberDiff !== 0) return numberDiff;
+        return (a.version.releaseDate || '').localeCompare(b.version.releaseDate || '');
+      });
+
+    const latest = ranked.length > 0 ? ranked[ranked.length - 1] : null;
+    const template = this.parseSprintNameTemplate(latest?.version.name || '');
+    const existingNames = new Set(versions.map((version) => version.name.trim().toLowerCase()));
+
+    // Sprint cùng tên là nguồn ngày chính xác nhất — fix version ở đây luôn khớp sprint.
+    const sprintByName = new Map<string, JiraSprint>();
+    if (boardId) {
+      try {
+        const sprints = await this.getAllBoardSprints(boardId);
+        for (const sprint of sprints) {
+          sprintByName.set(sprint.name.trim().toLowerCase(), sprint);
+        }
+      } catch (error) {
+        console.error(`Cannot read sprints of board ${boardId} for version dates:`, this.describeError(error));
+      }
+    }
+
+    let cursor = this.resolveNextVersionAnchor(latest?.version);
+    const suggestions: VersionSuggestion[] = [];
+
+    for (let index = 0; index < total; index += 1) {
+      const number = template.number === null ? null : template.number + index + 1;
+      const name =
+        number === null
+          ? `${(latest?.version.name || 'Version').trim()} +${index + 1}`
+          : `${template.prefix}${number}${template.suffix}`;
+
+      const sprint = sprintByName.get(name.trim().toLowerCase());
+      const sprintStart = sprint?.startDate ? this.toUtc7DateOnly(sprint.startDate) : null;
+      const sprintEnd = sprint?.endDate ? this.toUtc7DateOnly(sprint.endDate) : null;
+      const fromSprint = !!(sprintStart && sprintEnd);
+
+      const startDate = fromSprint ? sprintStart! : this.toUtc7DateOnly(new Date(cursor.getTime() + DAY_MS));
+      const releaseDate = fromSprint
+        ? sprintEnd!
+        : this.toUtc7DateOnly(new Date(cursor.getTime() + SPRINT_LENGTH_MS));
+
+      suggestions.push({
+        name,
+        number,
+        startDate,
+        releaseDate,
+        exists: existingNames.has(name.trim().toLowerCase()),
+        fromSprint,
+      });
+
+      cursor = this.dateOnlyToUtc7Date(releaseDate);
+    }
+
+    return {
+      projectKey: String(projectKeyOrId).toUpperCase(),
+      cadenceDays: SPRINT_LENGTH_DAYS,
+      lastVersion: latest?.version ?? null,
+      suggestions,
+    };
+  }
+
+  async createVersion(projectKeyOrId: string, payload: VersionCreatePayload): Promise<JiraVersion> {
+    try {
+      const projectId = await this.getProjectId(projectKeyOrId);
+      const response = await this.axiosInstance.post('/version', {
+        name: payload.name.trim(),
+        projectId,
+        ...(payload.startDate ? { startDate: payload.startDate } : {}),
+        ...(payload.releaseDate ? { releaseDate: payload.releaseDate } : {}),
+        ...(payload.description ? { description: payload.description } : {}),
+      });
+      return response.data as JiraVersion;
+    } catch (error) {
+      console.error(`Error creating version "${payload.name}":`, this.formatAxiosError(error));
+      throw error;
+    }
+  }
+
+  // Tuần tự để giữ đúng thứ tự version trên project và không nuốt lỗi từng dòng.
+  async createVersions(
+    projectKeyOrId: string,
+    payloads: VersionCreatePayload[]
+  ): Promise<VersionCreateResult[]> {
+    const results: VersionCreateResult[] = [];
+
+    for (const payload of payloads) {
+      try {
+        const version = await this.createVersion(projectKeyOrId, payload);
+        results.push({ name: payload.name, success: true, version });
+      } catch (error) {
+        results.push({ name: payload.name, success: false, error: this.describeError(error) });
+      }
+    }
+
+    return results;
+  }
+
+  private async getProjectId(projectKeyOrId: string): Promise<number> {
+    if (/^\d+$/.test(String(projectKeyOrId))) return Number(projectKeyOrId);
+    const response = await this.axiosInstance.get(`/project/${projectKeyOrId}`);
+    return Number(response.data.id);
+  }
+
+  /** Mốc release của version cuối — điểm neo để tính version kế tiếp. */
+  private resolveNextVersionAnchor(latest?: JiraVersion | null): Date {
+    if (latest?.releaseDate) return this.dateOnlyToUtc7Date(latest.releaseDate);
+    if (latest?.startDate) {
+      return new Date(this.dateOnlyToUtc7Date(latest.startDate).getTime() + SPRINT_LENGTH_MS - DAY_MS);
+    }
+    return new Date(this.nextMondayUtc7().getTime() - DAY_MS);
+  }
+
+  /** Instant -> ngày theo giờ UTC+7 (YYYY-MM-DD), đúng ngày người dùng thấy trên Jira. */
+  private toUtc7DateOnly(value: string | Date): string {
+    const date = value instanceof Date ? value : new Date(value);
+    return new Date(date.getTime() + UTC7_OFFSET_MS).toISOString().slice(0, 10);
+  }
+
+  /** YYYY-MM-DD (giờ UTC+7) -> Date tại 00:00 UTC+7. */
+  private dateOnlyToUtc7Date(dateOnly: string): Date {
+    return new Date(new Date(`${dateOnly.slice(0, 10)}T00:00:00.000Z`).getTime() - UTC7_OFFSET_MS);
   }
 
   private async getFieldDefinitions(): Promise<JiraFieldDefinition[]> {

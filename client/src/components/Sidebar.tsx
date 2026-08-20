@@ -39,6 +39,7 @@ const navItems: NavItem[] = [
     children: [
       { label: 'Backlog', path: '/jira/backlog' },
       { label: 'PO Tickets', path: '/jira/po-tickets' },
+      { label: 'Tạo Fix Version', path: '/jira/fix-versions' },
     ],
   },
   { label: 'Support', path: '/support', icon: '🛠️' },

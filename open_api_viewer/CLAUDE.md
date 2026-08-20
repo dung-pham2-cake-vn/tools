@@ -51,8 +51,8 @@ open_api_viewer/
     ├── specs-index.js           # GENERATED, không sửa tay
     ├── get-loan-detail-api.md   # ghi chú so sánh field get-loan-detail giữa 3 nhóm sản phẩm
     └── <partner>/
-        ├── <partner>.yaml               # working spec
-        └── YYYYMMDD_<partner>.lock.yaml # bản đã gửi đối tác
+        ├── index.yaml           # working spec (bản đang dùng)
+        └── YYYYMMDD.lock.yaml   # bản đã gửi đối tác, YYYYMMDD = ngày gửi
 ```
 
 ### Base spec (`specs/base_*.yaml`)
@@ -72,13 +72,15 @@ Placeholder trong base: `product_id`, `email_title`, `2026-0x-0x`.
 | Thư mục | Spec | Mô hình | Lock hiện có |
 |---|---|---|---|
 | `be_cashloan/` | Be_Cashloan - BE x CAKE Lending APIs | custom (create-link/token, get-be-score) | — |
-| `be_payday/` | be_payday - APIs spec | DOP | `20260608_`, `20260611_` |
-| `fiza_cashloan/` | Fiza Cashloan - Native API | Native | `fiza_cashloan.lock.yaml` |
-| `fiza_payday/` | Fiza Payday - Native API | Native | `fiza_payday.lock.yaml` |
-| `kov_cashloan/` | KOV_cashloan - Native Lending APIs | Native | `20260728 kov_cashloan.lock.yaml` |
-| `lcp_paylater/` | LCP_paylater - DOP Lending APIs | DOP paylater | `lcp_paylater.lock.yaml` |
-| `pd_viettel/` | Viettel Payday - Native API | Native | `20260810 `, `20260819 `, `current_product.lock.yaml` |
+| `be_payday/` | be_payday - APIs spec | DOP | `20260608.lock.yaml`, `20260611.lock.yaml` |
+| `fiza_cashloan/` | Fiza Cashloan - Native API | Native | `index.lock.yaml` |
+| `fiza_payday/` | Fiza Payday - Native API | Native | `index.lock.yaml` |
+| `kov_cashloan/` | KOV_cashloan - Native Lending APIs | Native | `20260728.lock.yaml` |
+| `lcp_paylater/` | LCP_paylater - DOP Lending APIs | DOP paylater | `index.lock.yaml` |
+| `pd_viettel/` | Viettel Payday - Native API | Native | `20260810.lock.yaml`, `20260819.lock.yaml`, `current_product.lock.yaml` |
 | `tiktok_cashloan/` | TikTok Cashloan — Native APIs | Native | — |
+
+Working spec của mọi partner đều là `index.yaml`; tên partner đã nằm ở tên thư mục nên không lặp lại trong tên file.
 
 `pd_viettel/current_product.lock.yaml` là spec của sản phẩm **đang chạy production** với Viettel, tách riêng khỏi spec payday mới đang đàm phán.
 
@@ -140,22 +142,25 @@ Mọi endpoint có prefix `partner-` là **callback: Cake gọi vào hệ thốn
 
 - Ví dụ response trong spec phải có `success: true`.
 
-### Đặt tên lock mới
+### Đặt tên file trong thư mục partner
 
 ```
-YYYYMMDD_<tên-spec>.lock.yaml
+index.yaml           # working spec
+YYYYMMDD.lock.yaml   # bản đã gửi đối tác, YYYYMMDD = ngày gửi
 ```
 
-Ví dụ: `20260820_fiza_payday.lock.yaml`. Dùng underscore, không dùng dấu cách, `YYYYMMDD` là ngày gửi đối tác.
+Ví dụ: `fiza_payday/20260820.lock.yaml`. Không nhắc lại tên partner trong tên file — thư mục đã mang thông tin đó.
 
-Các lock hiện có dùng dấu cách hoặc không có date là **di sản** — không đổi tên chúng (đã gửi đối tác). Chỉ áp quy ước này cho lock tạo mới từ nay.
+Ngoại lệ đang có:
+- `index.lock.yaml` — lock cũ không rõ ngày gửi (fiza_cashloan, fiza_payday, lcp_paylater).
+- `pd_viettel/current_product.lock.yaml` — không phải snapshot theo ngày mà là spec sản phẩm đang chạy production, giữ tên mô tả trạng thái.
 
 ### Quy trình gửi spec cho đối tác
 
-1. Sửa `<partner>.yaml` (working).
+1. Sửa `<partner>/index.yaml` (working).
 2. Thêm 1 dòng vào bảng `## Changelog`: thời gian, email title, nội dung thay đổi.
 3. Kiểm tra example đã mask (§1).
-4. Copy working → `YYYYMMDD_<partner>.lock.yaml`.
+4. Copy working → `<partner>/YYYYMMDD.lock.yaml`.
 5. Chạy `node open_api_viewer/build-specs-index.mjs`.
 6. Xuất PDF từ viewer (nút Print) và gửi.
 

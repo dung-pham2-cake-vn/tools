@@ -247,6 +247,22 @@
     user-select: none;
   }
   .folder-row:hover { background: var(--bg); color: var(--text); }
+  .folder-index-btn {
+    margin-left: auto;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    border-radius: 5px;
+    padding: 1px 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    line-height: 1.5;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .folder-index-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-tint); }
+  .folder-index-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-tint); }
   .folder-arrow { font-size: 9px; transition: transform 0.15s; display: inline-block; width: 9px; flex-shrink: 0; color: var(--text-muted); }
   .folder-arrow.open { transform: rotate(90deg); }
   .folder-icon { font-size: 13px; flex-shrink: 0; }
@@ -837,10 +853,7 @@ async function scanDir(handle, pathPrefix) {
       entries.push({ name, type: 'file', path: fullPath, handle: h });
     }
   }
-  entries.sort((a, b) => {
-    if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
-    return a.name.localeCompare(b.name);
-  });
+  entries.sort(compareEntries);
   return entries;
 }
 
@@ -849,7 +862,70 @@ async function refreshFileList() {
   fileHandles = {};
   fileReaders = {};
   fileTree = await scanDir(dirHandle, '');
+  collapseAllFolders(fileTree);
   renderTree(fileTree);
+}
+
+// ─── SPEC NAMING / ORDERING ──────────────────────
+function isLockSpec(name) {
+  return /\.lock\.ya?ml$/i.test(name);
+}
+
+/** "20260819.lock.yaml" (kể cả dạng cũ "20260819 pd_viettel.lock.yaml") -> "2026-08-19" */
+function lockDate(name) {
+  const m = name.match(/(20\d{2})[-_ ]?(\d{2})[-_ ]?(\d{2})/);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+}
+
+/**
+ * Sidebar label. Bên trong folder: file chưa lock là bản đang dùng -> "index.yaml";
+ * file lock chỉ giữ ngày, bỏ product_id (tên file thật vẫn hiện ở dòng dưới).
+ */
+function specLabel(name, depth, folderName) {
+  if (isLockSpec(name)) {
+    const date = lockDate(name);
+    if (date) return date;
+    // lock không có ngày: bỏ phần trùng tên folder (product_id), còn lại mới là thông tin
+    const stem = name.replace(/\.lock\.ya?ml$/i, '');
+    return stem === folderName || stem === 'index' ? 'lock' : stem;
+  }
+  if (depth > 0) return 'index.yaml';
+  return fileDisplayName(name);
+}
+
+// folder trước, trong cùng cấp: index trước lock, lock mới nhất lên trên
+function compareEntries(a, b) {
+  if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+  if (a.type === 'file') {
+    const lockA = isLockSpec(a.name), lockB = isLockSpec(b.name);
+    if (lockA !== lockB) return lockA ? 1 : -1;
+    if (lockA && lockB) {
+      const dateA = lockDate(a.name), dateB = lockDate(b.name);
+      if (dateA && dateB && dateA !== dateB) return dateB.localeCompare(dateA);
+      if (dateA && !dateB) return -1;
+      if (!dateA && dateB) return 1;
+    }
+  }
+  return a.name.localeCompare(b.name);
+}
+
+/** File index của folder: trùng tên folder nếu có, không thì file chưa lock đầu tiên. */
+function folderIndexPath(entry) {
+  const files = (entry.children || []).filter(c => c.type === 'file' && !isLockSpec(c.name));
+  if (!files.length) return null;
+  const preferred =
+    files.find(f => /^index\.ya?ml$/i.test(f.name)) ||
+    files.find(f => f.name.replace(/\.(yaml|yml)$/i, '') === entry.name);
+  return (preferred || files[0]).path;
+}
+
+function collapseAllFolders(entries) {
+  for (const e of entries) {
+    if (e.type === 'folder') {
+      folderCollapsed.add(e.path);
+      collapseAllFolders(e.children || []);
+    }
+  }
 }
 
 // ─── TREE RENDER ─────────────────────────────────
@@ -860,19 +936,37 @@ function fileDisplayName(filename) {
     .replace(/\b\w/g, c => c.toUpperCase());
 }
 
-function buildTreeHTML(entries, depth) {
+/** Tiêu đề trên top bar: "index.yaml" trong folder hiển thị theo tên partner. */
+function specTitle(path) {
+  const parts = path.split('/');
+  const base = parts.pop();
+  const folder = parts.pop();
+  if (isLockSpec(base)) {
+    const tag = lockDate(base) || 'lock';
+    return folder ? `${fileDisplayName(folder)} · ${tag}` : tag;
+  }
+  if (folder && /^index\.ya?ml$/i.test(base)) return fileDisplayName(folder);
+  return fileDisplayName(base);
+}
+
+function buildTreeHTML(entries, depth, folderName) {
   return entries.map(e => {
     const indent = depth * 14;
     if (e.type === 'folder') {
       const isOpen = !folderCollapsed.has(e.path);
+      const indexPath = folderIndexPath(e);
+      const indexBtn = indexPath
+        ? `<button class="folder-index-btn${currentFileName === indexPath ? ' active' : ''}" data-index-path="${escAttr(indexPath)}" title="Mở ${escAttr(indexPath.split('/').pop())}">index</button>`
+        : '';
       return `<div>
         <div class="folder-row" data-path="${escAttr(e.path)}" style="padding-left:${8 + indent}px">
           <span class="folder-arrow${isOpen ? ' open' : ''}">▶</span>
           <span class="folder-icon">${isOpen ? '📂' : '📁'}</span>
           <span class="folder-label">${escHtml(e.name)}</span>
+          ${indexBtn}
         </div>
         <div id="fc-${escAttr(e.path)}" style="display:${isOpen ? 'block' : 'none'}">
-          ${buildTreeHTML(e.children, depth + 1)}
+          ${buildTreeHTML(e.children, depth + 1, e.name)}
         </div>
       </div>`;
     } else {
@@ -887,7 +981,7 @@ function buildTreeHTML(entries, depth) {
       return `<div class="${cls}" data-path="${escAttr(e.path)}" style="padding-left:${8 + indent}px">
         <span class="fi-icon">📋</span>
         <span class="fi-info">
-          <span class="fi-name">${escHtml(fileDisplayName(e.name))}</span>
+          <span class="fi-name">${escHtml(specLabel(e.name, depth, folderName))}</span>
           <span class="fi-raw">${escHtml(e.name)}</span>
         </span>
         ${badge}
@@ -907,6 +1001,12 @@ function renderTree(entries) {
 
 // ─── TREE EVENTS (delegation) ─────────────────────
 document.getElementById('file-list-wrap').addEventListener('click', e => {
+  const indexBtn = e.target.closest('.folder-index-btn');
+  if (indexBtn) {
+    e.stopPropagation();
+    handleFileClick(indexBtn.dataset.indexPath);
+    return;
+  }
   const fileEl = e.target.closest('.file-item');
   const folderEl = e.target.closest('.folder-row');
   if (fileEl) handleFileClick(fileEl.dataset.path);
@@ -934,8 +1034,7 @@ async function selectFile(path) {
   currentFileName = path;
   currentReader = reader;
   currentFileHandle = fileHandles[path] || null;
-  const displayName = path.split('/').pop();
-  document.getElementById('current-file-name').textContent = fileDisplayName(displayName);
+  document.getElementById('current-file-name').textContent = specTitle(path);
   renderTree(fileTree);
   await loadCurrentFile(false);
 }
@@ -1338,7 +1437,7 @@ function treeFromPaths(paths) {
   const strip = n => {
     delete n.byName;
     if (n.children) {
-      n.children.sort((a, b) => a.type !== b.type ? (a.type === 'folder' ? -1 : 1) : a.name.localeCompare(b.name));
+      n.children.sort(compareEntries);
       n.children.forEach(strip);
     }
     return n;
@@ -1364,6 +1463,7 @@ async function loadBuiltInSpecs() {
   fileReaders = {};
   for (const f of files) fileReaders[f.path] = builtInReader(f.path);
   fileTree = treeFromPaths(files.map(f => f.path));
+  collapseAllFolders(fileTree);
 
   document.querySelector('.btn-builtin').classList.add('active');
   document.getElementById('folder-name').textContent = `specs/ · ${files.length} specs · ${specApiLive ? 'live' : SERVED_OVER_HTTP ? 'static' : 'baked'}`;
@@ -1377,7 +1477,12 @@ async function loadBuiltInSpecs() {
 
   // deep link: ?spec=<relative path inside specs/>
   const wanted = new URLSearchParams(location.search).get('spec');
-  if (wanted && fileReaders[wanted]) await selectFile(wanted);
+  if (wanted && fileReaders[wanted]) {
+    // mở sẵn folder chứa file được deep-link để thấy dòng đang active
+    const parts = wanted.split('/');
+    for (let i = 1; i < parts.length; i += 1) folderCollapsed.delete(parts.slice(0, i).join('/'));
+    await selectFile(wanted);
+  }
   else showPickPrompt(files.length);
 }
 

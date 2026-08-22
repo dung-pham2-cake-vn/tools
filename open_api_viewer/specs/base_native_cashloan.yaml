@@ -85,8 +85,7 @@ info:
     ### Contract
     | Code | Message |
     |------|---------|
-    | `300001` | Hợp đồng hết hạn (quá 30 ngày) |
-    | `300002` | Cần facematch để ký (quá 7 ngày từ approved) |
+    | `300001` | Hợp đồng hết hạn (quá 7 ngày) |
     | `300003` | OTP bị chặn 15 phút (sau 3 lần gửi) |
     | `300004` | Hợp đồng bị hủy (vượt 6 lần get-OTP) |
     | `300005` | Nhập sai OTP |

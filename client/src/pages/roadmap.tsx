@@ -116,6 +116,23 @@ const getSegmentJql = (segment: SegmentKey): string => {
   }
 };
 
+const escapeHtml = (value: string) =>
+  value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+const copyToClipboard = async (plainText: string, htmlText: string) => {
+  if (navigator.clipboard && typeof ClipboardItem !== 'undefined' && navigator.clipboard.write) {
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        'text/plain': new Blob([plainText], { type: 'text/plain' }),
+        'text/html': new Blob([htmlText], { type: 'text/html' }),
+      }),
+    ]);
+    return;
+  }
+
+  await navigator.clipboard.writeText(plainText);
+};
+
 export default function RoadmapPage() {
   const [activeSegment, setActiveSegment] = useState<SegmentKey>('lending');
   const [issues, setIssues] = useState<RoadmapIssue[]>([]);
@@ -152,6 +169,62 @@ export default function RoadmapPage() {
 
   const sortedSprintKeys = (group: string): string[] =>
     Object.keys(groupedIssues[group] || {}).sort((a, b) => sprintSortValue(a) - sprintSortValue(b));
+
+  const buildCopyPayload = () => {
+    const plainLines: string[] = [];
+    const htmlItems: string[] = [];
+    let counter = 0;
+
+    for (const group of [...ROADMAP_ORDER, '__other__'] as const) {
+      for (const sprintKey of sortedSprintKeys(group)) {
+        for (const issue of groupedIssues[group][sprintKey]) {
+          counter += 1;
+          const summary = issue.fields.summary || '-';
+          const issueUrl = getIssueBrowseUrl(issue.key);
+          const linkedWorkItemUrls = extractLinkedIssueUrls(issue.fields.issuelinks);
+
+          plainLines.push(`${counter}. 🟡 [${activeSegmentMeta.prefix}] [${issue.key}] ${summary}`);
+          if (linkedWorkItemUrls.length) {
+            linkedWorkItemUrls.forEach((url) => plainLines.push(`   ${url}`));
+          } else {
+            plainLines.push('   No linked work items');
+          }
+
+          const linkedHtml = linkedWorkItemUrls.length
+            ? linkedWorkItemUrls
+                .map((url) => `<div><a href="${escapeHtml(url)}">${escapeHtml(url)}</a></div>`)
+                .join('')
+            : '<div>No linked work items</div>';
+
+          htmlItems.push(
+            `<li>🟡 <strong>[${escapeHtml(activeSegmentMeta.prefix)}]</strong> ` +
+              `<a href="${escapeHtml(issueUrl)}">[${escapeHtml(issue.key)}]</a> ${escapeHtml(summary)}${linkedHtml}</li>`
+          );
+        }
+      }
+    }
+
+    return {
+      plainText: plainLines.join('\n'),
+      htmlText: `<ol>${htmlItems.join('')}</ol>`,
+    };
+  };
+
+  const handleCopyTickets = async () => {
+    if (!issues.length) {
+      toast.error('Chưa có ticket để copy');
+      return;
+    }
+
+    try {
+      const { plainText, htmlText } = buildCopyPayload();
+      await copyToClipboard(plainText, htmlText);
+      toast.success(`Đã copy ${issues.length} tickets`);
+    } catch (error) {
+      console.error('Error copying roadmap tickets:', error);
+      toast.error('Copy thất bại');
+    }
+  };
 
 
   useEffect(() => {
@@ -229,14 +302,23 @@ export default function RoadmapPage() {
         <div className="rounded-lg bg-white p-6 shadow-md">
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm font-semibold text-gray-900">{activeSegmentMeta.label} JQL</p>
-            <a
-              href={activeSegmentMeta.boardUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-            >
-              Mở board {activeSegmentMeta.label} ↗
-            </a>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleCopyTickets}
+                disabled={loading || issues.length === 0}
+                className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Copy danh sách ({issues.length})
+              </button>
+              <a
+                href={activeSegmentMeta.boardUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+              >
+                Mở board {activeSegmentMeta.label} ↗
+              </a>
+            </div>
           </div>
           <pre className="mt-3 whitespace-pre-wrap font-mono text-xs text-gray-600">{getSegmentJql(activeSegment)}</pre>
         </div>

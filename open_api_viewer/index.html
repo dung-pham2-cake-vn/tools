@@ -1550,10 +1550,23 @@ function printSpec() {
   const yyyymmdd = now.getFullYear().toString()
     + String(now.getMonth() + 1).padStart(2, '0')
     + String(now.getDate()).padStart(2, '0');
-  const origTitle = document.title;
-  document.title = `${yyyymmdd} ${title}`;
+  const printTitle = `${yyyymmdd} ${title}`;
+
+  // Chrome names the PDF after the TOP document's title, not the printing frame's.
+  // Embedded in Tools Manager that page has no <title>, so the browser falls back
+  // to the URL and we get "openapispec.pdf" — set the title on every ancestor
+  // document we can reach, then restore them.
+  const restore = [];
+  for (let win = window; ; win = win.parent) {
+    try {
+      restore.push([win.document, win.document.title]);
+      win.document.title = printTitle;
+    } catch (_) { break; }  // cross-origin ancestor, stop climbing
+    if (win === win.parent) break;
+  }
+
   window.print();
-  setTimeout(() => { document.title = origTitle; }, 2000);
+  setTimeout(() => { restore.forEach(([doc, t]) => { doc.title = t; }); }, 2000);
 }
 
 // ─── HELPERS ─────────────────────────────────────

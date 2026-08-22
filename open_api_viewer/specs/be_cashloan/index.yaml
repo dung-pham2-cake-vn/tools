@@ -121,8 +121,7 @@ info:
     | Code | Action | Message | API |
     |------|--------|---------|-----|
     | `300000` | Ended | Yêu cầu không hợp lệ | get-esign: yêu cầu quá 7 ngày bị hết hạn |
-    | `300001` | Ended | Hợp đồng hết hạn | get-esign: hồ sơ quá 30 ngày |
-    | `300002` | Direction | Hồ sơ cần facematch để ký hợp đồng | get-esign: quá 7 ngày kể từ approved |
+    | `300001` | Ended | Hợp đồng hết hạn | get-esign: hồ sơ quá 7 ngày |
     | `300003` | Retry | Mã OTP đang bị chặn, thử lại sau 15 phút | get-otp: sau 3 lần re-send/get OTP |
     | `300004` | Ended | Hợp đồng bị hủy, do vượt quá số lần lấy OTP | get-otp: get-otp lần thứ 7 |
     | `300005` | Retry | Nhập sai OTP | verify-esign |

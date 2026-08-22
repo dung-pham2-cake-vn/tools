@@ -101,8 +101,7 @@ info:
     ### Contract
     | Code | Thông báo | Mô tả |
     |------|-----------|-------|
-    | `300001` | Hợp đồng hết hạn | Hồ sơ quá 30 ngày |
-    | `300002` | Hồ sơ cần facematch để ký hợp đồng | Quá 7 ngày kể từ approved |
+    | `300001` | Hợp đồng hết hạn | Hồ sơ quá 7 ngày |
     | `300003` | Mã OTP đang bị chặn, thử lại sau 15 phút | Sau 3 lần gửi OTP liên tiếp |
     | `300004` | Hợp đồng bị hủy, do vượt quá số lần lấy OTP | Lần get-otp thứ 7 hủy hợp đồng |
     | `300005` | Nhập sai OTP | OTP sai, chưa bị block |

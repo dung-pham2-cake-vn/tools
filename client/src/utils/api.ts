@@ -211,4 +211,6 @@ export const jiraAPI = {
     apiClient.put(`/jira/issue/${issueKey}/assignee`, { accountId }),
   setIssueFixVersions: (issueKey: string, versionIds: string[]) =>
     apiClient.put(`/jira/issue/${issueKey}/fix-versions`, { versionIds }),
+  updateIssueLabels: (issueKey: string, add: string[], remove: string[]) =>
+    apiClient.put(`/jira/issue/${issueKey}/labels`, { add, remove }),
 };

@@ -338,6 +338,26 @@ export class JiraService {
     }
   }
 
+  /** Thêm/xoá label bằng update ops — không đụng label khác đang có trên ticket. */
+  async updateIssueLabels(issueKey: string, add: string[], remove: string[]): Promise<void> {
+    const ops = [
+      ...remove.map((label) => ({ remove: label })),
+      ...add.map((label) => ({ add: label })),
+    ];
+    if (ops.length === 0) return;
+    try {
+      await this.axiosInstance.put(`/issue/${issueKey}`, { update: { labels: ops } });
+    } catch (error) {
+      const detail = this.formatAxiosError(error);
+      console.error(`Error updating labels for ${issueKey}:`, detail);
+      const reason =
+        detail.errorMessages?.join('; ') ||
+        (detail.errors ? Object.values(detail.errors).join('; ') : '') ||
+        detail.message;
+      throw new Error(reason);
+    }
+  }
+
   async getIssueTransitions(issueKey: string): Promise<Array<{ id: string; name: string; to?: { name?: string } }>> {
     try {
       const response = await this.axiosInstance.get(`/issue/${issueKey}/transitions`);

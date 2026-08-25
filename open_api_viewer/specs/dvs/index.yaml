@@ -1,0 +1,423 @@
+openapi: 3.0.3
+info:
+  title: DVS - Repayment APIs
+  description: |
+    > **⚠️ Lưu ý bản quyền:** Tài liệu này thuộc bản quyền của **Cake by VPBank**.
+    > Mọi hình thức sao chép, chỉnh sửa, hoặc phát tán phải được sự đồng ý bằng văn bản của Cake by VPBank.
+
+    ## Mô tả
+    API tích hợp thanh toán khoản vay (repayment) giữa đối tác (Partner) và hệ thống Cake Digital Bank.
+
+    Phạm vi tài liệu chỉ gồm luồng **tra cứu khoản vay và thanh toán**:
+    `get-loan-detail` → `repayment-request` → `repayment-confirm`.
+
+    Khoản vay được định danh bằng cặp **`document_id` (CCCD)** + **`loan_code` (mã khoản vay)**,
+    KH lấy `loan_code` trên app Partner.
+
+    ## Changelog
+
+    | Thời gian | Email title | Cập nhật |
+    |-----------|-------|-------|
+    | 2026-05-04 | email_title | Khởi tạo tài liệu |
+
+    ## Cơ chế xác thực (Signature)
+    Tất cả request từ Partner gọi Cake đều phải ký signature:
+    ```
+    rawBody = {{body}} + {{partner_key}}
+    hash = sha256(rawBody)
+    signature = base64_encode(rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA256, hash))
+    ```
+    Partner cần tạo cặp khóa RSA 1024 bit: private key (PKCS#8) và public key (X.509),
+    gửi public key cho Cake.
+
+    Ví dụ: body `{"req_id":"1","action":1}`, partner_key `Partner`
+    → rawBody = `{"req_id":"1","action":1}Partner`.
+
+    Test chữ ký có thể dùng tool online như [https://emn178.github.io/online-tools/rsa/verify](https://emn178.github.io/online-tools/rsa/verify/?input=%7B%22req_id%22%3A%221%22%2C%22action%22%3A1%7DPartner&input_type=utf-8&algorithm=SHA256&public_key=-----BEGIN%20PUBLIC%20KEY-----%0AMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC0KTbcJmoAT1g%2FFEp7eWWzuATg%0AK%2F7Go01PKZUaVTsN80JiDdg%2FmgDIcE0D9w5fYsDBN2pgeQ7EW8qqB8wb84qqk7QX%0AzAFfAqGx10X5aRe0WPsL3x7SCnG9QDz%2Fsun7hvrELes2sBw1a63lk3ZHyU9xLAcs%0ASsOFirCfQDlq0sbvNQIDAQAB%0A-----END%20PUBLIC%20KEY-----&signature_input_type=base64&signature=LWRijuKu83sa%2BU2FMe%2BsrtP8ctIaPjNAZ68YBiOiZNhzl%2FBELWztAcnTaOxINjghrfepTRLjhjvQw5mfwZrUHue4hwWDRvCpTMvCSfv513vuKp4kIQFK5EAASMZuhjwTn6mBxeO1i55xWB2wHqXVJxXgFecSok6T8qqJyH4XUzc%3D).
+    Other tools: [8gwifi RSA](https://8gwifi.org/RSAFunctionality?rsasignverifyfunctions=rsasignverifyfunctions&keysize=1024) (chọn `RSA Signature Algorithms: SHA256withRSA`).
+
+    ## Môi trường
+
+    ### SIT+UAT Environment
+
+    | Key | Value | Description |
+    |-----|-------|-------------|
+    | CAKE_API_URL | `https://gw.stage.cakedigibank.tech/ext/loan/{group}/{product_id}` | |
+    | CAKE_PARTNER_ID | *(Cake cấp)* | Gắn ở header khi gọi API Cake |
+    | CAKE_PARTNER_KEY | *(Cake cấp)* | Gắn sau body khi ký api partner |
+    | CAKE_IP_ADDRESS | `35.197.157.155/32`<br>`34.87.136.147/32`<br>`35.240.241.82/32`<br>`34.142.212.108/32`<br>`35.198.211.12/32`<br>`34.143.164.202/32`<br>`34.124.200.2/32` | Partner thêm các IP này vào Whitelist |
+    | PARTNER_API_URL | *(Partner cấp)* | |
+    | PARTNER_PUBLIC_KEY | *(Partner cấp)* | Gọi API Cake, Partner ký bằng private key, Cake verify |
+    | PARTNER_IP_ADDRESS | *(Partner cấp)*<br>`34.87.136.147 (Cake auto)` | Cake thêm các IP này vào Whitelist |
+
+    ### PROD Environment
+
+    | Key | Value | Description |
+    |-----|-------|-------------|
+    | CAKE_API_URL | `https://gw.cake.vn/ext/loan/{group}/{product_id}` | |
+    | CAKE_PARTNER_ID | *(Cake cấp)* | Gắn ở header khi gọi API Cake |
+    | CAKE_PARTNER_KEY | *(Cake cấp)* | Gắn sau body khi ký api partner |
+    | CAKE_IP_ADDRESS | `34.87.56.148/32`<br>`35.240.146.157/32`<br>`34.87.175.195/32`<br>`34.142.177.122/32`<br>`34.87.39.41/32`<br>`34.143.164.31/32`<br>`34.143.174.79/32` | Partner thêm các IP này vào Whitelist |
+    | PARTNER_API_URL | *(Partner cấp)* | |
+    | PARTNER_PUBLIC_KEY | *(Partner cấp)* | Gọi API Cake, Partner ký bằng private key, Cake verify |
+    | PARTNER_IP_ADDRESS | *(Partner cấp)* | Cake thêm các IP này vào Whitelist |
+
+    ## Error Codes
+
+    ### General
+    | Code | Message |
+    |------|---------|
+    | `1` | Thành công |
+    | `2` | Deadline exceeded |
+    | `500` | Internal server error |
+    | `501` | Not implement |
+    | `502` | An invalid response was received from the upstream server |
+    | `900000` | Có lỗi xảy ra, vui lòng thử lại sau! / Trường dữ liệu không hợp lệ: {{field_name}} - required |
+    | `900001` | Hệ thống đang bảo trì |
+    | `900002` | Request is processing |
+    | `200000` | Chữ ký không hợp lệ |
+    | `200001` | Mã đối tác không hợp lệ |
+    | `200003` | Request ID không hợp lệ (NID hoặc Phone không khớp) |
+    | `400001` | Không có thông tin khoản vay (sản phẩm không tồn tại loan_code này) |
+    | `100100` | COB Time - Yêu cầu thanh toán không được thực hiện |
+    | `500013` | Trường dữ liệu không hợp lệ: {{field_name}} - {{field_type}} |
+
+    ### Repayment
+    | Code | Message |
+    |------|---------|
+    | `100100` | COB Time - không thể thực hiện giao dịch trong thời gian COB (23:50–4:00) |
+    | `100103` | Số tiền thanh toán vượt quá dư nợ có thể thanh toán |
+    | `400000` | Dữ liệu nhập không hợp lệ (partner_reference_id đã từng được gọi trước đó) |
+    | `400001` | Không có thông tin khoản vay (không tồn tại loan_code này, hoặc document_id không khớp) |
+    | `600000` | Thông tin thanh toán không hợp lệ (payment_amount <= 0) |
+
+  version: "1.0.0"
+  contact:
+    name: Cake Digital Bank Support
+    url: https://cake.vn
+
+servers:
+  - url: https://gw.stage.cakedigibank.tech/ext/loan/{group}/{product_id}
+    description: SIT+UAT
+    variables:
+      group:
+        description: "Nhóm API (ví dụ: cashloan, paylater)"
+        default: group
+      product_id:
+        description: Mã sản phẩm được cấu hình
+        default: product_id
+  - url: https://gw.cake.vn/ext/loan/{group}/{product_id}
+    description: Production
+    variables:
+      group:
+        description: "Nhóm API (ví dụ: cashloan, paylater)"
+        default: group
+      product_id:
+        description: Mã sản phẩm được cấu hình
+        default: product_id
+
+# ─────────────────────────────────────────────
+# COMMON COMPONENTS
+# ─────────────────────────────────────────────
+components:
+  parameters:
+    PartnerHeader:
+      name: partner
+      in: header
+      required: true
+      description: CAKE_PARTNER_ID được cấu hình trong môi trường
+      schema:
+        type: string
+        example: CAKE_PARTNER_ID
+
+    SignatureHeader:
+      name: signature
+      in: header
+      required: true
+      description: |
+        Chữ ký RSA-SHA256 của request body.
+        rawBody = body + partner_key → sha256 → RSA sign PKCS1v15 → base64
+      schema:
+        type: string
+
+    ContentTypeHeader:
+      name: Content-Type
+      in: header
+      required: true
+      schema:
+        type: string
+        default: application/json; charset=utf-8
+
+  schemas:
+    # ── Common Response Wrapper ──
+    BaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Kết quả xử lý yêu cầu (true/false)
+          example: true
+        code:
+          type: integer
+          description: Mã trạng thái hệ thống
+          example: 1
+        message:
+          type: string
+          description: Thông báo phản hồi từ hệ thống
+          example: Thành công
+        response_id:
+          type: string
+          description: Mã định danh duy nhất của mỗi phản hồi
+          example: "849KTQG7SQWLWQW5"
+        timestamp:
+          type: string
+          format: date-time
+          description: Thời gian phản hồi (ISO 8601)
+          example: "2025-11-03T07:00:00+07:00"
+
+    # ── get-loan-detail ──
+    GetLoanDetailRequest:
+      type: object
+      required:
+        - document_id
+        - loan_code
+      properties:
+        document_id:
+          type: string
+          description: CCCD của KH
+          example: "xxxxxxxxxxxx"
+        loan_code:
+          type: string
+          description: Mã khoản vay do Cake cấp, KH lấy trên app Partner
+          example: "u8123123Sjsdb"
+
+    GetLoanDetailResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                due_date:
+                  type: string
+                  format: date
+                  description: Ngày đến hạn thanh toán gần nhất (yyyy-mm-dd)
+                  example: "2026-06-27"
+                monthly_payment_amount:
+                  type: string
+                  description: Số tiền KH có thể thanh toán sớm
+                  example: "0"
+                overdue_payment_amount:
+                  type: string
+                  description: Số tiền KH buộc phải thanh toán
+                  example: "15331759"
+                total_payment_amount:
+                  type: string
+                  description: Tổng số tiền KH có thể thanh toán (monthly + overdue)
+                  example: "15331759"
+
+    # ── repayment-request ──
+    RepaymentRequestBody:
+      type: object
+      required:
+        - document_id
+        - loan_code
+        - partner_reference_id
+        - payment_amount
+      properties:
+        document_id:
+          type: string
+          description: CCCD của KH
+          example: "xxxxxxxxxxxx"
+        loan_code:
+          type: string
+          description: Mã khoản vay do Cake cấp, KH lấy trên app Partner
+          example: "u8123123Sjsdb"
+        partner_reference_id:
+          type: string
+          description: ID tham chiếu của giao dịch, tạo mới mỗi request (idempotency key)
+          example: "PRF20260504000001"
+        payment_amount:
+          type: integer
+          description: Số tiền KH thanh toán qua Partner (VNĐ)
+          example: 5000000
+
+    RepaymentRequestResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                order_id:
+                  type: string
+                  description: Mã tham chiếu giao dịch do Cake tạo ra
+                  example: "ORD20260504000001"
+                challenge_level:
+                  type: array
+                  items:
+                    type: string
+                    enum: [ OTP, NONE ]
+                  description: |
+                    Bước xác thực bổ sung trước khi confirm. Với sản phẩm này là `[NONE]`.
+                    - `NONE`: gọi thẳng `/repayment-confirm`
+                    - `OTP`: KH nhập OTP, gửi kèm field `otp` khi gọi `/repayment-confirm`
+                  example: [ NONE ]
+
+    # ── repayment-confirm ──
+    RepaymentConfirmRequest:
+      type: object
+      required:
+        - partner_reference_id
+        - order_id
+        - payment_amount
+      properties:
+        partner_reference_id:
+          type: string
+          description: partner_reference_id từ API /repayment-request
+          example: "PRF20260504000001"
+        order_id:
+          type: string
+          description: order_id từ API /repayment-request
+          example: "ORD20260504000001"
+        payment_amount:
+          type: integer
+          description: Số tiền KH thanh toán qua Partner (VNĐ), phải khớp với /repayment-request
+          example: 5000000
+        otp:
+          type: string
+          description: Bắt buộc nếu `challenge_level` trả về có chứa `OTP`
+          example: "123456"
+
+tags:
+  - name: Loan Info
+    description: Tra cứu thông tin khoản vay để thanh toán (get-loan-detail)
+  - name: Repayment
+    description: Thanh toán khoản vay (repayment-request → repayment-confirm)
+
+# ─────────────────────────────────────────────
+# SEQUENCE DIAGRAMS - API FLOWS (x-extension)
+# ─────────────────────────────────────────────
+x-mermaid-flows:
+
+  repayment: |
+    sequenceDiagram
+      autonumber
+      participant Cl as Client
+      participant P as Partner
+      participant C as Cake
+
+      Note over Cl,C: XEM KHOẢN VAY
+      Cl->>P: Nhập loan_code
+      P->>C: get-loan-detail(document_id, loan_code)
+      C-->>P: due_date, monthly/overdue/total_payment_amount
+      P-->>Cl: Hiển thị thông tin khoản vay
+
+      Note over Cl,C: THANH TOÁN
+      Cl->>P: Nhập số tiền payment_amount
+      P->>C: repayment-request(document_id, loan_code, partner_reference_id, payment_amount)
+      C-->>P: order_id, challenge_level
+
+      alt challenge_level = [NONE]
+        P->>C: repayment-confirm(partner_reference_id, order_id, payment_amount)
+      else challenge_level = [OTP]
+        P-->>Cl: Yêu cầu nhập OTP
+        Cl->>P: Nhập OTP
+        P->>C: repayment-confirm(partner_reference_id, order_id, payment_amount, otp)
+      end
+
+      C-->>P: success, code, message
+      P-->>Cl: Hiển thị kết quả thanh toán
+
+paths:
+  # ════════════════════
+  # LOAN INFO
+  # ════════════════════
+  /get-loan-detail:
+    post:
+      tags: [ Loan Info ]
+      summary: Tra cứu thông tin khoản vay
+      description: |
+        Trả về kỳ hạn và số tiền KH có thể / phải thanh toán.
+        Khoản vay được định danh bằng `document_id` + `loan_code`; hai giá trị phải khớp nhau,
+        nếu không trả `400001`.
+      operationId: getLoanDetail
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetLoanDetailRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetLoanDetailResponse"
+
+  # ════════════════════
+  # REPAYMENT
+  # ════════════════════
+  /repayment-request:
+    post:
+      tags: [ Repayment ]
+      summary: Tạo yêu cầu thanh toán khoản vay
+      description: |
+        Tạo yêu cầu thanh toán, trả về `order_id` để confirm.
+        - Khoản vay định danh bằng `document_id` + `loan_code`; hai giá trị phải khớp nhau,
+          nếu không trả `400001`.
+        - `partner_reference_id` phải là duy nhất mỗi request; gọi lại giá trị cũ trả `400000`.
+        - `payment_amount` phải > 0 (`600000`) và không vượt dư nợ có thể thanh toán (`100103`).
+        - Không thực hiện được trong giờ COB 23:50–04:00 (`100100`).
+      operationId: repaymentRequest
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepaymentRequestBody"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepaymentRequestResponse"
+
+  /repayment-confirm:
+    post:
+      tags: [ Repayment ]
+      summary: Xác nhận giao dịch thanh toán khoản vay hoàn tất
+      description: |
+        Xác nhận Partner đã thu tiền của KH, Cake tiến hành gạch nợ.
+        `partner_reference_id`, `order_id`, `payment_amount` phải khớp với `/repayment-request`.
+        Nếu `challenge_level` từ `/repayment-request` có `OTP` thì bắt buộc gửi kèm `otp`.
+      operationId: repaymentConfirm
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepaymentConfirmRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BaseResponse"

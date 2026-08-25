@@ -77,6 +77,31 @@ export class JiraController {
     }
   }
 
+  async updateIssueLabels(req: Request, res: Response): Promise<void> {
+    try {
+      const { issueKey } = req.params;
+      const { add, remove } = req.body as { add?: unknown; remove?: unknown };
+      const isStringArray = (v: unknown) => v === undefined || (Array.isArray(v) && v.every((x) => typeof x === 'string'));
+      if (!isStringArray(add) || !isStringArray(remove)) {
+        res.status(400).json({ success: false, error: 'add/remove must be arrays of string' });
+        return;
+      }
+      // Jira label không cho khoảng trắng — chặn sớm cho message rõ hơn lỗi 400 của Jira.
+      const clean = (v: unknown) => ((v as string[]) || []).map((l) => l.trim()).filter(Boolean);
+      const addList = clean(add);
+      const removeList = clean(remove);
+      const bad = [...addList, ...removeList].find((l) => /\s/.test(l));
+      if (bad) {
+        res.status(400).json({ success: false, error: `Label "${bad}" chứa khoảng trắng` });
+        return;
+      }
+      await jiraService.updateIssueLabels(issueKey, addList, removeList);
+      res.status(200).json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
   async getProjects(req: Request, res: Response): Promise<void> {
     try {
       const projects = await jiraService.getProjects();

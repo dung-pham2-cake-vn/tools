@@ -10,6 +10,7 @@ router.get('/search', (req, res) => jiraController.searchIssues(req, res));
 router.get('/assignable-users', (req, res) => jiraController.getAssignableUsers(req, res));
 router.put('/issue/:issueKey/assignee', (req, res) => jiraController.assignIssue(req, res));
 router.put('/issue/:issueKey/fix-versions', (req, res) => jiraController.setIssueFixVersions(req, res));
+router.put('/issue/:issueKey/labels', (req, res) => jiraController.updateIssueLabels(req, res));
 router.get('/projects', (req, res) => jiraController.getProjects(req, res));
 router.get('/boards', (req, res) => jiraController.getBoards(req, res));
 router.get('/boards/:boardId/sprints', (req, res) => jiraController.getBoardSprints(req, res));

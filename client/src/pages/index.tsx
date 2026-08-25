@@ -113,7 +113,8 @@ interface ProjectReport {
 
 // ─── Sprint alignment helpers ─────────────────────────────────────────────────
 
-const PROJECT_KEYS: ProjectKey[] = ['PL', 'PLO', 'DOP'];
+// DOP tạm bỏ khỏi monitor sprint/fix-version (chưa cần theo dõi).
+const PROJECT_KEYS: ProjectKey[] = ['PL', 'PLO'];
 const UTC7_OFFSET_MS = 7 * 60 * 60 * 1000;
 
 const isDateOnly = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);

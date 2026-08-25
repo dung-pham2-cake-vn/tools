@@ -188,6 +188,11 @@ export default function BacklogPage() {
   const [bulkStatus, setBulkStatus] = useState('');
   const [bulkAssignee, setBulkAssignee] = useState('');
   const [bulkVersion, setBulkVersion] = useState('');
+  // Label sửa theo op add/remove (không ghi đè) — ticket giữ nguyên label khác.
+  const [bulkLabelsAdd, setBulkLabelsAdd] = useState<string[]>([]);
+  const [bulkLabelsRemove, setBulkLabelsRemove] = useState<string[]>([]);
+  const [labelMenu, setLabelMenu] = useState(false);
+  const [labelDraft, setLabelDraft] = useState('');
   const [users, setUsers] = useState<{ accountId: string; displayName: string }[]>([]);
   const [usersState, setUsersState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [projectVersions, setProjectVersions] = useState<Record<string, ProjectVersion[]>>({});
@@ -741,6 +746,38 @@ export default function BacklogPage() {
     [pickedVersion, checkedKeys],
   );
 
+  // Label đang có trên các ticket được tick — nguồn cho danh sách "xoá label".
+  const checkedLabelCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const key of checkedKeys) {
+      for (const label of new Set(issueByKey.get(key)?.fields.labels || [])) {
+        counts.set(label, (counts.get(label) || 0) + 1);
+      }
+    }
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }, [checkedKeys, issueByKey]);
+
+  // Label gợi ý để thêm: mọi label trong board, trừ cái đã chọn.
+  const labelSuggestions = useMemo(
+    () => labelOptions.filter((l) => !bulkLabelsAdd.includes(l)),
+    [labelOptions, bulkLabelsAdd],
+  );
+
+  // Jira không nhận label có khoảng trắng; cho nhập nhiều label cách nhau bởi dấu phẩy/space.
+  const addLabelDraft = (raw: string) => {
+    const parts = raw.split(/[,\s]+/).map((l) => l.trim()).filter(Boolean);
+    if (parts.length === 0) return;
+    setBulkLabelsAdd((prev) => Array.from(new Set([...prev, ...parts])));
+    setBulkLabelsRemove((prev) => prev.filter((l) => !parts.includes(l)));
+    setLabelDraft('');
+  };
+  const toggleRemoveLabel = (label: string) =>
+    setBulkLabelsRemove((prev) => {
+      const next = prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label];
+      if (!prev.includes(label)) setBulkLabelsAdd((cur) => cur.filter((l) => l !== label));
+      return next;
+    });
+
   interface BulkRow {
     key: string;
     statusFrom: string;
@@ -753,6 +790,11 @@ export default function BacklogPage() {
     versionTo: string | null;
     /** version thuộc project khác ticket → Jira reject, bỏ qua luôn cho khỏi lỗi. */
     versionSkip: boolean;
+    labelsFrom: string[];
+    /** chỉ label thực sự chưa có trên ticket. */
+    labelsAdd: string[];
+    /** chỉ label thực sự đang có trên ticket. */
+    labelsRemove: string[];
   }
 
   const bulkPlan = useMemo((): BulkRow[] => {
@@ -765,6 +807,7 @@ export default function BacklogPage() {
 
     return checkedKeys.map((key) => {
       const f = issueByKey.get(key)!.fields;
+      const labelsFrom = f.labels || [];
       const statusFrom = f.normalizedStatusName || '';
       const wantStatus = bulkStatus && bulkStatus !== statusFrom;
       const canStatus = wantStatus && targetsOf(key).includes(bulkStatus);
@@ -781,18 +824,23 @@ export default function BacklogPage() {
         versionFrom,
         versionTo,
         versionSkip: Boolean(pickedVersion) && projectOf(key) !== pickedVersion!.project,
+        labelsFrom,
+        labelsAdd: bulkLabelsAdd.filter((l) => !labelsFrom.includes(l)),
+        labelsRemove: bulkLabelsRemove.filter((l) => labelsFrom.includes(l)),
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checkedKeys.join(','), bulkStatus, bulkAssignee, bulkVersion, pickedVersion, transitions, users, issueByKey]);
+  }, [checkedKeys.join(','), bulkStatus, bulkAssignee, bulkVersion, bulkLabelsAdd, bulkLabelsRemove, pickedVersion, transitions, users, issueByKey]);
 
   const changesVersion = (r: BulkRow) => r.versionTo !== null && !r.versionSkip && r.versionTo !== r.versionFrom;
+  const changesLabels = (r: BulkRow) => r.labelsAdd.length > 0 || r.labelsRemove.length > 0;
 
   const bulkActionable = bulkPlan.filter(
     (r) =>
       (r.statusTo && !r.statusSkip) ||
       (r.assigneeTo !== null && r.assigneeTo !== r.assigneeFrom) ||
-      changesVersion(r),
+      changesVersion(r) ||
+      changesLabels(r),
   );
 
   const applyBulk = async () => {
@@ -824,6 +872,17 @@ export default function BacklogPage() {
               await jiraAPI.setIssueFixVersions(row.key, pickedVersion ? [pickedVersion.id] : []);
               parts.push(`fix version → ${row.versionTo || 'Không có'}`);
             }
+            if (changesLabels(row)) {
+              await jiraAPI.updateIssueLabels(row.key, row.labelsAdd, row.labelsRemove);
+              parts.push(
+                [
+                  row.labelsAdd.length ? `+label ${row.labelsAdd.join(', ')}` : '',
+                  row.labelsRemove.length ? `-label ${row.labelsRemove.join(', ')}` : '',
+                ]
+                  .filter(Boolean)
+                  .join(' · '),
+              );
+            }
             results.push({ key: row.key, ok: true, msg: parts.join(', ') });
             touched.add(row.key);
             setIssues((prev) =>
@@ -837,6 +896,14 @@ export default function BacklogPage() {
                         ...(row.assigneeTo !== null ? { normalizedAssigneeName: row.assigneeTo } : {}),
                         ...(changesVersion(row)
                           ? { normalizedFixVersionNames: row.versionTo ? [row.versionTo] : [] }
+                          : {}),
+                        ...(changesLabels(row)
+                          ? {
+                              labels: [
+                                ...row.labelsFrom.filter((l) => !row.labelsRemove.includes(l)),
+                                ...row.labelsAdd,
+                              ],
+                            }
                           : {}),
                       },
                     }
@@ -878,6 +945,9 @@ export default function BacklogPage() {
       setBulkStatus('');
       setBulkAssignee('');
       setBulkVersion('');
+      setBulkLabelsAdd([]);
+      setBulkLabelsRemove([]);
+      setLabelDraft('');
       clearChecked();
     }
   };
@@ -1148,7 +1218,13 @@ export default function BacklogPage() {
     'rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-700 focus:border-blue-500 focus:outline-none';
 
   return (
-    <div className="space-y-4" onClick={() => statusMenu && setStatusMenu(null)}>
+    <div
+      className="space-y-4"
+      onClick={() => {
+        if (statusMenu) setStatusMenu(null);
+        if (labelMenu) setLabelMenu(false);
+      }}
+    >
       <Toaster position="top-right" />
 
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -1345,6 +1421,105 @@ export default function BacklogPage() {
               </span>
             )}
 
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setLabelMenu((v) => !v)}
+                className={`rounded-md border border-white/30 px-2 py-1 text-sm ${
+                  bulkLabelsAdd.length || bulkLabelsRemove.length ? 'bg-white text-blue-700 font-semibold' : 'bg-white/15 text-white'
+                }`}
+              >
+                Đổi labels
+                {bulkLabelsAdd.length > 0 && ` +${bulkLabelsAdd.length}`}
+                {bulkLabelsRemove.length > 0 && ` −${bulkLabelsRemove.length}`}
+              </button>
+
+              {labelMenu && (
+                <div className="absolute left-0 top-full z-20 mt-1 w-72 rounded-lg border border-gray-200 bg-white p-3 text-gray-900 shadow-xl">
+                  <div className="text-xs font-semibold uppercase text-gray-500">Thêm label</div>
+                  <input
+                    list="bulk-label-suggestions"
+                    value={labelDraft}
+                    onChange={(e) => setLabelDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addLabelDraft(labelDraft);
+                      }
+                    }}
+                    onBlur={() => addLabelDraft(labelDraft)}
+                    placeholder="Gõ label rồi Enter (có sẵn hoặc tạo mới)"
+                    className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  />
+                  <datalist id="bulk-label-suggestions">
+                    {labelSuggestions.map((l) => (
+                      <option key={l} value={l} />
+                    ))}
+                  </datalist>
+                  {bulkLabelsAdd.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {bulkLabelsAdd.map((l) => (
+                        <button
+                          key={l}
+                          type="button"
+                          onClick={() => setBulkLabelsAdd((prev) => prev.filter((x) => x !== l))}
+                          className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                          title="Bỏ khỏi danh sách thêm"
+                        >
+                          + {l} ×
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="mt-3 text-xs font-semibold uppercase text-gray-500">
+                    Xoá label (đang có trên ticket đã tick)
+                  </div>
+                  {checkedLabelCounts.length === 0 ? (
+                    <div className="mt-1 text-xs text-gray-400">Ticket đã tick chưa có label nào</div>
+                  ) : (
+                    <div className="mt-1 flex max-h-40 flex-wrap gap-1 overflow-y-auto">
+                      {checkedLabelCounts.map(([label, n]) => (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => toggleRemoveLabel(label)}
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                            bulkLabelsRemove.includes(label)
+                              ? 'bg-red-600 text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {label} ({n})
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="mt-3 flex justify-between">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBulkLabelsAdd([]);
+                        setBulkLabelsRemove([]);
+                        setLabelDraft('');
+                      }}
+                      className="text-xs font-medium text-gray-500 hover:text-gray-800"
+                    >
+                      Xoá lựa chọn
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLabelMenu(false)}
+                      className="rounded-md bg-blue-600 px-3 py-1 text-xs font-bold text-white hover:bg-blue-700"
+                    >
+                      Xong
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button
               type="button"
               disabled={bulkActionable.length === 0}
@@ -1399,7 +1574,8 @@ export default function BacklogPage() {
                         const changeStatus = r.statusTo && !r.statusSkip;
                         const changeAssignee = r.assigneeTo !== null && r.assigneeTo !== r.assigneeFrom;
                         const changeVersion = changesVersion(r);
-                        const noop = !changeStatus && !changeAssignee && !changeVersion;
+                        const changeLabels = changesLabels(r);
+                        const noop = !changeStatus && !changeAssignee && !changeVersion && !changeLabels;
                         return (
                           <tr key={r.key} className={`border-b border-gray-100 ${noop ? 'opacity-40' : ''}`}>
                             <td className="py-1.5 pr-3 align-top font-mono text-xs">{r.key}</td>
@@ -1425,6 +1601,23 @@ export default function BacklogPage() {
                                   <span className="text-gray-500">{r.versionFrom || 'Không có'}</span>
                                   <span className="mx-1 text-gray-400">→</span>
                                   <span className="font-semibold text-gray-900">{r.versionTo || 'Không có'}</span>
+                                </div>
+                              )}
+                              {changeLabels && (
+                                <div>
+                                  <span className="text-gray-500">
+                                    {r.labelsFrom.length ? r.labelsFrom.join(', ') : 'Không có label'}
+                                  </span>
+                                  <span className="mx-1 text-gray-400">→</span>
+                                  {r.labelsAdd.length > 0 && (
+                                    <span className="font-semibold text-emerald-700">+{r.labelsAdd.join(', +')}</span>
+                                  )}
+                                  {r.labelsAdd.length > 0 && r.labelsRemove.length > 0 && (
+                                    <span className="mx-1 text-gray-400">·</span>
+                                  )}
+                                  {r.labelsRemove.length > 0 && (
+                                    <span className="font-semibold text-red-600">−{r.labelsRemove.join(', −')}</span>
+                                  )}
                                 </div>
                               )}
                               {r.statusSkip && (

@@ -795,8 +795,6 @@ components:
                     - LOAN_CANCEL: KH hủy hợp đồng
                     - LOAN_SIGNED: KH ký hợp đồng thành công
                     - LOAN_ACTIVE: Đã giải ngân thành công
-                    - LOAN_LOCK: Tạm khóa (Paylater only)
-                    - LOAN_LOCKED: Khóa vĩnh viễn (Paylater only)
                     - LOAN_CLOSE: Đã tất toán
                   example: "LOAN_ACTIVE"
                 contract_id:

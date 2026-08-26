@@ -982,8 +982,6 @@ components:
                     - LOAN_CANCEL
                     - LOAN_SIGNED
                     - LOAN_ACTIVE
-                    - LOAN_LOCK
-                    - LOAN_LOCKED
                     - LOAN_CLOSE
                 contract_id:
                   type: string

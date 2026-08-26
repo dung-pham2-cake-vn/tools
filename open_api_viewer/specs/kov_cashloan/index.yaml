@@ -14,6 +14,7 @@ info:
     |-----------|-------|-------|
     | 2026-07-28 | [CAKE-KV] BRD sản phẩm Vay merchant Lending | Khởi tạo tài liệu |
     | 2026-08-21 | [CAKE-KV] BRD sản phẩm Vay merchant Lending | Cập nhật theo BRD |
+    | 2026-08-26 | [CAKE-KV] BRD sản phẩm Vay merchant Lending | Đồng bộ theo Fiza Cashloan: 3 field `partner_bank_*_disbursement` chuyển vào `metadata`; `front_nid_image`/`back_nid_image`/`nfc_data` thành optional (required khi `is_exists=false`); `loan_account_status` bỏ `LOAN_LOCK`, `LOAN_LOCKED`; `partner-update-status`: `partner_reference_id` required, `loan_code` optional (không trả khi LOAN_REJECT) |
 
     ## Cơ chế xác thực (Signature)
     Tất cả request từ Partner gọi Cake đều phải ký signature:
@@ -548,24 +549,6 @@ components:
           type: string
           description: Product code theo BRD
           example: "PTVT_01"
-        partner_bank_code_disbursement:
-          type: string
-          nullable: true
-          description: |
-            Bank code ngân hàng nhận giải ngân ngoài (lấy từ data-config bank[].code).
-            Để trống (null) nếu giải ngân vào tài khoản Cake.
-        partner_bank_short_name_disbursement:
-          type: string
-          nullable: true
-          description: |
-            Bank short_name ngân hàng nhận giải ngân ngoài (lấy từ data-config bank[].short_name).
-            Để trống (null) nếu giải ngân vào tài khoản Cake.
-        partner_bank_account_disbursement:
-          type: string
-          nullable: true
-          description: |
-            Số tài khoản ngân hàng nhận giải ngân ngoài.
-            Để trống (null) nếu giải ngân vào tài khoản Cake.
         metadata:
           type: object
           description: Dữ liệu bổ sung của đối tác
@@ -583,6 +566,24 @@ components:
               description: Kênh KH truy cập, truyền mặc định `APP_DEFAULT`
               default: "APP_DEFAULT"
               example: "APP_DEFAULT"
+            partner_bank_code_disbursement:
+              type: string
+              nullable: true
+              description: |
+                Bank code ngân hàng nhận giải ngân ngoài (lấy từ data-config bank[].code).
+                Để trống (null) nếu giải ngân vào tài khoản Cake.
+            partner_bank_short_name_disbursement:
+              type: string
+              nullable: true
+              description: |
+                Bank short_name ngân hàng nhận giải ngân ngoài (lấy từ data-config bank[].short_name).
+                Để trống (null) nếu giải ngân vào tài khoản Cake.
+            partner_bank_account_disbursement:
+              type: string
+              nullable: true
+              description: |
+                Số tài khoản ngân hàng nhận giải ngân ngoài.
+                Để trống (null) nếu giải ngân vào tài khoản Cake.
             partner_business_info:
               type: object
               nullable: true
@@ -649,8 +650,6 @@ components:
         - phone_number
         - document_id
         - selfie_image
-        - front_nid_image
-        - back_nid_image
       properties:
         request_id:
           type: string
@@ -666,19 +665,23 @@ components:
         selfie_image:
           type: string
           format: byte
-          description: Ảnh selfie (base64, size ≤ 1MB, ảnh dọc)
+          description: Ảnh selfie (base64, size ≤ 1MB, ảnh dọc). Required cho cả KH mới và KH đã có hồ sơ (dùng để face-auth)
         front_nid_image:
           type: string
           format: byte
-          description: Ảnh GTTT mặt trước (base64, size ≤ 1MB, ảnh ngang)
+          nullable: true
+          description: Ảnh GTTT mặt trước (base64, size ≤ 1MB, ảnh ngang). Required khi is_exists=false (KH mới)
         back_nid_image:
           type: string
           format: byte
-          description: Ảnh GTTT mặt sau (base64, size ≤ 1MB, ảnh ngang)
+          nullable: true
+          description: Ảnh GTTT mặt sau (base64, size ≤ 1MB, ảnh ngang). Required khi is_exists=false (KH mới)
         nfc_data:
           type: object
           nullable: true
-          description: Thông tin NFC data raw (nếu truyền, tất cả field bên trong đều required)
+          description: |
+            Thông tin NFC data raw. Required khi is_exists=false (KH mới).
+            Nếu truyền, tất cả field bên trong đều required.
           required:
             - sod
             - dg1
@@ -804,8 +807,6 @@ components:
                     - LOAN_CANCEL
                     - LOAN_SIGNED
                     - LOAN_ACTIVE
-                    - LOAN_LOCK
-                    - LOAN_LOCKED
                     - LOAN_CLOSE
                   description: Trạng thái tài khoản vay
                 contract_id:
@@ -1126,7 +1127,7 @@ components:
       type: object
       required:
         - request_id
-        - loan_code
+        - partner_reference_id
         - phone_number
         - status
       properties:
@@ -1135,11 +1136,13 @@ components:
           description: ID được sinh ra mỗi request
         partner_reference_id:
           type: string
-          nullable: true
           description: ID đối tác truyền ở API /client-create
         loan_code:
           type: string
-          description: Mã khoản vay
+          nullable: true
+          description: |
+            Mã khoản vay. Optional — khi hồ sơ bị từ chối (LOAN_REJECT) Cake không trả loan_code,
+            Partner đối chiếu hồ sơ bằng partner_reference_id.
           example: "u8123123Sjsdb"
         phone_number:
           type: string

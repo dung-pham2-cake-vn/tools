@@ -424,17 +424,21 @@ components:
                   type: string
                   description: Số ngày quá hạn
                   example: "191"
-                monthly_payment_amount:
+                predue_payment_amount:
                   type: string
-                  description: "[CL/PL] Số tiền KH có thể thanh toán sớm"
+                  description: "[CL] Số tiền KH có thể thanh toán sớm"
                   example: "0"
-                overdue_payment_amount:
+                due_payment_amount:
                   type: string
-                  description: "[CL/PL] Số tiền KH buộc phải thanh toán"
+                  description: "[CL] Số tiền KH buộc phải thanh toán"
+                  example: "15331759"
+                period_payment_amount:
+                  type: string
+                  description: "[PL] Số tiền KH phải thanh toán trong kỳ"
                   example: "15331759"
                 total_payment_amount:
                   type: string
-                  description: Tổng tiền KH có thể thanh toán (monthly + overdue)
+                  description: Tổng số tiền KH có thể thanh toán
                   example: "15331759"
                 paid_amount:
                   type: string

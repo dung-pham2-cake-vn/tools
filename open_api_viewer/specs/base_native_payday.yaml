@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: product_id - Native Lending APIs (Cashloan)
+  title: product_id - Native Lending APIs (Payday)
   description: |
     > **⚠️ Lưu ý bản quyền:** Tài liệu này thuộc bản quyền của **Cake by VPBank**.
     > Mọi hình thức sao chép, chỉnh sửa, hoặc phát tán phải được sự đồng ý bằng văn bản của Cake by VPBank.
@@ -799,10 +799,6 @@ components:
                   type: string
                   description: "Lãi phạt lãi quá hạn"
                   example: "0"
-                payment_period:
-                  type: string
-                  description: "Kỳ thanh toán số"
-                  example: "12"
                 due_date:
                   type: string
                   format: date
@@ -812,14 +808,6 @@ components:
                   type: string
                   description: Số ngày quá hạn
                   example: "191"
-                predue_payment_amount:
-                  type: string
-                  description: "Số tiền KH có thể thanh toán sớm"
-                  example: "0"
-                due_payment_amount:
-                  type: string
-                  description: "Số tiền KH buộc phải thanh toán"
-                  example: "15331759"
                 total_payment_amount:
                   type: string
                   description: Tổng số tiền KH có thể thanh toán
@@ -828,10 +816,6 @@ components:
                   type: string
                   description: "Số tiền KH đã thanh toán"
                   example: "200000"
-                prepayment_amount:
-                  type: string
-                  description: "Số tiền KH đã thanh toán trước trong kỳ"
-                  example: "0"
 
     # ── Contract ──
     GetEsignRequest:

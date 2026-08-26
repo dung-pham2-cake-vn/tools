@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: product_id - Native Lending APIs (Cashloan)
+  title: product_id - Native Lending APIs (Paylater)
   description: |
     > **⚠️ Lưu ý bản quyền:** Tài liệu này thuộc bản quyền của **Cake by VPBank**.
     > Mọi hình thức sao chép, chỉnh sửa, hoặc phát tán phải được sự đồng ý bằng văn bản của Cake by VPBank.
@@ -766,10 +766,6 @@ components:
                   type: string
                   description: Thời hạn vay phê duyệt
                   example: "12"
-                loan_insurance:
-                  type: string
-                  description: "Số tiền bảo hiểm"
-                  example: "840000"
                 disburse_amount:
                   type: string
                   description: Số tiền đã giải ngân
@@ -791,14 +787,6 @@ components:
                   type: string
                   description: Dư nợ lãi phát sinh
                   example: "197494"
-                penalty_principal_balance:
-                  type: string
-                  description: "Lãi phạt gốc quá hạn"
-                  example: "2494265"
-                penalty_interest_balance:
-                  type: string
-                  description: "Lãi phạt lãi quá hạn"
-                  example: "0"
                 payment_period:
                   type: string
                   description: "Kỳ thanh toán số"
@@ -812,22 +800,14 @@ components:
                   type: string
                   description: Số ngày quá hạn
                   example: "191"
-                predue_payment_amount:
+                period_payment_amount:
                   type: string
-                  description: "Số tiền KH có thể thanh toán sớm"
-                  example: "0"
-                due_payment_amount:
-                  type: string
-                  description: "Số tiền KH buộc phải thanh toán"
+                  description: Số tiền KH phải thanh toán trong kỳ
                   example: "15331759"
                 total_payment_amount:
                   type: string
                   description: Tổng số tiền KH có thể thanh toán
                   example: "15331759"
-                paid_amount:
-                  type: string
-                  description: "Số tiền KH đã thanh toán"
-                  example: "200000"
                 prepayment_amount:
                   type: string
                   description: "Số tiền KH đã thanh toán trước trong kỳ"

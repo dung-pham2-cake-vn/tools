@@ -255,16 +255,6 @@ components:
                   type: string
                   description: Mã tham chiếu giao dịch do Cake tạo ra
                   example: "ORD20260504000001"
-                challenge_level:
-                  type: array
-                  items:
-                    type: string
-                    enum: [ OTP, NONE ]
-                  description: |
-                    Bước xác thực bổ sung trước khi confirm. Với sản phẩm này là `[NONE]`.
-                    - `NONE`: gọi thẳng `/repayment-confirm`
-                    - `OTP`: KH nhập OTP, gửi kèm field `otp` khi gọi `/repayment-confirm`
-                  example: [ NONE ]
 
     # ── repayment-confirm ──
     RepaymentConfirmRequest:
@@ -286,10 +276,6 @@ components:
           type: integer
           description: Số tiền KH thanh toán qua Partner (VNĐ), phải khớp với /repayment-request
           example: 5000000
-        otp:
-          type: string
-          description: Bắt buộc nếu `challenge_level` trả về có chứa `OTP`
-          example: "123456"
 
 tags:
   - name: Loan Info
@@ -318,16 +304,8 @@ x-mermaid-flows:
       Note over Cl,C: THANH TOÁN
       Cl->>P: Nhập số tiền payment_amount
       P->>C: repayment-request(document_id, loan_code, partner_reference_id, payment_amount)
-      C-->>P: order_id, challenge_level
-
-      alt challenge_level = [NONE]
-        P->>C: repayment-confirm(partner_reference_id, order_id, payment_amount)
-      else challenge_level = [OTP]
-        P-->>Cl: Yêu cầu nhập OTP
-        Cl->>P: Nhập OTP
-        P->>C: repayment-confirm(partner_reference_id, order_id, payment_amount, otp)
-      end
-
+      C-->>P: order_id
+      P->>C: repayment-confirm(partner_reference_id, order_id, payment_amount)
       C-->>P: success, code, message
       P-->>Cl: Hiển thị kết quả thanh toán
 
@@ -402,7 +380,6 @@ paths:
       description: |
         Xác nhận Partner đã thu tiền của KH, Cake tiến hành gạch nợ.
         `partner_reference_id`, `order_id`, `payment_amount` phải khớp với `/repayment-request`.
-        Nếu `challenge_level` từ `/repayment-request` có `OTP` thì bắt buộc gửi kèm `otp`.
       operationId: repaymentConfirm
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"

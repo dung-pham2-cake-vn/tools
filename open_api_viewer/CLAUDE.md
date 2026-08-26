@@ -60,7 +60,9 @@ open_api_viewer/
 | File | Tiêu đề | Mô hình | Endpoint |
 |---|---|---|---|
 | `base_native.yaml` | product_id - Native Lending APIs | Native (superset đầy đủ) | 38 |
-| `base_native_cashloan.yaml` | product_id - Native Lending APIs | Native, rút gọn cho cashloan | 17 |
+| `base_native_cashloan.yaml` | product_id - Native Lending APIs (Cashloan) | Native cashloan — `predue_payment_amount` + `due_payment_amount` | 17 |
+| `base_native_payday.yaml` | product_id - Native Lending APIs (Payday) | Native payday — không trả predue/due | 17 |
+| `base_native_paylater.yaml` | product_id - Native Lending APIs (Paylater) | Native paylater — `period_payment_amount` | 17 |
 | `base_dop_full.yaml` | product_id - DOP Lending APIs | DOP (webview) | 9 |
 | `base_dop_paylater.yaml` | product_id - DOP Lending APIs | DOP paylater + installment | 20 |
 | `base_collection_reminder.yaml` | product_id - Collection Reminder API | Collection | 1 |

@@ -22,7 +22,7 @@ info:
     | Thời gian | Email title | Cập nhật |
     |-----------|-------|-------|
     | 2026-01-02 | email_title | Khởi tạo tài liệu |
-    | 2026-08-25 | email_title | Chuyển luồng thanh toán sang webview: bổ sung `generate-webview/loan-detail`, `generate-webview/payment-request`. Bỏ `repayment-van`, `repayment-status`, `payment-request`, `payment-confirm`, các API installment, `partner-repayment-status`, `partner-payment-status` |
+    | 2026-08-25 | email_title | `get-loan-detail`: bỏ `monthly_payment_amount`, đổi `overdue_payment_amount` → `period_payment_amount`. Chuyển luồng thanh toán sang webview: bổ sung `generate-webview/loan-detail`, `generate-webview/payment-request`. Bỏ `repayment-van`, `repayment-status`, `payment-request`, `payment-confirm`, các API installment, `partner-repayment-status`, `partner-payment-status` |
 
     ## Cơ chế xác thực (Signature)
     Tất cả request từ Partner gọi Cake đều phải ký signature:
@@ -396,17 +396,13 @@ components:
                   type: string
                   description: Số ngày quá hạn
                   example: "191"
-                monthly_payment_amount:
+                period_payment_amount:
                   type: string
-                  description: "Số tiền KH có thể thanh toán sớm"
-                  example: "0"
-                overdue_payment_amount:
-                  type: string
-                  description: "Số tiền KH buộc phải thanh toán"
+                  description: Số tiền KH phải thanh toán trong kỳ
                   example: "15331759"
                 total_payment_amount:
                   type: string
-                  description: Tổng tiền KH có thể thanh toán (monthly + overdue)
+                  description: Tổng số tiền KH có thể thanh toán
                   example: "15331759"
                 prepayment_amount:
                   type: string

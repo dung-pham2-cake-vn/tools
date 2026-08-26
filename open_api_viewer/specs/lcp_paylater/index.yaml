@@ -23,6 +23,7 @@ info:
     |-----------|-------|-------|
     | 2026-01-02 | email_title | Khởi tạo tài liệu |
     | 2026-08-25 | email_title | `get-loan-detail`: bỏ `monthly_payment_amount`, đổi `overdue_payment_amount` → `period_payment_amount`. Chuyển luồng thanh toán sang webview: bổ sung `generate-webview/loan-detail`, `generate-webview/payment-request`. Bỏ `repayment-van`, `repayment-status`, `payment-request`, `payment-confirm`, các API installment, `partner-repayment-status`, `partner-payment-status` |
+    | 2026-08-26 | email_title | `generate-webview/payment-request`: bổ sung `installment_tenor` (kỳ hạn trả góp theo tháng) |
 
     ## Cơ chế xác thực (Signature)
     Tất cả request từ Partner gọi Cake đều phải ký signature:
@@ -524,6 +525,11 @@ components:
           type: integer
           description: Số tiền đơn hàng KH cần thanh toán (VNĐ)
           example: 5000000
+        installment_tenor:
+          type: integer
+          nullable: true
+          description: Kỳ hạn trả góp theo tháng
+          example: 3
         metadata:
           $ref: "#/components/schemas/PaymentRequestMetadata"
 
@@ -971,7 +977,7 @@ x-mermaid-flows:
 
       Note over Cl,C: SPENDING
       Cl->>P: Service spending
-      P->>C: generate-webview/payment-request(loan_code, partner_reference_id, payment_amount, metadata)
+      P->>C: generate-webview/payment-request(loan_code, partner_reference_id, payment_amount, installment_tenor, metadata)
       C-->>P: webview_url, order_id
       P-->>Cl: Show webview xác nhận thanh toán
       Cl->>C: Nhập OTP & confirm transaction (trong webview)

@@ -172,6 +172,7 @@ components:
           properties:
             data:
               type: object
+              description: Dữ liệu trả về khi khởi tạo webview thành công
               properties:
                 webview_url:
                   type: string
@@ -201,6 +202,7 @@ components:
           properties:
             data:
               type: object
+              description: Thông tin chi tiết khoản vay
               properties:
                 loan_account_status:
                   type: string

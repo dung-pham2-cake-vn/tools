@@ -218,8 +218,10 @@ components:
                     properties:
                       id:
                         type: string
+                        description: ID tỉnh/thành (dùng cho city_id / permanent_city_id)
                       name:
                         type: string
+                        description: Tên tỉnh/thành (dùng cho city_name / permanent_city_name)
                       dist:
                         type: array
                         description: Danh sách quận/huyện (value=000 nếu mô hình 2 cấp)
@@ -228,8 +230,10 @@ components:
                           properties:
                             id:
                               type: string
+                              description: 'ID quận/huyện. Mô hình 2 cấp: dùng "000"'
                             name:
                               type: string
+                              description: 'Tên quận/huyện. Mô hình 2 cấp: gửi literal "Không"'
                             ward:
                               type: array
                               description: Danh sách phường/xã
@@ -243,8 +247,10 @@ components:
                     properties:
                       id:
                         type: string
+                        description: Mã giới tính (dùng cho gender ở client-create)
                       name:
                         type: string
+                        description: Tên hiển thị
                 marital:
                   type: array
                   description: "1=Độc thân, 2=Đã kết hôn, 3=Khác"
@@ -383,13 +389,16 @@ components:
           description: ID đối tác để định danh hồ sơ (tạo mới mỗi request)
         phone_number:
           type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
           example: "0xxxxxxxxx"
         full_name:
           type: string
+          description: Họ tên KH
           example: "Trần Minh Tiến"
         date_of_birth:
           type: string
           format: date
+          description: Ngày sinh (yyyy-mm-dd)
           example: "1999-12-02"
         gender:
           type: string
@@ -399,9 +408,11 @@ components:
           type: string
           format: email
           nullable: true
+          description: Email KH (không bắt buộc)
           example: "abc@gmail.com"
         document_id:
           type: string
+          description: Số CCCD/CMND
           example: "xxxxxxxxxxxx"
         doc_issue_date:
           type: string
@@ -443,12 +454,15 @@ components:
           example: "54 Chu Văn An"
         permanent_city_name:
           type: string
+          description: Tên Tỉnh/TP thường trú
           example: "Thành phố Hồ Chí Minh"
         permanent_dist_name:
           type: string
+          description: 'Mô hình 2 cấp: gửi literal "Không"'
           example: "Không"
         permanent_ward_name:
           type: string
+          description: Tên Phường/Xã thường trú
           example: "Phường Hải Châu"
         city_id:
           type: string
@@ -456,9 +470,11 @@ components:
           example: "79"
         dist_id:
           type: string
+          description: 'ID Quận/Huyện hiện tại. Mô hình 2 cấp: dùng "000"'
           example: "0"
         ward_id:
           type: string
+          description: ID Phường/Xã hiện tại
           example: "001"
         address:
           type: string
@@ -467,12 +483,15 @@ components:
           example: "54 Chu Văn An"
         city_name:
           type: string
+          description: Tên Tỉnh/TP hiện tại
           example: "Thành phố Hồ Chí Minh"
         dist_name:
           type: string
+          description: 'Mô hình 2 cấp: gửi literal "Không"'
           example: "Không"
         ward_name:
           type: string
+          description: Tên Phường/Xã hiện tại
           example: "Phường Hải Châu"
         occupation:
           type: string
@@ -487,6 +506,7 @@ components:
         company_name:
           type: string
           nullable: true
+          description: Tên công ty
           example: "Cake"
         monthly_income:
           type: string
@@ -510,6 +530,7 @@ components:
           example: "Phạm Thị B"
         contact_number_2:
           type: string
+          description: SĐT người tham chiếu 2 (bắt đầu bằng số 0)
           example: "0345678902"
         contact_relationship_2:
           type: string
@@ -539,6 +560,7 @@ components:
         metadata:
           type: object
           nullable: true
+          description: Dữ liệu bổ sung (nếu có)
           properties:
             partner_score:
               type: string
@@ -594,9 +616,11 @@ components:
           description: Request ID từ API /client-create
         phone_number:
           type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
           example: "0xxxxxxxxx"
         document_id:
           type: string
+          description: Số CCCD/CMND
           example: "xxxxxxxxxxxx"
         selfie_image:
           type: string
@@ -674,6 +698,7 @@ components:
           description: Request ID từ API /client-create
         phone_number:
           type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
           example: "0xxxxxxxxx"
 
     LoanRegisterResponse:
@@ -714,6 +739,7 @@ components:
           example: "u8123123Sjsdb"
         phone_number:
           type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
           example: "0xxxxxxxxx"
 
     GetLoanDetailResponse:
@@ -723,6 +749,7 @@ components:
           properties:
             data:
               type: object
+              description: Thông tin chi tiết khoản vay
               properties:
                 loan_account_status:
                   type: string
@@ -754,9 +781,11 @@ components:
                   example: "https://storage.googleapis.com/..."
                 full_name:
                   type: string
+                  description: Họ tên KH lưu tại Cake
                   example: "Nguyễn Hoàng Sơn"
                 document_id:
                   type: string
+                  description: Số GTTT của KH
                   example: "xxxxxxxxxxxx"
                 approved_amount:
                   type: string
@@ -826,9 +855,11 @@ components:
       properties:
         loan_code:
           type: string
+          description: Mã khoản vay từ loan-register hoặc callback partner-update-status
           example: "u8123123Sjsdb"
         phone_number:
           type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
           example: "0xxxxxxxxx"
 
     GetEsignResponse:
@@ -858,9 +889,11 @@ components:
       properties:
         loan_code:
           type: string
+          description: Mã khoản vay từ loan-register hoặc callback partner-update-status
           example: "u8123123Sjsdb"
         phone_number:
           type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
           example: "0xxxxxxxxx"
 
     GetOtpRequest:
@@ -871,9 +904,11 @@ components:
       properties:
         loan_code:
           type: string
+          description: Mã khoản vay từ loan-register hoặc callback partner-update-status
           example: "u8123123Sjsdb"
         phone_number:
           type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
           example: "0xxxxxxxxx"
 
     GetOtpResponse:
@@ -906,9 +941,11 @@ components:
       properties:
         loan_code:
           type: string
+          description: Mã khoản vay từ loan-register hoặc callback partner-update-status
           example: "u8123123Sjsdb"
         phone_number:
           type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
           example: "0xxxxxxxxx"
         otp:
           type: string
@@ -938,9 +975,11 @@ components:
       properties:
         loan_code:
           type: string
+          description: Mã khoản vay
           example: "u8123123Sjsdb"
         phone_number:
           type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
           example: "0xxxxxxxxx"
         partner_disburse_status:
           type: integer
@@ -959,9 +998,11 @@ components:
       properties:
         loan_code:
           type: string
+          description: Mã khoản vay
           example: "u8123123Sjsdb"
         phone_number:
           type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
           example: "0xxxxxxxxx"
         partner_reference_id:
           type: string
@@ -1011,9 +1052,11 @@ components:
       properties:
         loan_code:
           type: string
+          description: Mã khoản vay, chỉ truyền từ khi loan approve
           example: "u8123123Sjsdb"
         phone_number:
           type: string
+          description: SĐT của KH (định dạng bắt đầu bằng số 0)
           example: "0xxxxxxxxx"
         order_id:
           type: string
@@ -1060,9 +1103,11 @@ components:
           description: ID đối tác truyền ở API /client-create
         loan_code:
           type: string
+          description: Mã khoản vay
           example: "u8123123Sjsdb"
         phone_number:
           type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
           example: "0xxxxxxxxx"
         status:
           type: string
@@ -1197,9 +1242,11 @@ components:
           type: string
         loan_code:
           type: string
+          description: Mã khoản vay, chỉ truyền từ khi loan approve
           example: "u8123123Sjsdb"
         phone_number:
           type: string
+          description: SĐT của KH (định dạng bắt đầu bằng số 0)
           example: "0xxxxxxxxx"
         order_id:
           type: string

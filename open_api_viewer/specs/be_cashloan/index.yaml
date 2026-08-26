@@ -413,6 +413,7 @@ components:
           properties:
             data:
               type: object
+              description: Thông tin chi tiết khoản vay
               properties:
                 loan_account_status:
                   type: string

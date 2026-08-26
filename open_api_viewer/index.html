@@ -33,6 +33,9 @@
     --zebra: #faf9f7;
     --warn-bg: #fef3c7; --warn-border: #fde68a; --warn-text: #78350f;
     --diff-a-text: #065f46; --diff-b-text: #1e3a8a;
+    --dh-add-bg: #ecfdf5; --dh-add-bd: #6ee7b7; --dh-add-tx: #065f46;
+    --dh-del-bg: #fef2f2; --dh-del-bd: #fca5a5; --dh-del-tx: #9f1239;
+    --dh-chg-bg: #fffbeb; --dh-chg-bd: #fcd34d; --dh-chg-tx: #78350f;
     --mono: 'JetBrains Mono', 'Fira Code', monospace;
     --sans: 'Instrument Serif', Georgia, serif;
     --ui: 'DM Sans', 'Helvetica Neue', sans-serif;
@@ -60,6 +63,9 @@
       --zebra: #272232;
       --warn-bg: #3a2e05; --warn-border: #78350f; --warn-text: #fcd34d;
       --diff-a-text: #34d399; --diff-b-text: #93c5fd;
+      --dh-add-bg: rgba(16,185,129,0.16); --dh-add-bd: #10b981; --dh-add-tx: #6ee7b7;
+      --dh-del-bg: rgba(244,63,94,0.16);  --dh-del-bd: #f43f5e; --dh-del-tx: #fda4af;
+      --dh-chg-bg: rgba(245,158,11,0.16); --dh-chg-bd: #f59e0b; --dh-chg-tx: #fcd34d;
     }
     ::selection { background: rgba(96,165,250,0.35); }
   }
@@ -422,6 +428,7 @@
 
   /* ── CONTENT ── */
   #content { display: none; max-width: 960px; margin: 0 auto; padding: 28px 24px 80px; }
+  #content.full-width { max-width: 100%; padding: 20px 20px 80px; }
 
   /* ── API INFO ── */
   .api-info { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px 28px; margin-bottom: 28px; }
@@ -581,6 +588,102 @@
   .diff-field-status.added   { color: #166534; }
   .diff-field-status.removed { color: #9f1239; }
   .diff-field-status.changed { color: #78350f; }
+
+  /* ── SIDE-BY-SIDE COMPARE ── */
+  .compare-view.sxs-mode { max-width: 100%; padding: 4px 0 80px; }
+
+  .cmp-toolbar { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }
+  .cmp-view-toggle { display: flex; border: 1.5px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .cmp-vt {
+    background: var(--surface); border: none; cursor: pointer; padding: 6px 14px;
+    font-family: var(--ui); font-size: 12px; font-weight: 500; color: var(--text-muted);
+  }
+  .cmp-vt + .cmp-vt { border-left: 1.5px solid var(--border); }
+  .cmp-vt:hover { color: var(--text); }
+  .cmp-vt.active { background: var(--accent-tint); color: var(--accent); font-weight: 600; }
+  .cmp-onlydiff { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); cursor: pointer; user-select: none; }
+  .cmp-onlydiff input { cursor: pointer; }
+  .cmp-legend { display: flex; gap: 10px; margin-left: auto; font-size: 11px; color: var(--text-muted); flex-wrap: wrap; }
+  .cmp-legend span { display: flex; align-items: center; gap: 5px; }
+  .cmp-legend i { width: 11px; height: 11px; border-radius: 3px; border: 1px solid; display: inline-block; }
+  .lg-add { background: var(--dh-add-bg); border-color: var(--dh-add-bd); }
+  .lg-del { background: var(--dh-del-bg); border-color: var(--dh-del-bd); }
+  .lg-chg { background: var(--dh-chg-bg); border-color: var(--dh-chg-bd); }
+
+  .sxs-head {
+    position: sticky; top: 0; z-index: 5; display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    background: var(--bg); padding: 8px 0 10px; margin-bottom: 6px; border-bottom: 1px solid var(--border);
+  }
+  .sxs-head-col {
+    font-family: var(--mono); font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 8px;
+    border: 1.5px solid var(--border); background: var(--surface); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .sxs-head-a { color: var(--diff-a-text); border-color: var(--dh-add-bd); }
+  .sxs-head-b { color: var(--diff-b-text); border-color: #93c5fd; }
+
+  .sxs-rowhead {
+    display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none;
+    padding: 9px 12px; margin-top: 14px; border-radius: 8px 8px 0 0;
+    border: 1px solid var(--border); border-bottom: none; background: var(--surface);
+  }
+  .sxs-rowhead:hover { background: var(--table-header); }
+  .sxs-rowhead .sxs-ep-path { font-family: var(--mono); font-size: 13px; }
+  .sxs-rowhead .sxs-ep-sum { color: var(--text-muted); font-size: 12px; }
+  .sxs-rowhead.rh-added   { background: var(--dh-add-bg); border-color: var(--dh-add-bd); }
+  .sxs-rowhead.rh-removed { background: var(--dh-del-bg); border-color: var(--dh-del-bd); }
+  .sxs-rowhead.rh-modified{ background: var(--dh-chg-bg); border-color: var(--dh-chg-bd); }
+  .sxs-rowhead.rh-same    { opacity: 0.7; }
+
+  .sxs-pair {
+    display: none; grid-template-columns: 1fr 1fr; gap: 14px;
+    border: 1px solid var(--border); border-radius: 0 0 8px 8px; padding: 14px; background: var(--bg);
+  }
+  .sxs-pair.open { display: grid; }
+  .sxs-cell { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; min-width: 0; overflow-x: auto; }
+  .sxs-cell.cell-a { border-left: 3px solid var(--dh-add-bd); }
+  .sxs-cell.cell-b { border-left: 3px solid #93c5fd; }
+  .sxs-cell.sxs-missing {
+    display: flex; align-items: center; justify-content: center; min-height: 90px;
+    color: var(--text-muted); font-size: 12px; font-style: italic;
+    background: repeating-linear-gradient(45deg, transparent, transparent 8px, var(--table-header) 8px, var(--table-header) 16px);
+  }
+  .sxs-cell-title { font-family: var(--mono); font-size: 12px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .sxs-cell .spec-table { font-size: 12px; }
+  .sxs-cell .endpoint-block { margin-bottom: 14px; }
+  .sxs-cell .endpoint-block:last-child { margin-bottom: 0; }
+  .endpoint-block.blk-chg { border-left: 3px solid var(--dh-chg-bd); padding-left: 10px; }
+
+  /* diff-highlighted table rows */
+  tr.diffrow-added   > td { background: var(--dh-add-bg) !important; }
+  tr.diffrow-removed > td { background: var(--dh-del-bg) !important; }
+  tr.diffrow-changed > td { background: var(--dh-chg-bg) !important; }
+  tr.diffrow-added   > td:first-child { box-shadow: inset 3px 0 0 var(--dh-add-bd); }
+  tr.diffrow-removed > td:first-child { box-shadow: inset 3px 0 0 var(--dh-del-bd); }
+  tr.diffrow-changed > td:first-child { box-shadow: inset 3px 0 0 var(--dh-chg-bd); }
+  td.cell-chg { outline: 1.5px dashed var(--dh-chg-bd); outline-offset: -3px; font-weight: 600; }
+
+  .sxs-flag { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 99px; border: 1px solid; }
+  .flag-added   { background: var(--dh-add-bg); color: var(--dh-add-tx); border-color: var(--dh-add-bd); }
+  .flag-removed { background: var(--dh-del-bg); color: var(--dh-del-tx); border-color: var(--dh-del-bd); }
+  .flag-changed { background: var(--dh-chg-bg); color: var(--dh-chg-tx); border-color: var(--dh-chg-bd); }
+
+  /* ── LOCK EXPORT CONFIRM ── */
+  #lock-confirm { position: fixed; inset: 0; z-index: 200; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.45); }
+  #lock-confirm.show { display: flex; }
+  .lock-modal {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    max-width: 460px; width: calc(100% - 40px); padding: 22px 24px;
+    box-shadow: 0 18px 50px rgba(0,0,0,0.28);
+  }
+  .lock-modal-title { font-family: var(--sans); font-style: italic; font-size: 20px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .lock-modal-body { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+  .lock-modal-file { font-family: var(--mono); font-size: 12px; color: var(--warn-text); background: var(--warn-bg); border: 1px solid var(--warn-border); border-radius: 6px; padding: 4px 9px; display: inline-block; margin: 10px 0 4px; }
+  .lock-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+  .lock-btn { font-family: var(--ui); font-size: 12px; font-weight: 600; padding: 7px 16px; border-radius: 7px; cursor: pointer; border: 1.5px solid var(--border); background: var(--surface); color: var(--text); }
+  .lock-btn:hover { border-color: var(--text); }
+  .lock-btn-danger { background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn-text); }
+  .lock-btn-danger:hover { border-color: var(--warn-text); }
+  @media print { #lock-confirm { display: none !important; } }
 
   /* ── MISC ── */
   .empty-msg { color: var(--text-muted); font-size: 13px; font-style: italic; }
@@ -1118,6 +1221,7 @@ async function selectForCompare(path) {
 function exitCompareView() {
   document.getElementById('welcome').style.display = 'none';
   const c = document.getElementById('content');
+  c.classList.remove('full-width');
   if (currentFileName && globalSpec) {
     c.style.display = 'block';
     renderSpec(globalSpec);
@@ -1192,38 +1296,81 @@ function renderFieldDiffs(diffs, labelA, labelB) {
   return `<div class="diff-field-list">${rows}</div>`;
 }
 
-function renderCompareView(selA, selB) {
-  const specA = selA.spec, specB = selB.spec;
-  const nameA = selA.path.split('/').pop().replace(/\.(yaml|yml)$/i,'');
-  const nameB = selB.path.split('/').pop().replace(/\.(yaml|yml)$/i,'');
+let compareViewMode = 'side';    // 'side' | 'summary'
+let compareOnlyDiff = false;
+let compareData = null;
 
+function statusMaps(diffList, side) {
+  const m = {};
+  for (const d of diffList) m[d.field] = { status: d.status, other: side === 'a' ? d.b : d.a };
+  return m;
+}
+
+function buildCompareData(selA, selB) {
+  const specA = selA.spec, specB = selB.spec;
+  const nameA = selA.path.split('/').pop().replace(/\.(yaml|yml)$/i, '');
+  const nameB = selB.path.split('/').pop().replace(/\.(yaml|yml)$/i, '');
   const mapA = extractEndpointMap(specA);
   const mapB = extractEndpointMap(specB);
-  const allKeys = new Set([...Object.keys(mapA), ...Object.keys(mapB)]);
 
-  const onlyA = [], onlyB = [], modified = [], same = [];
+  // document order: A first, then endpoints that exist only in B
+  const keys = [...Object.keys(mapA)];
+  for (const k of Object.keys(mapB)) if (!mapA[k]) keys.push(k);
 
-  for (const k of allKeys) {
-    if (mapA[k] && !mapB[k]) onlyA.push(k);
-    else if (!mapA[k] && mapB[k]) onlyB.push(k);
+  const rows = [];
+  for (const key of keys) {
+    const epA = mapA[key] || null, epB = mapB[key] || null;
+    if (epA && !epB)      rows.push({ key, status: 'removed', epA, epB, diff: null });
+    else if (!epA && epB) rows.push({ key, status: 'added',   epA, epB, diff: null });
     else {
-      const diff = compareOps(mapA[k].op, mapB[k].op, specA, specB);
-      const hasDiff = diff.params.length || diff.response.length || diff.summaryChanged;
-      if (hasDiff) modified.push({ key: k, diff, epA: mapA[k], epB: mapB[k] });
-      else same.push(k);
+      const diff = compareOps(epA.op, epB.op, specA, specB);
+      const changed = diff.params.length || diff.response.length || diff.summaryChanged;
+      rows.push({ key, status: changed ? 'modified' : 'same', epA, epB, diff });
     }
   }
 
-  let html = `<div class="compare-view">`;
+  const infoA = JSON.stringify({ info: specA.info || {}, servers: specA.servers || [] });
+  const infoB = JSON.stringify({ info: specB.info || {}, servers: specB.servers || [] });
 
-  // header
+  return {
+    specA, specB, nameA, nameB, mapA, mapB, rows,
+    infoChanged: infoA !== infoB,
+    onlyA: rows.filter(r => r.status === 'removed'),
+    onlyB: rows.filter(r => r.status === 'added'),
+    modified: rows.filter(r => r.status === 'modified'),
+    same: rows.filter(r => r.status === 'same'),
+  };
+}
+
+function renderCompareView(selA, selB) {
+  compareData = buildCompareData(selA, selB);
+  renderCompareBody();
+}
+
+function setCompareView(mode) {
+  compareViewMode = mode;
+  renderCompareBody();
+}
+
+function toggleCompareOnlyDiff(el) {
+  compareOnlyDiff = el.checked;
+  renderCompareBody();
+}
+
+function renderCompareBody() {
+  const d = compareData;
+  if (!d) return;
+  const side = compareViewMode === 'side';
+
+  let html = `<div class="compare-view${side ? ' sxs-mode' : ''}">`;
+
   html += `<div class="compare-header">
     <div class="compare-header-text">
       <div class="compare-title">Spec Comparison</div>
       <div class="compare-subtitle">
-        <span class="cmp-name-a">A: ${escHtml(nameA)}</span>
+        <span class="cmp-name-a">A: ${escHtml(d.nameA)}</span>
         <span style="color:var(--text-muted)">vs</span>
-        <span class="cmp-name-b">B: ${escHtml(nameB)}</span>
+        <span class="cmp-name-b">B: ${escHtml(d.nameB)}</span>
       </div>
     </div>
     <button class="btn-exit-compare" onclick="exitCompare()">
@@ -1232,20 +1379,219 @@ function renderCompareView(selA, selB) {
     </button>
   </div>`;
 
-  // stats
-  html += `<div class="compare-stats">
-    <span class="stat-pill stat-removed">− ${onlyA.length} only in A</span>
-    <span class="stat-pill stat-added">+ ${onlyB.length} only in B</span>
-    <span class="stat-pill stat-modified">≠ ${modified.length} modified</span>
-    <span class="stat-pill stat-same">= ${same.length} unchanged</span>
+  html += `<div class="cmp-toolbar">
+    <div class="cmp-view-toggle">
+      <button class="cmp-vt${side ? ' active' : ''}" onclick="setCompareView('side')">Side by side</button>
+      <button class="cmp-vt${side ? '' : ' active'}" onclick="setCompareView('summary')">Summary</button>
+    </div>
+    <label class="cmp-onlydiff"><input type="checkbox" ${compareOnlyDiff ? 'checked' : ''} onchange="toggleCompareOnlyDiff(this)"> Only differences</label>
+    <div class="cmp-legend">
+      <span><i class="lg-del"></i> only in A</span>
+      <span><i class="lg-add"></i> only in B</span>
+      <span><i class="lg-chg"></i> changed</span>
+    </div>
   </div>`;
 
-  // only in A (removed)
-  if (onlyA.length) {
+  html += `<div class="compare-stats">
+    <span class="stat-pill stat-removed">− ${d.onlyA.length} only in A</span>
+    <span class="stat-pill stat-added">+ ${d.onlyB.length} only in B</span>
+    <span class="stat-pill stat-modified">≠ ${d.modified.length} modified</span>
+    <span class="stat-pill stat-same">= ${d.same.length} unchanged</span>
+  </div>`;
+
+  html += side ? renderSideBySide(d) : renderCompareSummary(d);
+  html += `</div>`;
+
+  document.getElementById('welcome').style.display = 'none';
+  const c = document.getElementById('content');
+  c.style.display = 'block';
+  c.innerHTML = html;
+  c.classList.toggle('full-width', side);
+  document.getElementById('pdf-btn').disabled = true;
+  c.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+}
+
+// ─── SIDE-BY-SIDE ────────────────────────────────
+function toggleSxsPair(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const open = el.classList.toggle('open');
+  const arr = document.getElementById('arr-' + id);
+  if (arr) arr.classList.toggle('open', open);
+}
+
+function renderDiffTable(fields, cols, statusMap) {
+  if (!fields?.length) return `<p class="empty-msg">— no fields —</p>`;
+  const ths = cols.map(c => `<th>${c.label}</th>`).join('');
+  const trs = fields.map(f => {
+    const st = statusMap?.[f.field];
+    const rowCls = st ? ` class="diffrow-${st.status}"` : '';
+    const tds = cols.map(c => {
+      const v = f[c.key] ?? '';
+      const chg = st && st.status === 'changed' && st.other && String(st.other[c.key] ?? '') !== String(v);
+      const mark = chg ? ' cell-chg' : '';
+      if (c.key === 'field') {
+        const sv = String(v), dpt = (sv.match(/\./g) || []).length;
+        const name = dpt ? sv.replace(/.*\./, '') : sv, prefix = dpt ? '└─ ' : '';
+        return `<td class="${mark.trim()}"${dpt ? ` style="padding-left:${dpt * 14}px"` : ''}><span class="field-name">${prefix}${escHtml(name)}</span></td>`;
+      }
+      if (c.key === 'type') return `<td class="${mark.trim()}"><span class="field-type">${escHtml(String(v))}</span></td>`;
+      if (c.key === 'required') {
+        const inner = v === 'conditional'
+          ? `<span class="field-conditional">Required*</span>`
+          : `<span class="${v ? 'field-required' : 'field-optional'}">${v ? 'Required' : 'Optional'}</span>`;
+        return `<td class="${mark.trim()}">${inner}</td>`;
+      }
+      if (c.key === 'desc') return `<td class="md-prose${mark}">${md(String(v))}</td>`;
+      return `<td class="${mark.trim()}">${escHtml(String(v))}</td>`;
+    }).join('');
+    let tip = '';
+    if (st && st.status === 'changed' && st.other) {
+      const o = st.other;
+      tip = ` title="${escAttr(`Other side → type: ${o.type || '—'} | required: ${o.required} | ${o.desc || '—'}`)}"`;
+    } else if (st && st.status === 'added') {
+      tip = ` title="Only in B"`;
+    } else if (st && st.status === 'removed') {
+      tip = ` title="Only in A"`;
+    }
+    return `<tr${rowCls}${tip}>${tds}</tr>`;
+  }).join('');
+  return `<table class="spec-table"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+}
+
+function blockC(label, inner, cls) {
+  return `<div class="endpoint-block${cls ? ' ' + cls : ''}"><div class="block-label">${label}</div>${inner}</div>`;
+}
+
+// Full endpoint doc for one side, with per-field diff highlighting.
+function renderEndpointPane(ep, spec, maps, exFlags) {
+  const op = ep.op;
+  const rg = extractRequest(op, spec);
+  const resFields = extractResponse(op, spec);
+  const reqEx = getReqEx(op, spec);
+  const resEx = getResEx(op, spec);
+  const pCols = [{key:'field',label:'Field'},{key:'type',label:'Type'},{key:'required',label:'Required'},{key:'desc',label:'Description'}];
+  const rCols = [{key:'field',label:'Field'},{key:'type',label:'Type'},{key:'desc',label:'Description'}];
+
+  let blocks = '';
+  if (rg.header?.length) blocks += blockC('Request Header', renderDiffTable(rg.header, pCols, maps?.p));
+
+  const bodyFields = [
+    ...(rg.path || []).map(f => ({ ...f, _s: 'path' })),
+    ...(rg.query || []).map(f => ({ ...f, _s: 'query' })),
+    ...(rg.body || []).map(f => ({ ...f, _s: 'body' })),
+  ];
+  if (bodyFields.length) {
+    const sg = {}; for (const f of bodyFields) (sg[f._s] = sg[f._s] || []).push(f);
+    const lbls = { path: 'Path Parameters', query: 'Query Parameters', body: 'Body' };
+    let inner = '';
+    if (Object.keys(sg).length === 1) inner = renderDiffTable(bodyFields, pCols, maps?.p);
+    else for (const k of ['path','query','body']) {
+      if (!sg[k]?.length) continue;
+      inner += `<div class="param-group"><div class="param-group-label">${lbls[k]}</div>${renderDiffTable(sg[k], pCols, maps?.p)}</div>`;
+    }
+    blocks += blockC('Request Body', inner);
+  }
+  if (resFields.length) blocks += blockC('Response', renderDiffTable(resFields, rCols, maps?.r));
+  if (reqEx !== null) blocks += blockC('Request Example', renderCodeWithExamples(reqEx), exFlags?.req ? 'blk-chg' : '');
+  if (resEx !== null) blocks += blockC('Response Example', renderCodeWithExamples(resEx), exFlags?.res ? 'blk-chg' : '');
+
+  const desc = op.description ? `<div class="endpoint-desc md-prose">${md(op.description)}</div>` : '';
+  return `<div class="sxs-cell-title">${badge(ep.method)} <span>${escHtml(ep.path)}</span></div>
+    ${op.summary ? `<div class="endpoint-summary" style="margin-bottom:6px">${escHtml(op.summary)}</div>` : ''}
+    ${desc}
+    ${blocks || '<p class="empty-msg">— no details —</p>'}`;
+}
+
+function renderInfoPane(spec) {
+  const info = spec.info || {};
+  let srv = '';
+  if ((spec.servers || []).length) {
+    srv = `<div class="block-label" style="margin:10px 0 4px">Servers</div>` +
+      spec.servers.map(sv => `<div style="font-family:var(--mono);font-size:11px">${escHtml(sv.url)}${sv.description ? ` <span style="color:var(--text-muted)">— ${escHtml(sv.description)}</span>` : ''}</div>`).join('');
+  }
+  return `<div class="sxs-cell-title">${escHtml(info.title || 'API Documentation')} <span style="color:var(--text-muted);font-weight:400">v${escHtml(info.version || '?')}</span></div>${srv}`;
+}
+
+function renderSideBySide(d) {
+  let html = `<div class="sxs-head">
+    <div class="sxs-head-col sxs-head-a">A · ${escHtml(d.nameA)}</div>
+    <div class="sxs-head-col sxs-head-b">B · ${escHtml(d.nameB)}</div>
+  </div>`;
+
+  // info / servers row
+  if (!compareOnlyDiff || d.infoChanged) {
+    html += `<div class="sxs-rowhead ${d.infoChanged ? 'rh-modified' : 'rh-same'}" onclick="toggleSxsPair('sxs-info')">
+      <span style="font-weight:600;font-size:12px">API Info & Servers</span>
+      ${d.infoChanged ? '<span class="sxs-flag flag-changed">Changed</span>' : '<span class="sxs-flag" style="border-color:var(--border);color:var(--text-muted)">Same</span>'}
+      <span class="diff-expand-arrow${d.infoChanged ? ' open' : ''}" id="arr-sxs-info" style="margin-left:auto">▶</span>
+    </div>
+    <div class="sxs-pair${d.infoChanged ? ' open' : ''}" id="sxs-info">
+      <div class="sxs-cell cell-a">${renderInfoPane(d.specA)}</div>
+      <div class="sxs-cell cell-b">${renderInfoPane(d.specB)}</div>
+    </div>`;
+  }
+
+  let shown = 0;
+  for (const row of d.rows) {
+    if (compareOnlyDiff && row.status === 'same') continue;
+    shown++;
+    const id = 'sxs-' + row.key.replace(/[^a-zA-Z0-9]/g, '-');
+    const ep = row.epA || row.epB;
+    const openByDefault = row.status !== 'same';
+
+    let flag = '', rhCls = '', note = '';
+    if (row.status === 'removed')  { flag = '<span class="sxs-flag flag-removed">Only in A</span>'; rhCls = 'rh-removed'; }
+    else if (row.status === 'added') { flag = '<span class="sxs-flag flag-added">Only in B</span>'; rhCls = 'rh-added'; }
+    else if (row.status === 'modified') {
+      const n = row.diff.params.length + row.diff.response.length + (row.diff.summaryChanged ? 1 : 0);
+      flag = '<span class="sxs-flag flag-changed">Modified</span>';
+      rhCls = 'rh-modified';
+      note = `<span class="sxs-ep-sum">${n} change${n !== 1 ? 's' : ''}</span>`;
+    } else { rhCls = 'rh-same'; }
+
+    html += `<div class="sxs-rowhead ${rhCls}" onclick="toggleSxsPair('${id}')">
+      ${badge(ep.method)}
+      <span class="sxs-ep-path">${escHtml(ep.path)}</span>
+      ${ep.op.summary ? `<span class="sxs-ep-sum">${escHtml(ep.op.summary)}</span>` : ''}
+      ${note}
+      ${flag}
+      <span class="diff-expand-arrow${openByDefault ? ' open' : ''}" id="arr-${id}" style="margin-left:auto">▶</span>
+    </div>`;
+
+    let mapsA = null, mapsB = null, exFlags = { req: false, res: false };
+    if (row.status === 'modified') {
+      mapsA = { p: statusMaps(row.diff.params, 'a'), r: statusMaps(row.diff.response, 'a') };
+      mapsB = { p: statusMaps(row.diff.params, 'b'), r: statusMaps(row.diff.response, 'b') };
+      exFlags = {
+        req: JSON.stringify(getReqEx(row.epA.op, d.specA)) !== JSON.stringify(getReqEx(row.epB.op, d.specB)),
+        res: JSON.stringify(getResEx(row.epA.op, d.specA)) !== JSON.stringify(getResEx(row.epB.op, d.specB)),
+      };
+    }
+
+    const cellA = row.epA
+      ? `<div class="sxs-cell cell-a">${renderEndpointPane(row.epA, d.specA, mapsA, exFlags)}</div>`
+      : `<div class="sxs-cell sxs-missing">Not present in A (${escHtml(d.nameA)})</div>`;
+    const cellB = row.epB
+      ? `<div class="sxs-cell cell-b">${renderEndpointPane(row.epB, d.specB, mapsB, exFlags)}</div>`
+      : `<div class="sxs-cell sxs-missing">Not present in B (${escHtml(d.nameB)})</div>`;
+
+    html += `<div class="sxs-pair${openByDefault ? ' open' : ''}" id="${id}">${cellA}${cellB}</div>`;
+  }
+
+  if (!shown) html += `<p class="empty-msg" style="margin-top:20px">No differences between the two specs.</p>`;
+  return html;
+}
+
+// ─── SUMMARY VIEW (compact diff list) ────────────
+function renderCompareSummary(d) {
+  const { nameA, nameB } = d;
+  let html = '';
+
+  if (d.onlyA.length) {
     html += `<div class="compare-section">
       <div class="compare-section-title cs-removed">− Only in A (${escHtml(nameA)})</div>`;
-    for (const k of onlyA) {
-      const ep = mapA[k];
+    for (const { epA: ep } of d.onlyA) {
       html += `<div class="diff-ep-row diff-removed">
         <div class="diff-ep-head" style="cursor:default">
           ${badge(ep.method)}
@@ -1258,12 +1604,10 @@ function renderCompareView(selA, selB) {
     html += `</div>`;
   }
 
-  // only in B (added)
-  if (onlyB.length) {
+  if (d.onlyB.length) {
     html += `<div class="compare-section">
       <div class="compare-section-title cs-added">+ Only in B (${escHtml(nameB)})</div>`;
-    for (const k of onlyB) {
-      const ep = mapB[k];
+    for (const { epB: ep } of d.onlyB) {
       html += `<div class="diff-ep-row diff-added">
         <div class="diff-ep-head" style="cursor:default">
           ${badge(ep.method)}
@@ -1276,13 +1620,12 @@ function renderCompareView(selA, selB) {
     html += `</div>`;
   }
 
-  // modified
-  if (modified.length) {
+  if (d.modified.length) {
     html += `<div class="compare-section">
-      <div class="compare-section-title cs-modified">≠ Modified (${modified.length})</div>`;
-    for (const { key, diff, epA, epB } of modified) {
+      <div class="compare-section-title cs-modified">≠ Modified (${d.modified.length})</div>`;
+    for (const { key, diff, epA } of d.modified) {
       const safeId = 'diff-' + key.replace(/[^a-zA-Z0-9]/g, '-');
-      let changeCount = diff.params.length + diff.response.length + (diff.summaryChanged ? 1 : 0);
+      const changeCount = diff.params.length + diff.response.length + (diff.summaryChanged ? 1 : 0);
       html += `<div class="diff-ep-row diff-modified">
         <div class="diff-ep-head" onclick="toggleDiffBody('${safeId}')">
           ${badge(epA.method)}
@@ -1304,36 +1647,31 @@ function renderCompareView(selA, selB) {
           </div>
         </div>`;
       }
-
       if (diff.params.length) {
         html += `<div style="margin-bottom:12px">
           <div class="block-label" style="margin-bottom:6px">Request Parameters / Body</div>
           ${renderFieldDiffs(diff.params, 'A', 'B')}
         </div>`;
       }
-
       if (diff.response.length) {
         html += `<div>
           <div class="block-label" style="margin-bottom:6px">Response Fields</div>
           ${renderFieldDiffs(diff.response, 'A', 'B')}
         </div>`;
       }
-
       html += `</div></div>`;
     }
     html += `</div>`;
   }
 
-  // unchanged (collapsed by default, just count shown)
-  if (same.length) {
+  if (d.same.length) {
     html += `<div class="compare-section">
       <div class="compare-section-title cs-same" onclick="toggleDiffBody('unchanged-list')" style="cursor:pointer">
-        = Unchanged (${same.length})
+        = Unchanged (${d.same.length})
         <span class="diff-expand-arrow" id="arr-unchanged-list" style="margin-left:auto">▶</span>
       </div>
       <div id="unchanged-list" style="display:none">`;
-    for (const k of same) {
-      const ep = mapA[k];
+    for (const { epA: ep } of d.same) {
       html += `<div class="diff-ep-row" style="opacity:0.55">
         <div class="diff-ep-head" style="cursor:default">
           ${badge(ep.method)}
@@ -1345,13 +1683,7 @@ function renderCompareView(selA, selB) {
     html += `</div></div>`;
   }
 
-  html += `</div>`;
-
-  document.getElementById('welcome').style.display = 'none';
-  const c = document.getElementById('content');
-  c.style.display = 'block';
-  c.innerHTML = html;
-  document.getElementById('pdf-btn').disabled = true;
+  return html;
 }
 
 function toggleDiffBody(id) {
@@ -1545,6 +1877,29 @@ document.getElementById('file-input').addEventListener('change', e => {
 
 // ─── PRINT ───────────────────────────────────────
 function printSpec() {
+  // Bản lock đã gửi đối tác — hỏi lại trước khi xuất PDF.
+  if (currentFileName && isLockSpec(currentFileName.split('/').pop())) {
+    openLockConfirm();
+    return;
+  }
+  doPrintSpec();
+}
+
+function openLockConfirm() {
+  document.getElementById('lock-modal-file').textContent = currentFileName.split('/').pop();
+  document.getElementById('lock-confirm').classList.add('show');
+}
+
+function closeLockConfirm() {
+  document.getElementById('lock-confirm').classList.remove('show');
+}
+
+function confirmLockExport() {
+  closeLockConfirm();
+  doPrintSpec();
+}
+
+function doPrintSpec() {
   const title = globalSpec?.info?.title || 'API';
   const now = new Date();
   const yyyymmdd = now.getFullYear().toString()
@@ -1861,6 +2216,7 @@ function renderSpec(spec) {
   document.getElementById('welcome').style.display='none';
   const c=document.getElementById('content');
   c.style.display='block';
+  c.classList.remove('full-width');
   c.innerHTML=html;
   document.getElementById('pdf-btn').disabled=false;
 
@@ -1902,6 +2258,12 @@ document.addEventListener('keydown', e => {
     e.preventDefault();
     toggleSidebar();
   }
+  // Ctrl/Cmd+P cũng phải qua cửa xác nhận khi đang xem bản lock.
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+    e.preventDefault();
+    printSpec();
+  }
+  if (e.key === 'Escape') closeLockConfirm();
 });
 
 // Embedded in Tools Manager: skip the welcome screen, open bundled specs.
@@ -1910,5 +2272,19 @@ if (new URLSearchParams(location.search).get('embed') === '1') {
   loadBuiltInSpecs();
 }
 </script>
+<div id="lock-confirm" onclick="if(event.target===this)closeLockConfirm()">
+  <div class="lock-modal" role="dialog" aria-modal="true" aria-labelledby="lock-modal-title">
+    <div class="lock-modal-title" id="lock-modal-title">⚠ Tài liệu đã lock</div>
+    <div class="lock-modal-body">
+      Bản lock là bản đã chốt và gửi đối tác. Xuất PDF lại có thể tạo ra file trùng nội dung nhưng khác ngày, dễ gây nhầm lẫn khi đối soát.
+      <div class="lock-modal-file" id="lock-modal-file"></div>
+      <div>Vẫn muốn xuất PDF?</div>
+    </div>
+    <div class="lock-modal-actions">
+      <button class="lock-btn" onclick="closeLockConfirm()">Hủy</button>
+      <button class="lock-btn lock-btn-danger" onclick="confirmLockExport()">Vẫn xuất PDF</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

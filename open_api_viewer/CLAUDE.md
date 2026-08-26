@@ -74,7 +74,7 @@ Placeholder trong base: `product_id`, `email_title`, `2026-0x-0x`.
 | Thư mục | Spec | Mô hình | Lock hiện có |
 |---|---|---|---|
 | `be_cashloan/` | Be_Cashloan - BE x CAKE Lending APIs | custom (create-link/token, get-be-score) | — |
-| `dvs/` | DVS - Repayment APIs | repayment-only (get-loan-detail, repayment-request/confirm) | — |
+| `dvs/` | DVS - Repayment APIs | thu hộ tại quầy `cake-proxy/cash-collection` (order/inquiry, transaction/collect, transaction/inquiry) | `lending_only.lock.yaml` |
 | `be_payday/` | be_payday - APIs spec | DOP | `20260608.lock.yaml`, `20260611.lock.yaml` |
 | `fiza_cashloan/` | Fiza Cashloan - Native API | Native | `index.lock.yaml` |
 | `fiza_payday/` | Fiza Payday - Native API | Native | `index.lock.yaml` |
@@ -183,7 +183,7 @@ node open_api_viewer/build-specs-index.mjs
 
 `specs/specs-index.js` là **file sinh tự động** (~1.2 MB) — không bao giờ sửa tay. Script chỉ lấy `.yaml`/`.yml`, bỏ qua file/dir bắt đầu bằng `.`; file `.md` không được bake.
 
-Tính năng viewer: cây thư mục spec, render endpoint + flatten schema, mermaid flow, **Compare mode** (diff 2 spec theo endpoint và theo field — dùng để so working vs lock), print CSS để xuất PDF, live-reload khi phục vụ qua HTTP, mở thư mục cục bộ qua File System Access API.
+Tính năng viewer: cây thư mục spec, render endpoint + flatten schema, mermaid flow, **Compare mode** (2 chế độ: *Side by side* — render đủ 2 tài liệu 2 bên, bôi màu phần khác nhau ở mức endpoint + từng field/ô; *Summary* — danh sách diff gọn. Có checkbox "Only differences". Dùng để so working vs lock), print CSS để xuất PDF, live-reload khi phục vụ qua HTTP, mở thư mục cục bộ qua File System Access API.
 
 Dependency nạp từ CDN: js-yaml, marked, highlight.js, mermaid → cần internet lần đầu.
 

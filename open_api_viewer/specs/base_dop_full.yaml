@@ -286,6 +286,7 @@ components:
           properties:
             data:
               type: object
+              description: Dữ liệu trả về khi khởi tạo webview thành công
               properties:
                 webview_url:
                   type: string
@@ -326,6 +327,7 @@ components:
           example: "u8123123Sjsdb"
         phone_number:
           type: string
+          description: SĐT của KH (định dạng bắt đầu bằng số 0)
           example: "0xxxxxxxxx"
 
     GetLoanDetailResponse:
@@ -335,6 +337,7 @@ components:
           properties:
             data:
               type: object
+              description: Thông tin chi tiết khoản vay
               properties:
                 loan_account_status:
                   type: string
@@ -366,9 +369,11 @@ components:
                   example: "https://storage.googleapis.com/..."
                 full_name:
                   type: string
+                  description: Họ tên KH lưu tại Cake
                   example: "Nguyễn Hoàng Sơn"
                 document_id:
                   type: string
+                  description: Số GTTT của KH
                   example: "xxxxxxxxxxxx"
                 approved_amount:
                   type: string
@@ -459,9 +464,11 @@ components:
       properties:
         loan_code:
           type: string
+          description: Mã khoản vay
           example: "u8123123Sjsdb"
         phone_number:
           type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
           example: "0xxxxxxxxx"
         partner_disburse_status:
           type: integer
@@ -480,9 +487,11 @@ components:
       properties:
         loan_code:
           type: string
+          description: Mã khoản vay
           example: "u8123123Sjsdb"
         phone_number:
           type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
           example: "0xxxxxxxxx"
         partner_reference_id:
           type: string
@@ -516,9 +525,11 @@ components:
       properties:
         loan_code:
           type: string
+          description: Mã khoản vay
           example: "u8123123Sjsdb"
         phone_number:
           type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
           example: "0xxxxxxxxx"
         partner_reference_id:
           type: string
@@ -528,6 +539,7 @@ components:
           description: order_id từ API /repayment-request
         payment_amount:
           type: integer
+          description: Số tiền thanh toán (VNĐ)
           example: 5000000
 
     # ── repayment-status ──
@@ -540,9 +552,11 @@ components:
       properties:
         loan_code:
           type: string
+          description: Mã khoản vay, từ API /loan-register
           example: "u8123123Sjsdb"
         phone_number:
           type: string
+          description: SĐT của KH (định dạng bắt đầu bằng số 0)
           example: "0xxxxxxxxx"
         order_id:
           type: string

@@ -1,0 +1,490 @@
+openapi: 3.0.3
+info:
+  title: DVS - Repayment APIs
+  description: |
+    > **⚠️ Lưu ý bản quyền:** Tài liệu này thuộc bản quyền của **Cake by VPBank**.
+    > Mọi hình thức sao chép, chỉnh sửa, hoặc phát tán phải được sự đồng ý bằng văn bản của Cake by VPBank.
+
+    ## Mô tả
+    API thu hộ tại quầy cho nghiệp vụ **thanh toán khoản vay (repayment)**, dùng lại contract
+    `cake-proxy / cash-collection` mà Cake đã kết nối với DVS.
+
+    Luồng: KH ra quầy xuất trình mã khoản vay và nộp tiền mặt → quầy gọi `order/inquiry`
+    để tra thông tin khoản vay → gọi `transaction/collect` để ghi nhận số tiền thu →
+    gọi `transaction/inquiry` khi cần đối soát.
+
+    Nghiệp vụ repayment **không sinh mã thu hộ riêng**: đối tác truyền cặp
+    `loan_code` + `document_id` thay cho `order_id`. Cả 3 API đều nhận **một trong hai**
+    bộ định danh — `order_id` (nghiệp vụ mã thu chi hộ trước đó) hoặc `loan_code` + `document_id`.
+
+    Phần chi hộ (`transaction/pay`) không thuộc phạm vi tài liệu này.
+
+    ## Changelog
+
+    | Thời gian | Email title | Cập nhật |
+    |-----------|-------|-------|
+    | 2026-08-26 | email_title | Khởi tạo tài liệu theo contract `cake-proxy / cash-collection`, bổ sung `service` = `CASH_COLLECTION_SERVICE_LOAN` và các field khoản vay trong `order/inquiry` |
+
+    ## Cơ chế xác thực
+    Request chỉ yêu cầu header `Content-Type: application/json`.
+    Cơ chế định danh đối tác **(TBD)**, cần Cake xác nhận trước khi tích hợp.
+
+    ## Môi trường
+
+    | Key | Value | Description |
+    |-----|-------|-------------|
+    | CAKE_BASE_URL (DEV) | `https://ngw.dev.cakedigibank.tech/api` | Theo tài liệu gốc |
+    | CAKE_BASE_URL (UAT) | *(Cake cấp)* | |
+    | CAKE_BASE_URL (PROD) | *(Cake cấp)* | |
+
+    ## Error Codes
+
+    ### Chung
+    | Code | Message |
+    |------|---------|
+    | `0` | Thành công |
+    | `3` | Invalid request — thiếu field, sai value hoặc sai format |
+    | `4001101` | Mã thu chi hộ không hợp lệ |
+    | `4001102` | Mã thu chi hộ đã quá hạn xử lý |
+    | `4040601` | Không tìm thấy thông tin xác thực đối tác |
+    | `5000001` | Đã có lỗi xảy ra trong quá trình xử lý |
+
+    ### transaction/collect
+    | Code | Message |
+    |------|---------|
+    | `4001103` | Loại giao dịch không hợp lệ |
+    | `4001104` | Mã thu chi hộ đã được xử lý |
+    | `4001105` | Tài khoản không đủ số dư |
+    | `4091101` | Mã giao dịch đã được sử dụng cho mã thu chi hộ khác |
+    | `4000103` | Số CCCD không khớp với thông tin người dùng |
+    | `4000104` | Họ tên không khớp với thông tin người dùng |
+
+    ### transaction/inquiry
+    | Code | Message |
+    |------|---------|
+    | `4041101` | Không tìm thấy mã giao dịch |
+
+  version: "1.0.0"
+  contact:
+    name: Cake Digital Bank Support
+    url: https://cake.vn
+
+servers:
+  - url: https://ngw.dev.cakedigibank.tech/api
+    description: DEV
+
+# ─────────────────────────────────────────────
+# COMMON COMPONENTS
+# ─────────────────────────────────────────────
+components:
+  parameters:
+    ContentTypeHeader:
+      name: Content-Type
+      in: header
+      required: true
+      description: Kiểu dữ liệu của request body
+      schema:
+        type: string
+        default: application/json
+
+  schemas:
+    # ── Common Response Wrapper ──
+    BaseResponse:
+      type: object
+      description: Cấu trúc phản hồi chung của mọi API
+      properties:
+        code:
+          type: integer
+          description: Mã trạng thái hệ thống. `0` = thành công, khác `0` xem bảng Error Codes
+          example: 0
+        success:
+          type: boolean
+          description: Kết quả xử lý yêu cầu (true/false)
+          example: true
+        message:
+          type: string
+          description: Thông báo phản hồi từ hệ thống
+          example: "success"
+
+    # ── order/inquiry ──
+    OrderInquiryRequest:
+      type: object
+      description: |
+        Truy vấn thông tin mã thu chi hộ hoặc khoản vay.
+
+        Truyền **một trong hai** bộ định danh:
+        - `order_id` — nghiệp vụ mã thu chi hộ
+        - `loan_code` + `document_id` — nghiệp vụ thanh toán khoản vay
+      required:
+        - request_id
+      properties:
+        request_id:
+          type: string
+          maxLength: 64
+          description: Unique id cho mỗi request, do đối tác sinh
+          example: "aa233d65-6b2a-448f-9ad3-beab8bd9309b"
+        order_id:
+          type: string
+          maxLength: 64
+          description: |
+            Mã thu chi hộ do Cake sinh, KH lấy trên app.
+            Không truyền khi dùng cặp `loan_code` + `document_id`.
+          example: "CAKE0000000001"
+        loan_code:
+          type: string
+          maxLength: 64
+          description: |
+            Mã khoản vay do Cake cấp, KH lấy trên app Partner.
+            **Bắt buộc** khi không truyền `order_id`.
+          example: "u8123123Sjsdb"
+        document_id:
+          type: string
+          maxLength: 24
+          description: |
+            Số CCCD của KH. **Bắt buộc** khi không truyền `order_id`,
+            dùng cùng `loan_code` để định danh khoản vay.
+          example: "xxxxxxxxxxxx"
+
+    OrderInquiryResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              description: Thông tin mã thu hộ và khoản vay tương ứng
+              properties:
+                order_id:
+                  type: string
+                  description: Mã thu chi hộ, chỉ trả về khi request có truyền `order_id`
+                  example: "CAKE0000000001"
+                service:
+                  type: string
+                  enum:
+                    - CASH_COLLECTION_SERVICE_LOAN
+                    - CASH_COLLECTION_SERVICE_OPEN_TD
+                    - CASH_COLLECTION_SERVICE_WITHDRAW
+                  description: |
+                    Dịch vụ thu chi hộ gắn với mã:
+                    - `CASH_COLLECTION_SERVICE_LOAN`: Thanh toán khoản vay (phạm vi tài liệu này)
+                    - `CASH_COLLECTION_SERVICE_OPEN_TD`: Mở sổ tiết kiệm
+                    - `CASH_COLLECTION_SERVICE_WITHDRAW`: Rút tiền từ ví
+                  example: "CASH_COLLECTION_SERVICE_LOAN"
+                user_full_name:
+                  type: string
+                  description: Tên đầy đủ của KH trên hệ thống Cake
+                  example: "NGUYEN VAN A"
+                user_document_id:
+                  type: string
+                  description: Số CCCD của KH trên hệ thống Cake
+                  example: "xxxxxxxxxxxx"
+                amount:
+                  type: string
+                  description: Số tiền cần thanh toán, chưa bao gồm phí (VNĐ)
+                  example: "15331759"
+                loan_code:
+                  type: string
+                  description: Mã khoản vay do Cake cấp, dùng để đối chiếu đúng khoản vay đang trả
+                  example: "u8123123Sjsdb"
+                due_date:
+                  type: string
+                  format: date
+                  description: Ngày đến hạn thanh toán gần nhất (yyyy-mm-dd)
+                  example: "2026-09-27"
+
+    # ── transaction/collect ──
+    TransactionCollectRequest:
+      type: object
+      description: |
+        Ghi nhận số tiền mặt quầy đã thu của KH để thanh toán khoản vay.
+
+        Truyền **một trong hai** bộ định danh:
+        - `order_id` — nghiệp vụ mã thu chi hộ
+        - `loan_code` + `document_id` — nghiệp vụ thanh toán khoản vay
+      required:
+        - request_id
+        - ref_id
+        - service
+        - amount
+        - customer_full_name
+        - customer_document_id
+      properties:
+        request_id:
+          type: string
+          maxLength: 64
+          description: Unique id cho mỗi request, do đối tác sinh
+          example: "aa233d65-6b2a-448f-9ad3-beab8bd9309b"
+        ref_id:
+          type: string
+          maxLength: 64
+          description: Mã tham chiếu giao dịch do đối tác sinh, duy nhất trên mỗi mã thu hộ
+          example: "1"
+        order_id:
+          type: string
+          maxLength: 64
+          description: |
+            Mã thu chi hộ đã dùng ở API /order/inquiry.
+            Không truyền khi dùng cặp `loan_code` + `document_id`.
+          example: "CAKE0000000001"
+        loan_code:
+          type: string
+          maxLength: 64
+          description: |
+            Mã khoản vay đã dùng ở API /order/inquiry.
+            **Bắt buộc** khi không truyền `order_id`.
+          example: "u8123123Sjsdb"
+        document_id:
+          type: string
+          maxLength: 24
+          description: |
+            Số CCCD của KH, phải khớp giá trị đã truyền ở /order/inquiry.
+            **Bắt buộc** khi không truyền `order_id`.
+          example: "xxxxxxxxxxxx"
+        service:
+          type: string
+          enum: [ CASH_COLLECTION_SERVICE_LOAN ]
+          description: Dịch vụ thu hộ, phải khớp `service` trả về từ /order/inquiry
+          example: "CASH_COLLECTION_SERVICE_LOAN"
+        amount:
+          type: string
+          description: |
+            Số tiền mặt quầy thực thu của KH (VNĐ), có thể khác `amount` của mã thu hộ.
+            Cake validate theo dư nợ còn lại của khoản vay.
+          example: "10000"
+        note:
+          type: string
+          maxLength: 512
+          description: Ghi chú thêm cho giao dịch
+          example: ""
+        customer_full_name:
+          type: string
+          maxLength: 128
+          description: |
+            Tên đầy đủ của KH đến yêu cầu tại quầy.
+            Cake so khớp với tên trên hệ thống theo nguyên tắc tiếng Việt không dấu, trim khoảng trắng.
+          example: "Nguyễn Văn A"
+        customer_document_id:
+          type: string
+          maxLength: 24
+          description: Số CCCD của KH đến yêu cầu tại quầy, Cake so khớp với CCCD trên hệ thống
+          example: "xxxxxxxxxxxx"
+
+    TransactionResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              description: Thông tin giao dịch đã ghi nhận
+              properties:
+                id:
+                  type: string
+                  description: Mã giao dịch của Cake
+                  example: "fd42d085-8d61-46b6-acd1-077de9392e6c"
+                ref_id:
+                  type: string
+                  description: Mã tham chiếu giao dịch của đối tác
+                  example: "1"
+                timestamp:
+                  type: string
+                  format: date-time
+                  description: Thời gian giao dịch (ISO 8601)
+                  example: "2026-08-26T13:54:59+07:00"
+
+    # ── transaction/inquiry ──
+    TransactionInquiryRequest:
+      type: object
+      description: |
+        Truy vấn lại kết quả giao dịch khi không nhận được response của /transaction/collect.
+
+        Truyền **một trong hai** bộ định danh:
+        - `order_id` — nghiệp vụ mã thu chi hộ
+        - `loan_code` + `document_id` — nghiệp vụ thanh toán khoản vay
+      required:
+        - request_id
+        - ref_id
+      properties:
+        request_id:
+          type: string
+          maxLength: 64
+          description: Unique id cho mỗi request, do đối tác sinh
+          example: "aa233d65-6b2a-448f-9ad3-beab8bd9309b"
+        ref_id:
+          type: string
+          maxLength: 64
+          description: ref_id đã dùng ở API /transaction/collect
+          example: "1"
+        order_id:
+          type: string
+          maxLength: 64
+          description: |
+            Mã thu chi hộ của giao dịch cần truy vấn.
+            Không truyền khi dùng cặp `loan_code` + `document_id`.
+          example: "CAKE0000000001"
+        loan_code:
+          type: string
+          maxLength: 64
+          description: |
+            Mã khoản vay của giao dịch cần truy vấn.
+            **Bắt buộc** khi không truyền `order_id`.
+          example: "u8123123Sjsdb"
+        document_id:
+          type: string
+          maxLength: 24
+          description: |
+            Số CCCD của KH. **Bắt buộc** khi không truyền `order_id`.
+          example: "xxxxxxxxxxxx"
+
+    TransactionInquiryResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              description: Trạng thái giao dịch
+              properties:
+                id:
+                  type: string
+                  description: Mã giao dịch của Cake
+                  example: "fd42d085-8d61-46b6-acd1-077de9392e6c"
+                ref_id:
+                  type: string
+                  description: Mã tham chiếu giao dịch của đối tác
+                  example: "1"
+                status:
+                  type: string
+                  enum:
+                    - CAKE_PROXY_TRANSACTION_STATUS_PROCESSING
+                    - CAKE_PROXY_TRANSACTION_STATUS_SUCCESS
+                    - CAKE_PROXY_TRANSACTION_STATUS_FAILED
+                  description: |
+                    Trạng thái giao dịch:
+                    - `CAKE_PROXY_TRANSACTION_STATUS_PROCESSING`: Đang xử lý, đối tác gọi lại sau
+                    - `CAKE_PROXY_TRANSACTION_STATUS_SUCCESS`: Thu hộ và gạch nợ thành công
+                    - `CAKE_PROXY_TRANSACTION_STATUS_FAILED`: Giao dịch thất bại
+                  example: "CAKE_PROXY_TRANSACTION_STATUS_SUCCESS"
+                timestamp:
+                  type: string
+                  format: date-time
+                  description: Thời gian tạo giao dịch (ISO 8601)
+                  example: "2026-08-26T13:54:59+07:00"
+
+tags:
+  - name: Cash Collection
+    description: |
+      Thu hộ tại quầy cho nghiệp vụ thanh toán khoản vay:
+      order/inquiry → transaction/collect → transaction/inquiry (đối soát)
+
+# ─────────────────────────────────────────────
+# SEQUENCE DIAGRAMS - API FLOWS (x-extension)
+# ─────────────────────────────────────────────
+x-mermaid-flows:
+
+  repayment: |
+    sequenceDiagram
+      autonumber
+      participant Cl as Client
+      participant P as Partner
+      participant C as Cake
+
+      Note over Cl,C: THU HỘ TẠI QUẦY
+      Cl->>P: Xuất trình loan_code + CCCD, nộp tiền mặt
+      P->>C: order/inquiry(request_id, loan_code, document_id)
+      C-->>P: user_full_name, user_document_id,<br/>loan_code, amount, due_date
+      P-->>Cl: Hiển thị thông tin khoản vay để KH xác nhận
+
+      P->>C: transaction/collect(ref_id, loan_code, document_id, service, amount,<br/>customer_full_name, customer_document_id)
+      Note over C: Đối chiếu họ tên + CCCD, hạch toán gạch nợ
+      C-->>P: id, ref_id, timestamp
+      P-->>Cl: In biên nhận
+
+      Note over P,C: ĐỐI SOÁT (khi không nhận được response)
+      P->>C: transaction/inquiry(request_id, ref_id, loan_code, document_id)
+      C-->>P: status (PROCESSING / SUCCESS / FAILED)
+
+# ─────────────────────────────────────────────
+# PATHS
+# ─────────────────────────────────────────────
+paths:
+  /v1/cake-proxy/cash-collection/order/inquiry:
+    post:
+      tags: [ Cash Collection ]
+      summary: Truy vấn thông tin mã thu hộ khoản vay
+      description: |
+        Quầy nhập mã KH xuất trình để lấy thông tin KH và khoản vay tương ứng.
+        Truyền `order_id`, hoặc `loan_code` + `document_id` với nghiệp vụ thanh toán khoản vay.
+
+        Mã không tồn tại hoặc đã xử lý trả `4001101`; mã hết hạn trả `4001102`.
+      operationId: cashCollectionOrderInquiry
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderInquiryRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderInquiryResponse"
+
+  /v1/cake-proxy/cash-collection/transaction/collect:
+    post:
+      tags: [ Cash Collection ]
+      summary: Ghi nhận giao dịch thu hộ để thanh toán khoản vay
+      description: |
+        Quầy gọi sau khi đã thu tiền mặt của KH. Cake đối chiếu họ tên + CCCD rồi hạch toán gạch nợ.
+
+        - Bộ định danh (`order_id` hoặc `loan_code` + `document_id`) phải khớp giá trị đã dùng ở `/order/inquiry`.
+        - `ref_id` do đối tác sinh, duy nhất trên mỗi mã thu hộ; dùng lại cho mã khác trả `4091101`.
+        - Họ tên không khớp trả `4000104`, CCCD không khớp trả `4000103`.
+        - Mã đã xử lý trả `4001104`.
+        - Nếu không nhận được response, gọi `/transaction/inquiry` với cùng `ref_id`, **không** gọi lại `collect`.
+      operationId: cashCollectionTransactionCollect
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionCollectRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionResponse"
+
+  /v1/cake-proxy/cash-collection/transaction/inquiry:
+    post:
+      tags: [ Cash Collection ]
+      summary: Truy vấn lại kết quả giao dịch thu hộ
+      description: |
+        Dùng để đối soát khi đối tác không nhận được response của `/transaction/collect`.
+
+        `PROCESSING` là chưa kết thúc — đối tác gọi lại đến khi ra `SUCCESS` / `FAILED`.
+        Không tìm thấy giao dịch trả `4041101`.
+      operationId: cashCollectionTransactionInquiry
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionInquiryRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionInquiryResponse"

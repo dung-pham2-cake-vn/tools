@@ -702,12 +702,10 @@ components:
                   type: string
                   description: |
                     Trạng thái eKYC:
-                    - EKYC_UNKNOWN: Hồ sơ không xác định
                     - EKYC_PENDING: Đang chờ phê duyệt
                     - EKYC_REJECT: Bị từ chối
                     - EKYC_SUCCESS: Thành công → tiếp tục loan-register
                   enum:
-                    - EKYC_UNKNOWN
                     - EKYC_PENDING
                     - EKYC_REJECT
                     - EKYC_SUCCESS
@@ -786,7 +784,6 @@ components:
                   type: string
                   description: |
                     Trạng thái tài khoản vay:
-                    - LOAN_UNKNOWN: Không xác định
                     - LOAN_INIT: Đã khởi tạo
                     - LOAN_REVIEWING: Đang chờ phê duyệt
                     - LOAN_REJECT: Bị từ chối

@@ -1,6 +1,6 @@
 # API `get-loan-detail`
 
-> Nguồn: tổng hợp từ các doc base — `base_dop_full.yaml`, `base_dop_paylater.yaml`, `base_product_native.yaml` (thư mục `tools/open_api_viewer/specs`).
+> Nguồn: tổng hợp từ các doc base — `base_dop_full.yaml`, `base_dop_paylater.yaml`, `base_product_native.yaml` (thư mục `tools/open_api_viewer/specs/base`).
 
 Truy vấn thông tin chi tiết một khoản vay (trạng thái, số tiền phê duyệt, dư nợ, kỳ hạn thanh toán...). Dùng chung cho 3 nhóm sản phẩm: **Cashloan**, **Payday**, **Paylater** — nhưng mỗi nhóm trả về tập field khác nhau tùy đặc thù nghiệp vụ.
 

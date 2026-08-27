@@ -827,7 +827,6 @@ components:
                   type: string
                   description: Trạng thái hồ sơ eKYC
                   enum:
-                    - EKYC_UNKNOWN
                     - EKYC_PENDING
                     - EKYC_REJECT
                     - EKYC_SUCCESS
@@ -898,7 +897,6 @@ components:
                 status:
                   type: string
                   enum:
-                    - EKYC_UNKNOWN
                     - EKYC_INIT
                     - EKYC_PENDING
                     - EKYC_REJECT
@@ -931,7 +929,6 @@ components:
                 loan_account_status:
                   type: string
                   enum:
-                    - LOAN_UNKNOWN
                     - LOAN_INIT
                     - LOAN_REVIEWING
                     - LOAN_REJECT

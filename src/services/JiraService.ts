@@ -145,6 +145,61 @@ export interface ConfluencePageWithBody extends ConfluencePage {
   body: string;
 }
 
+export interface JiraNamedRef {
+  id: string;
+  name: string;
+}
+
+export interface TechDebtSuggestion {
+  sprintId: number;
+  sprintName: string;
+  sprintNumber: number | null;
+  sprintState?: string;
+  startDate: string | null;
+  endDate: string | null;
+  summary: string;
+  /** Fix version cùng tên sprint — null khi project chưa tạo version đó */
+  fixVersion: JiraNamedRef | null;
+  /** Ticket techdebt đã có cho sprint này (khớp theo sprint id hoặc số trong summary) */
+  existingIssue: { key: string; summary: string } | null;
+}
+
+export interface TechDebtSuggestionResult {
+  projectKey: string;
+  boardId: number;
+  issueType: JiraNamedRef | null;
+  componentOptions: JiraNamedRef[];
+  defaultComponents: JiraNamedRef[];
+  defaultLabels: string[];
+  defaultStoryPoints: number;
+  summaryTemplate: string;
+  suggestions: TechDebtSuggestion[];
+}
+
+export interface TechDebtCreatePayload {
+  projectKey: string;
+  summary: string;
+  sprintId: number;
+  issueTypeId?: string;
+  labels?: string[];
+  componentIds?: string[];
+  fixVersionIds?: string[];
+  storyPoints?: number;
+  priorityName?: string;
+  assigneeAccountId?: string | null;
+}
+
+export interface TechDebtCreateResult {
+  summary: string;
+  success: boolean;
+  issue?: { id: string; key: string };
+  error?: string;
+}
+
+const TECH_DEBT_ISSUE_TYPE = 'TechDebt';
+const TECH_DEBT_LABEL = 'tech-debt';
+const TECH_DEBT_COMPONENT = 'Backend';
+const TECH_DEBT_STORY_POINTS = 10;
 const SPRINT_LENGTH_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SPRINT_LENGTH_MS = SPRINT_LENGTH_DAYS * DAY_MS;
@@ -776,6 +831,246 @@ export class JiraService {
         results.push({ name: payload.name, success: true, version });
       } catch (error) {
         results.push({ name: payload.name, success: false, error: this.describeError(error) });
+      }
+    }
+
+    return results;
+  }
+
+  async getProjectComponents(projectKeyOrId: string): Promise<JiraNamedRef[]> {
+    try {
+      const response = await this.axiosInstance.get(`/project/${projectKeyOrId}/components`);
+      return ((response.data || []) as Array<Record<string, any>>)
+        .map((component) => ({ id: String(component.id), name: String(component.name || '') }))
+        .filter((component) => component.name)
+        .sort((a, b) => a.name.localeCompare(b.name));
+    } catch (error) {
+      console.error(`Error fetching components for ${projectKeyOrId}:`, this.formatAxiosError(error));
+      throw error;
+    }
+  }
+
+  async getProjectIssueTypes(projectKeyOrId: string): Promise<JiraNamedRef[]> {
+    try {
+      const response = await this.axiosInstance.get(`/issue/createmeta/${projectKeyOrId}/issuetypes`, {
+        params: { maxResults: 200 },
+      });
+      const values = (response.data?.issueTypes || response.data?.values || []) as Array<Record<string, any>>;
+      return values
+        .filter((type) => !type.subtask)
+        .map((type) => ({ id: String(type.id), name: String(type.name || '') }));
+    } catch (error) {
+      console.error(`Error fetching issue types for ${projectKeyOrId}:`, this.formatAxiosError(error));
+      throw error;
+    }
+  }
+
+  /** Field ids có trên create screen của một issue type — dùng để không gửi field Jira sẽ từ chối. */
+  private async getCreatableFieldIds(projectKeyOrId: string, issueTypeId: string): Promise<Set<string>> {
+    try {
+      const response = await this.axiosInstance.get(
+        `/issue/createmeta/${projectKeyOrId}/issuetypes/${issueTypeId}`,
+        { params: { maxResults: 200 } }
+      );
+      const values = (response.data?.fields || response.data?.values || []) as Array<Record<string, any>>;
+      return new Set(values.map((field) => String(field.fieldId || field.key || '')).filter(Boolean));
+    } catch (error) {
+      console.error(
+        `Cannot read createmeta of ${projectKeyOrId}/${issueTypeId}:`,
+        this.describeError(error)
+      );
+      return new Set();
+    }
+  }
+
+  /** "Techdebt sprint 194" / "Techdept sprint 193" -> 194 | 193 */
+  private parseTechDebtSummaryNumber(summary: string): number | null {
+    const match = String(summary || '').match(/tech\s*-?\s*(?:debt|dept|dept?)\s*sprint\s*(\d+)/i);
+    return match ? Number(match[1]) : null;
+  }
+
+  /**
+   * Mỗi sprint (active + future của board) một ticket techdebt, theo đúng format PL-14023:
+   * summary "Techdebt sprint N", label tech-debt, component Backend, gắn sprint + fix version cùng tên.
+   */
+  async suggestTechDebtTickets(
+    boardId: number,
+    projectKeyOrId: string,
+    count = 5
+  ): Promise<TechDebtSuggestionResult> {
+    const total = Math.min(Math.max(count, 1), 20);
+    const projectKey = String(projectKeyOrId).toUpperCase();
+
+    const [sprints, versions, issueTypes, components] = await Promise.all([
+      this.getBoardSprints(boardId, 'active,future'),
+      this.getProjectVersions(projectKey),
+      this.getProjectIssueTypes(projectKey),
+      this.getProjectComponents(projectKey),
+    ]);
+
+    const issueType =
+      issueTypes.find((type) => type.name.toLowerCase() === TECH_DEBT_ISSUE_TYPE.toLowerCase()) || null;
+
+    const versionByName = new Map<string, JiraVersion>();
+    for (const version of versions) {
+      if (!version.archived) versionByName.set(version.name.trim().toLowerCase(), version);
+    }
+
+    // Board dùng chung backlog có thể trả sprint của board khác — chỉ lấy sprint do board này sở hữu.
+    const owned = sprints.filter((sprint) => sprint.originBoardId === boardId);
+    const pool = owned.length > 0 ? owned : sprints;
+    const ordered = pool
+      .map((sprint) => ({ sprint, number: this.parseSprintNumber(sprint.name) }))
+      .sort((a, b) => {
+        const numberDiff = (a.number ?? -1) - (b.number ?? -1);
+        if (numberDiff !== 0) return numberDiff;
+        return (a.sprint.startDate || '').localeCompare(b.sprint.startDate || '');
+      })
+      .slice(0, total);
+
+    const existing = await this.findTechDebtIssues(projectKey, issueType?.id);
+
+    const suggestions: TechDebtSuggestion[] = ordered.map(({ sprint, number }) => {
+      const summary = number === null ? `Techdebt ${sprint.name}` : `Techdebt sprint ${number}`;
+      const version = versionByName.get(sprint.name.trim().toLowerCase());
+      const match =
+        existing.find((issue) => issue.sprintIds.includes(sprint.id)) ||
+        (number === null ? undefined : existing.find((issue) => issue.sprintNumber === number));
+
+      return {
+        sprintId: sprint.id,
+        sprintName: sprint.name,
+        sprintNumber: number,
+        sprintState: sprint.state,
+        startDate: sprint.startDate || null,
+        endDate: sprint.endDate || null,
+        summary,
+        fixVersion: version ? { id: String(version.id), name: version.name } : null,
+        existingIssue: match ? { key: match.key, summary: match.summary } : null,
+      };
+    });
+
+    const defaultComponents = components.filter(
+      (component) => component.name.toLowerCase() === TECH_DEBT_COMPONENT.toLowerCase()
+    );
+
+    return {
+      projectKey,
+      boardId,
+      issueType,
+      componentOptions: components,
+      defaultComponents,
+      defaultLabels: [TECH_DEBT_LABEL],
+      defaultStoryPoints: TECH_DEBT_STORY_POINTS,
+      summaryTemplate: 'Techdebt sprint {n}',
+      suggestions,
+    };
+  }
+
+  /** Ticket techdebt đã có trong project, kèm sprint id và số sprint đọc từ summary. */
+  private async findTechDebtIssues(
+    projectKey: string,
+    issueTypeId?: string
+  ): Promise<Array<{ key: string; summary: string; sprintIds: number[]; sprintNumber: number | null }>> {
+    const typeClause = issueTypeId ? `issuetype = ${issueTypeId}` : `issuetype = "${TECH_DEBT_ISSUE_TYPE}"`;
+    const jql = `project = ${projectKey} AND ${typeClause} AND summary ~ "techd*" ORDER BY created DESC`;
+
+    try {
+      const result = await this.searchIssuesWithOptions(jql, {
+        maxResults: 100,
+        fields: ['summary'],
+      });
+
+      return ((result.issues || []) as Array<Record<string, any>>).map((issue) => {
+        const summary = String(issue.fields?.summary || '');
+        const sprintIds = ((issue.fields?.normalizedSprints || []) as NormalizedSprintDetail[])
+          .map((sprint) => sprint.id)
+          .filter((id): id is number => typeof id === 'number');
+        return {
+          key: String(issue.key),
+          summary,
+          sprintIds,
+          sprintNumber: this.parseTechDebtSummaryNumber(summary),
+        };
+      });
+    } catch (error) {
+      // Không chặn đề xuất chỉ vì không tra được ticket cũ — chỉ mất cảnh báo trùng.
+      console.error(`Cannot search existing techdebt issues in ${projectKey}:`, this.describeError(error));
+      return [];
+    }
+  }
+
+  async createTechDebtIssue(payload: TechDebtCreatePayload): Promise<{ id: string; key: string }> {
+    const projectKey = String(payload.projectKey || '').toUpperCase();
+    if (!projectKey) throw new Error('projectKey is required');
+    if (!payload.summary?.trim()) throw new Error('summary is required');
+    if (!payload.sprintId) throw new Error('sprintId is required');
+
+    let issueTypeId = payload.issueTypeId;
+    if (!issueTypeId) {
+      const issueTypes = await this.getProjectIssueTypes(projectKey);
+      const match = issueTypes.find((type) => type.name.toLowerCase() === TECH_DEBT_ISSUE_TYPE.toLowerCase());
+      if (!match) throw new Error(`Project ${projectKey} không có issue type "${TECH_DEBT_ISSUE_TYPE}"`);
+      issueTypeId = match.id;
+    }
+
+    const [fieldMap, creatable] = await Promise.all([
+      this.getFieldDefinitionMap(),
+      this.getCreatableFieldIds(projectKey, issueTypeId),
+    ]);
+    const allowed = (fieldId: string | null) => !!fieldId && (creatable.size === 0 || creatable.has(fieldId));
+
+    const sprintField = this.findFieldIdByName(fieldMap, ['Sprint']);
+    // Project có thể bật "Story Points" hoặc "Story point estimate" — chọn field thật sự nằm trên create screen.
+    const storyPointsField = ['Story Points', 'Story point estimate']
+      .map((name) => this.findFieldIdByName(fieldMap, [name]))
+      .find((fieldId) => allowed(fieldId)) || null;
+
+    const labels = (payload.labels || []).map((label) => label.trim()).filter(Boolean);
+    const badLabel = labels.find((label) => /\s/.test(label));
+    if (badLabel) throw new Error(`Label "${badLabel}" chứa khoảng trắng`);
+
+    const fields: Record<string, unknown> = {
+      project: { key: projectKey },
+      issuetype: { id: issueTypeId },
+      summary: payload.summary.trim(),
+    };
+
+    if (labels.length && allowed('labels')) fields.labels = labels;
+    if (payload.componentIds?.length && allowed('components')) {
+      fields.components = payload.componentIds.map((id) => ({ id: String(id) }));
+    }
+    if (payload.fixVersionIds?.length && allowed('fixVersions')) {
+      fields.fixVersions = payload.fixVersionIds.map((id) => ({ id: String(id) }));
+    }
+    if (allowed(sprintField)) fields[sprintField as string] = payload.sprintId;
+    if (typeof payload.storyPoints === 'number' && storyPointsField) {
+      fields[storyPointsField] = payload.storyPoints;
+    }
+    if (payload.priorityName && allowed('priority')) fields.priority = { name: payload.priorityName };
+    if (payload.assigneeAccountId && allowed('assignee')) {
+      fields.assignee = { accountId: payload.assigneeAccountId };
+    }
+
+    try {
+      const response = await this.axiosInstance.post('/issue', { fields });
+      return { id: String(response.data.id), key: String(response.data.key) };
+    } catch (error) {
+      console.error(`Error creating techdebt "${payload.summary}":`, this.formatAxiosError(error));
+      throw error;
+    }
+  }
+
+  // Tuần tự để mỗi dòng có lỗi riêng, không nuốt lỗi của cả lô.
+  async createTechDebtIssues(payloads: TechDebtCreatePayload[]): Promise<TechDebtCreateResult[]> {
+    const results: TechDebtCreateResult[] = [];
+
+    for (const payload of payloads) {
+      try {
+        const issue = await this.createTechDebtIssue(payload);
+        results.push({ summary: payload.summary, success: true, issue });
+      } catch (error) {
+        results.push({ summary: payload.summary, success: false, error: this.describeError(error) });
       }
     }
 

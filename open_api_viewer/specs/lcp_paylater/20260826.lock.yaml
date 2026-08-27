@@ -79,6 +79,7 @@ info:
     ### get-loan-detail (loan_account_status)
     | Status | Description |
     |--------|-------------|
+    | `LOAN_UNKNOWN` | Hồ sơ KH có trạng thái không xác định/lỗi |
     | `LOAN_APPROVE` | Hồ sơ đăng ký khoản vay đã được phê duyệt |
     | `LOAN_REJECT` | Hồ sơ đăng ký khoản vay bị từ chối |
     | `LOAN_EXPIRED` | Hồ sơ đăng ký khoản vay bị hết hạn (7 ngày) |
@@ -326,6 +327,7 @@ components:
                 loan_account_status:
                   type: string
                   enum:
+                    - LOAN_UNKNOWN
                     - LOAN_INIT
                     - LOAN_REVIEWING
                     - LOAN_REJECT

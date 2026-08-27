@@ -13,9 +13,15 @@ info:
     để tra thông tin khoản vay → gọi `transaction/collect` để ghi nhận số tiền thu →
     gọi `transaction/inquiry` khi cần đối soát.
 
-    Nghiệp vụ repayment **không sinh mã thu hộ riêng**: đối tác truyền cặp
-    `loan_code` + `document_id` thay cho `order_id`. Cả 3 API đều nhận **một trong hai**
-    bộ định danh — `order_id` (nghiệp vụ mã thu chi hộ trước đó) hoặc `loan_code` + `document_id`.
+    `order_id` là bộ định danh xuyên suốt của một lượt thu hộ:
+
+    - **`order/inquiry`** nhận **một trong hai** bộ định danh đầu vào:
+      `order_id` (nghiệp vụ mã thu chi hộ — KH lấy mã trên app Postpay) **hoặc**
+      `loan_code` + `document_id` (nghiệp vụ thanh toán khoản vay — **không truyền `order_id`**, lấy mã trên app Postpay).
+    - Response của `order/inquiry` **luôn trả `order_id`**. Với nghiệp vụ thanh toán khoản vay,
+      Cake sinh `order_id` cho lượt thu này.
+    - **`transaction/collect`** và **`transaction/inquiry`** chỉ dùng `order_id` lấy từ
+      response của `order/inquiry`.
 
     Phần chi hộ (`transaction/pay`) không thuộc phạm vi tài liệu này.
 
@@ -27,7 +33,6 @@ info:
 
     ## Cơ chế xác thực
     Request chỉ yêu cầu header `Content-Type: application/json`.
-    Cơ chế định danh đối tác **(TBD)**, cần Cake xác nhận trước khi tích hợp.
 
     ## Môi trường
 
@@ -110,11 +115,14 @@ components:
     OrderInquiryRequest:
       type: object
       description: |
-        Truy vấn thông tin mã thu chi hộ hoặc khoản vay.
+        Truy vấn thông tin mã thu chi hộ hoặc khoản vay. Đây là API đầu tiên của luồng.
 
         Truyền **một trong hai** bộ định danh:
-        - `order_id` — nghiệp vụ mã thu chi hộ
-        - `loan_code` + `document_id` — nghiệp vụ thanh toán khoản vay
+        - `order_id` — nghiệp vụ thu chi hộ
+        - `loan_code` + `document_id` — nghiệp vụ thanh toán khoản vay, **không truyền `order_id`**
+
+        Response luôn trả `order_id`; dùng giá trị đó cho `/transaction/collect`
+        và `/transaction/inquiry`.
       required:
         - request_id
       properties:
@@ -127,22 +135,22 @@ components:
           type: string
           maxLength: 64
           description: |
-            Mã thu chi hộ do Cake sinh, KH lấy trên app.
-            Không truyền khi dùng cặp `loan_code` + `document_id`.
+            Mã thu chi hộ do Cake sinh, KH lấy trên app — chỉ dùng cho nghiệp vụ thu chi hộ.
+            **Không truyền** với nghiệp vụ thanh toán khoản vay.
           example: "CAKE0000000001"
         loan_code:
           type: string
           maxLength: 64
           description: |
             Mã khoản vay do Cake cấp, KH lấy trên app Partner.
-            **Bắt buộc** khi không truyền `order_id`.
+            **Bắt buộc** với nghiệp vụ thanh toán khoản vay (khi không truyền `order_id`).
           example: "u8123123Sjsdb"
         document_id:
           type: string
           maxLength: 24
           description: |
-            Số CCCD của KH. **Bắt buộc** khi không truyền `order_id`,
-            dùng cùng `loan_code` để định danh khoản vay.
+            Số CCCD của KH, dùng cùng `loan_code` để định danh khoản vay.
+            **Bắt buộc** với nghiệp vụ thanh toán khoản vay (khi không truyền `order_id`).
           example: "xxxxxxxxxxxx"
 
     OrderInquiryResponse:
@@ -156,7 +164,10 @@ components:
               properties:
                 order_id:
                   type: string
-                  description: Mã thu chi hộ, chỉ trả về khi request có truyền `order_id`
+                  description: |
+                    Mã thu chi hộ của lượt thu này, **luôn được trả về**.
+                    Với nghiệp vụ thanh toán khoản vay, Cake sinh mã này từ `loan_code` + `document_id`.
+                    Partner **phải** dùng giá trị này cho `/transaction/collect` và `/transaction/inquiry`.
                   example: "CAKE0000000001"
                 service:
                   type: string
@@ -198,12 +209,11 @@ components:
       description: |
         Ghi nhận số tiền mặt quầy đã thu của KH để thanh toán khoản vay.
 
-        Truyền **một trong hai** bộ định danh:
-        - `order_id` — nghiệp vụ mã thu chi hộ
-        - `loan_code` + `document_id` — nghiệp vụ thanh toán khoản vay
+        Định danh lượt thu bằng `order_id` lấy từ response của `/order/inquiry`.
       required:
         - request_id
         - ref_id
+        - order_id
         - service
         - amount
         - customer_full_name
@@ -222,24 +232,8 @@ components:
         order_id:
           type: string
           maxLength: 64
-          description: |
-            Mã thu chi hộ đã dùng ở API /order/inquiry.
-            Không truyền khi dùng cặp `loan_code` + `document_id`.
+          description: Mã thu chi hộ, lấy từ response của API /order/inquiry
           example: "CAKE0000000001"
-        loan_code:
-          type: string
-          maxLength: 64
-          description: |
-            Mã khoản vay đã dùng ở API /order/inquiry.
-            **Bắt buộc** khi không truyền `order_id`.
-          example: "u8123123Sjsdb"
-        document_id:
-          type: string
-          maxLength: 24
-          description: |
-            Số CCCD của KH, phải khớp giá trị đã truyền ở /order/inquiry.
-            **Bắt buộc** khi không truyền `order_id`.
-          example: "xxxxxxxxxxxx"
         service:
           type: string
           enum: [ CASH_COLLECTION_SERVICE_LOAN ]
@@ -298,12 +292,11 @@ components:
       description: |
         Truy vấn lại kết quả giao dịch khi không nhận được response của /transaction/collect.
 
-        Truyền **một trong hai** bộ định danh:
-        - `order_id` — nghiệp vụ mã thu chi hộ
-        - `loan_code` + `document_id` — nghiệp vụ thanh toán khoản vay
+        Định danh bằng `order_id` (từ `/order/inquiry`) + `ref_id` (từ `/transaction/collect`).
       required:
         - request_id
         - ref_id
+        - order_id
       properties:
         request_id:
           type: string
@@ -318,23 +311,8 @@ components:
         order_id:
           type: string
           maxLength: 64
-          description: |
-            Mã thu chi hộ của giao dịch cần truy vấn.
-            Không truyền khi dùng cặp `loan_code` + `document_id`.
+          description: Mã thu chi hộ của giao dịch cần truy vấn, lấy từ response của /order/inquiry
           example: "CAKE0000000001"
-        loan_code:
-          type: string
-          maxLength: 64
-          description: |
-            Mã khoản vay của giao dịch cần truy vấn.
-            **Bắt buộc** khi không truyền `order_id`.
-          example: "u8123123Sjsdb"
-        document_id:
-          type: string
-          maxLength: 24
-          description: |
-            Số CCCD của KH. **Bắt buộc** khi không truyền `order_id`.
-          example: "xxxxxxxxxxxx"
 
     TransactionInquiryResponse:
       allOf:
@@ -392,16 +370,17 @@ x-mermaid-flows:
       Note over Cl,C: THU HỘ TẠI QUẦY
       Cl->>P: Xuất trình loan_code + CCCD, nộp tiền mặt
       P->>C: order/inquiry(request_id, loan_code, document_id)
-      C-->>P: user_full_name, user_document_id,<br/>loan_code, amount, due_date
+      Note over C: Sinh order_id cho lượt thu
+      C-->>P: order_id, user_full_name, user_document_id,<br/>loan_code, amount, due_date
       P-->>Cl: Hiển thị thông tin khoản vay để KH xác nhận
 
-      P->>C: transaction/collect(ref_id, loan_code, document_id, service, amount,<br/>customer_full_name, customer_document_id)
+      P->>C: transaction/collect(request_id, ref_id, order_id, service, amount,<br/>customer_full_name, customer_document_id)
       Note over C: Đối chiếu họ tên + CCCD, hạch toán gạch nợ
       C-->>P: id, ref_id, timestamp
       P-->>Cl: In biên nhận
 
       Note over P,C: ĐỐI SOÁT (khi không nhận được response)
-      P->>C: transaction/inquiry(request_id, ref_id, loan_code, document_id)
+      P->>C: transaction/inquiry(request_id, ref_id, order_id)
       C-->>P: status (PROCESSING / SUCCESS / FAILED)
 
 # ─────────────────────────────────────────────
@@ -413,8 +392,11 @@ paths:
       tags: [ Cash Collection ]
       summary: Truy vấn thông tin mã thu hộ khoản vay
       description: |
-        Quầy nhập mã KH xuất trình để lấy thông tin KH và khoản vay tương ứng.
-        Truyền `order_id`, hoặc `loan_code` + `document_id` với nghiệp vụ thanh toán khoản vay.
+        API đầu tiên của luồng. Quầy nhập mã KH xuất trình để lấy thông tin KH và khoản vay tương ứng.
+
+        - Nghiệp vụ thu chi hộ: truyền `order_id`.
+        - Nghiệp vụ thanh toán khoản vay: truyền `loan_code` + `document_id`, **không truyền `order_id`**.
+        - Response luôn trả `order_id` — dùng cho 2 API sau.
 
         Mã không tồn tại hoặc đã xử lý trả `4001101`; mã hết hạn trả `4001102`.
       operationId: cashCollectionOrderInquiry
@@ -441,7 +423,7 @@ paths:
       description: |
         Quầy gọi sau khi đã thu tiền mặt của KH. Cake đối chiếu họ tên + CCCD rồi hạch toán gạch nợ.
 
-        - Bộ định danh (`order_id` hoặc `loan_code` + `document_id`) phải khớp giá trị đã dùng ở `/order/inquiry`.
+        - `order_id` lấy từ response của `/order/inquiry`.
         - `ref_id` do đối tác sinh, duy nhất trên mỗi mã thu hộ; dùng lại cho mã khác trả `4091101`.
         - Họ tên không khớp trả `4000104`, CCCD không khớp trả `4000103`.
         - Mã đã xử lý trả `4001104`.
@@ -469,6 +451,8 @@ paths:
       summary: Truy vấn lại kết quả giao dịch thu hộ
       description: |
         Dùng để đối soát khi đối tác không nhận được response của `/transaction/collect`.
+
+        Định danh bằng `order_id` (từ `/order/inquiry`) + `ref_id` (từ `/transaction/collect`).
 
         `PROCESSING` là chưa kết thúc — đối tác gọi lại đến khi ra `SUCCESS` / `FAILED`.
         Không tìm thấy giao dịch trả `4041101`.

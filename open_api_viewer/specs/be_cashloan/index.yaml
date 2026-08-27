@@ -419,7 +419,6 @@ components:
                   type: string
                   description: Trạng thái tài khoản vay (Follow status definition)
                   enum:
-                    - LOAN_UNKNOWN
                     - LOAN_APPROVE
                     - LOAN_EXPIRED
                     - LOAN_CANCEL

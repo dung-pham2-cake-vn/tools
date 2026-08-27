@@ -775,12 +775,10 @@ components:
                   type: string
                   description: |
                     Trạng thái eKYC:
-                    - EKYC_UNKNOWN: Trạng thái không xác định
                     - EKYC_PENDING: Đang chờ duyệt thủ công (không có callback)
                     - EKYC_REJECT: Bị từ chối
                     - EKYC_SUCCESS: Thành công → gọi loan-register
                   enum:
-                    - EKYC_UNKNOWN
                     - EKYC_PENDING
                     - EKYC_REJECT
                     - EKYC_SUCCESS
@@ -984,7 +982,6 @@ components:
                   type: string
                   description: Trạng thái tài khoản vay
                   enum:
-                    - LOAN_UNKNOWN
                     - LOAN_INIT
                     - LOAN_REVIEWING
                     - LOAN_REJECT

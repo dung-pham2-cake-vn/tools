@@ -342,7 +342,6 @@ components:
                 loan_account_status:
                   type: string
                   enum:
-                    - LOAN_UNKNOWN
                     - LOAN_INIT
                     - LOAN_REVIEWING
                     - LOAN_REJECT

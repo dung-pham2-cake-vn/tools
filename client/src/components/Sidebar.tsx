@@ -26,7 +26,6 @@ const navItems: NavItem[] = [
     icon: '🏃',
     children: [
       { label: 'Sprint Alignment', path: '/sprints' },
-      { label: 'Tạo Sprint', path: '/sprints/create' },
       { label: 'Sprint Management', path: '/sprints/management' },
     ],
   },
@@ -39,7 +38,9 @@ const navItems: NavItem[] = [
     children: [
       { label: 'Backlog', path: '/jira/backlog' },
       { label: 'PO Tickets', path: '/jira/po-tickets' },
+      { label: 'Tạo Sprint', path: '/sprints/create' },
       { label: 'Tạo Fix Version', path: '/jira/fix-versions' },
+      { label: 'Tạo Tech Debt', path: '/jira/tech-debt' },
     ],
   },
   { label: 'Support', path: '/support', icon: '🛠️' },
@@ -70,10 +71,25 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed = false, onToggle }) => {
   const router = useRouter();
   const isUnder = (basePath: string) =>
     router.pathname === basePath || router.pathname.startsWith(`${basePath}/`);
+  // Child path dài nhất khớp route hiện tại quyết định menu cha nào sáng — nhờ vậy
+  // /sprints/create nằm dưới Jira vẫn mở đúng nhóm Jira thay vì nhóm Sprints.
+  const activeChildPath = (() => {
+    let best = '';
+    navItems.forEach((it) =>
+      (it.children || []).forEach((child) => {
+        if (isUnder(child.path) && child.path.length > best.length) best = child.path;
+      })
+    );
+    return best;
+  })();
+  const ownsActiveRoute = (item: NavItem) =>
+    activeChildPath
+      ? (item.children || []).some((child) => child.path === activeChildPath)
+      : isUnder(item.path);
   const [openPaths, setOpenPaths] = useState<Set<string>>(() => {
     const s = new Set<string>();
     navItems.forEach((it) => {
-      if (it.children && isUnder(it.path)) s.add(it.path);
+      if (it.children && ownsActiveRoute(it)) s.add(it.path);
     });
     return s;
   });
@@ -147,7 +163,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed = false, onToggle }) => {
       <nav className="space-y-1 flex-1 overflow-y-auto overflow-x-hidden">
         {navItems.map((item) => {
           if (item.children) {
-            const isUnderItem = isUnder(item.path);
+            const isUnderItem = ownsActiveRoute(item);
             const isOpen = openPaths.has(item.path);
             return (
               <div key={item.path}>

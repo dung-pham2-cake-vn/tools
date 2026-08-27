@@ -170,6 +170,56 @@ export interface SprintCreateResult {
   error?: string;
 }
 
+
+export interface JiraNamedRef {
+  id: string;
+  name: string;
+}
+
+export interface TechDebtSuggestion {
+  sprintId: number;
+  sprintName: string;
+  sprintNumber: number | null;
+  sprintState?: string;
+  startDate: string | null;
+  endDate: string | null;
+  summary: string;
+  fixVersion: JiraNamedRef | null;
+  existingIssue: { key: string; summary: string } | null;
+}
+
+export interface TechDebtSuggestionResult {
+  projectKey: string;
+  boardId: number;
+  issueType: JiraNamedRef | null;
+  componentOptions: JiraNamedRef[];
+  defaultComponents: JiraNamedRef[];
+  defaultLabels: string[];
+  defaultStoryPoints: number;
+  summaryTemplate: string;
+  suggestions: TechDebtSuggestion[];
+}
+
+export interface TechDebtCreatePayload {
+  projectKey: string;
+  summary: string;
+  sprintId: number;
+  issueTypeId?: string;
+  labels?: string[];
+  componentIds?: string[];
+  fixVersionIds?: string[];
+  storyPoints?: number;
+  priorityName?: string;
+  assigneeAccountId?: string | null;
+}
+
+export interface TechDebtCreateResult {
+  summary: string;
+  success: boolean;
+  issue?: { id: string; key: string };
+  error?: string;
+}
+
 // Jira API
 export const jiraAPI = {
   getIssue: (issueKey: string) => apiClient.get(`/jira/issue/${issueKey}`),
@@ -200,6 +250,9 @@ export const jiraAPI = {
     }),
   createProjectVersions: (projectKeyOrId: string, versions: VersionCreatePayload[]) =>
     apiClient.post(`/jira/projects/${projectKeyOrId}/versions`, { versions }),
+  suggestTechDebt: (boardId: number, projectKey: string, count = 5) =>
+    apiClient.get('/jira/tech-debt/suggest', { params: { boardId, projectKey, count } }),
+  createTechDebtIssues: (items: TechDebtCreatePayload[]) => apiClient.post('/jira/tech-debt/bulk', { items }),
   syncTask: (jiraKey: string) => apiClient.post(`/jira/sync/${jiraKey}`),
   createIssue: (data: any) => apiClient.post('/jira/create', data),
   transitionIssue: (issueKey: string, targetStatus: string) =>

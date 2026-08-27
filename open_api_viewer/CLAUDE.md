@@ -47,7 +47,8 @@ open_api_viewer/
 ├── index.html                   # viewer, 1 file standalone
 ├── build-specs-index.mjs        # bake specs/ → specs/specs-index.js
 └── specs/
-    ├── base_*.yaml              # spec gốc (source of truth) — xem §3
+    ├── base/
+    │   └── base_*.yaml          # spec gốc (source of truth) — xem §3
     ├── specs-index.js           # GENERATED, không sửa tay
     ├── get-loan-detail-api.md   # ghi chú so sánh field get-loan-detail giữa 3 nhóm sản phẩm
     └── <partner>/
@@ -55,7 +56,7 @@ open_api_viewer/
         └── YYYYMMDD.lock.yaml   # bản đã gửi đối tác, YYYYMMDD = ngày gửi
 ```
 
-### Base spec (`specs/base_*.yaml`)
+### Base spec (`specs/base/base_*.yaml`)
 
 | File | Tiêu đề | Mô hình | Endpoint |
 |---|---|---|---|
@@ -91,7 +92,7 @@ Working spec của mọi partner đều là `index.yaml`; tên partner đã nằ
 
 ## 3. Base spec là nguồn chân lý
 
-Thay đổi mang tính **dùng chung** — signature, error code, môi trường/IP, tên field, enum, mô tả field, cấu trúc response wrapper — **sửa ở `base_*.yaml` trước**, rồi lan xuống các partner spec dùng base đó.
+Thay đổi mang tính **dùng chung** — signature, error code, môi trường/IP, tên field, enum, mô tả field, cấu trúc response wrapper — **sửa ở `specs/base/base_*.yaml` trước**, rồi lan xuống các partner spec dùng base đó.
 
 Không sửa trực tiếp một partner spec cho thay đổi dùng chung, vì các partner khác sẽ lệch âm thầm.
 

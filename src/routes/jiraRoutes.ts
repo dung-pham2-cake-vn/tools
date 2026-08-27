@@ -18,6 +18,10 @@ router.get('/boards/:boardId/sprints/suggest', (req, res) => jiraController.sugg
 router.get('/projects/:projectKeyOrId/versions', (req, res) => jiraController.getProjectVersions(req, res));
 router.get('/projects/:projectKeyOrId/versions/suggest', (req, res) => jiraController.suggestProjectVersions(req, res));
 
+// Tech debt ticket endpoints
+router.get('/tech-debt/suggest', (req, res) => jiraController.suggestTechDebt(req, res));
+router.post('/tech-debt/bulk', (req, res) => jiraController.createTechDebtIssues(req, res));
+
 // Jira sync endpoints
 router.post('/sync/:jiraKey', (req, res) => jiraController.syncTaskFromJira(req, res));
 router.post('/create', (req, res) => jiraController.createJiraIssue(req, res));

@@ -208,7 +208,6 @@ components:
                   type: string
                   description: |
                     Trạng thái tài khoản vay:
-                    - LOAN_UNKNOWN: Hồ sơ KH có trạng thái không xác định
                     - LOAN_APPROVE: Hồ sơ vay đã được phê duyệt
                     - LOAN_EXPIRED: Hồ sơ vay bị hết hạn (7 ngày)
                     - LOAN_CANCEL: KH hủy hợp đồng vay

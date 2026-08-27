@@ -1,5 +1,10 @@
 import { Request, Response } from 'express';
-import { jiraService, SprintCreatePayload, VersionCreatePayload } from '../services/JiraService';
+import {
+  jiraService,
+  SprintCreatePayload,
+  TechDebtCreatePayload,
+  VersionCreatePayload,
+} from '../services/JiraService';
 import { taskService } from '../services/TaskService';
 
 export class JiraController {
@@ -214,6 +219,48 @@ export class JiraController {
       }
 
       const results = await jiraService.createVersions(projectKeyOrId, versions);
+      const created = results.filter((result) => result.success).length;
+      res.status(200).json({
+        success: results.every((result) => result.success),
+        data: { created, failed: results.length - created, results },
+      });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async suggestTechDebt(req: Request, res: Response): Promise<void> {
+    try {
+      const { boardId, projectKey, count } = req.query;
+      if (!boardId || !projectKey) {
+        res.status(400).json({ success: false, error: 'boardId and projectKey are required' });
+        return;
+      }
+      const result = await jiraService.suggestTechDebtTickets(
+        Number(boardId),
+        String(projectKey),
+        count ? Number(count) : 5
+      );
+      res.status(200).json({ success: true, data: result });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async createTechDebtIssues(req: Request, res: Response): Promise<void> {
+    try {
+      const { items } = req.body as { items?: TechDebtCreatePayload[] };
+      if (!Array.isArray(items) || items.length === 0) {
+        res.status(400).json({ success: false, error: 'items must be a non-empty array' });
+        return;
+      }
+      const invalid = items.find((item) => !item?.summary?.trim() || !item?.sprintId || !item?.projectKey);
+      if (invalid) {
+        res.status(400).json({ success: false, error: 'every item needs projectKey, summary, sprintId' });
+        return;
+      }
+
+      const results = await jiraService.createTechDebtIssues(items);
       const created = results.filter((result) => result.success).length;
       res.status(200).json({
         success: results.every((result) => result.success),

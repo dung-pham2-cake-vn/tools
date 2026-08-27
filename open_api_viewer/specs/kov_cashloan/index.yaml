@@ -14,7 +14,7 @@ info:
     |-----------|-------|-------|
     | 2026-07-28 | [CAKE-KV] BRD sản phẩm Vay merchant Lending | Khởi tạo tài liệu |
     | 2026-08-21 | [CAKE-KV] BRD sản phẩm Vay merchant Lending | Cập nhật theo BRD |
-    | 2026-08-26 | [CAKE-KV] BRD sản phẩm Vay merchant Lending | Đồng bộ theo Fiza Cashloan: 3 field `partner_bank_*_disbursement` chuyển vào `metadata`; `front_nid_image`/`back_nid_image`/`nfc_data` thành optional (required khi `is_exists=false`); `loan_account_status` bỏ `LOAN_LOCK`, `LOAN_LOCKED`; `partner-update-status`: `partner_reference_id` required, `loan_code` optional (không trả khi LOAN_REJECT) |
+    | 2026-08-xx | [CAKE-KV] BRD sản phẩm Vay merchant Lending | partner_score đổi thành float; 3 field `partner_bank_*_disbursement` chuyển vào `metadata`; `front_nid_image`/`back_nid_image`/`nfc_data` thành optional (required khi `is_exists=false`); `loan_account_status` bỏ `LOAN_LOCK`, `LOAN_LOCKED`; `partner-update-status`: `partner_reference_id` required, `loan_code` optional (không trả khi LOAN_REJECT) |
 
     ## Cơ chế xác thực (Signature)
     Tất cả request từ Partner gọi Cake đều phải ký signature:
@@ -725,7 +725,6 @@ components:
                   type: string
                   description: Trạng thái hồ sơ eKYC
                   enum:
-                    - EKYC_UNKNOWN
                     - EKYC_PENDING
                     - EKYC_REJECT
                     - EKYC_SUCCESS
@@ -798,7 +797,6 @@ components:
                 loan_account_status:
                   type: string
                   enum:
-                    - LOAN_UNKNOWN
                     - LOAN_INIT
                     - LOAN_REVIEWING
                     - LOAN_REJECT

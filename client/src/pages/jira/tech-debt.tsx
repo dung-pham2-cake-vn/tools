@@ -50,7 +50,6 @@ interface DraftRow {
   labels: string;
   componentIds: string[];
   fixVersion: JiraNamedRef | null;
-  storyPoints: string;
   existingKey: string | null;
 }
 
@@ -100,7 +99,6 @@ const TechDebtPage: React.FC = () => {
           labels: data.defaultLabels.join(', '),
           componentIds: data.defaultComponents.map((component) => component.id),
           fixVersion: suggestion.fixVersion,
-          storyPoints: String(data.defaultStoryPoints),
           existingKey: suggestion.existingIssue?.key || null,
         }))
       );
@@ -148,9 +146,6 @@ const TechDebtPage: React.FC = () => {
         .filter(Boolean)
         .find((label) => /\s/.test(label));
       if (badLabel) problems.push(`${summary}: label "${badLabel}" chứa khoảng trắng`);
-      if (row.storyPoints.trim() && Number.isNaN(Number(row.storyPoints))) {
-        problems.push(`${summary}: story points không phải số`);
-      }
     });
 
     return Array.from(new Set(problems));
@@ -165,7 +160,6 @@ const TechDebtPage: React.FC = () => {
       labels: row.labels.split(',').map((label) => label.trim()).filter(Boolean),
       componentIds: row.componentIds,
       fixVersionIds: row.fixVersion ? [row.fixVersion.id] : [],
-      ...(row.storyPoints.trim() ? { storyPoints: Number(row.storyPoints) } : {}),
       priorityName: PRIORITY,
     }));
 
@@ -326,7 +320,6 @@ const TechDebtPage: React.FC = () => {
                   <th className="px-4 py-3 text-left font-semibold">Fix version</th>
                   <th className="px-4 py-3 text-left font-semibold">Component</th>
                   <th className="px-4 py-3 text-left font-semibold">Label</th>
-                  <th className="px-4 py-3 text-left font-semibold w-20">SP</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -420,16 +413,6 @@ const TechDebtPage: React.FC = () => {
                         className="w-40 rounded border border-gray-200 px-2 py-1"
                       />
                       <div className="mt-1 text-xs text-gray-400">Ngăn cách bằng dấu phẩy</div>
-                    </td>
-                    <td className="px-4 py-3 align-top">
-                      <input
-                        type="number"
-                        step="0.5"
-                        value={row.storyPoints}
-                        disabled={creating}
-                        onChange={(event) => patchRow(row.id, { storyPoints: event.target.value })}
-                        className="w-16 rounded border border-gray-200 px-2 py-1"
-                      />
                     </td>
                   </tr>
                 ))}

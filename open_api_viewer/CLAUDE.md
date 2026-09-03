@@ -83,6 +83,8 @@ Placeholder trong base: `product_id`, `email_title`, `2026-0x-0x`.
 | `lcp_paylater/` | LCP_paylater - DOP Lending APIs | DOP paylater | `index.lock.yaml` |
 | `pd_viettel/` | Viettel Payday - Native API | Native | `20260810.lock.yaml`, `20260819.lock.yaml`, `current_product.lock.yaml` |
 | `tiktok_cashloan/` | TikTok Cashloan — Native APIs | Native | — |
+| `zlp_cashloan/` | ZaloPay Cashloan - Native Lending APIs | Native | — |
+| `zlp_payday/` | ZaloPay Payday - Native Lending APIs | Native, không có luồng Termination | — |
 
 Working spec của mọi partner đều là `index.yaml`; tên partner đã nằm ở tên thư mục nên không lặp lại trong tên file.
 
@@ -143,6 +145,7 @@ Mọi endpoint có prefix `partner-` là **callback: Cake gọi vào hệ thốn
   ```
   Không dùng `BaseResponse` cho `partner-*` (nó có thêm `response_id`, `timestamp` — không bắt partner sinh 2 field đó).
   Ngoại lệ duy nhất: `partner-disburse-status` là endpoint **truy vấn**, dùng `PartnerDisburseStatusResponse` = 3 field trên **+ `data`**.
+  Ngoại lệ thứ hai: `zlp_payday/` — ZLP đã cố định hợp đồng cho 2 endpoint họ expose, nên `/partner-update-status` dùng header `x-client-key` + `x-sign` và response `return_code`/`sub_return_code`, còn `/partner-disburse-request` (top-up) theo chuẩn ZaloPay bankconnector (`fnc`, `partnerId`, `bankTransId`, `data` string-json). Không đồng bộ 2 endpoint này về base.
 
 - Ví dụ response trong spec phải có `success: true`.
 

@@ -171,7 +171,6 @@ export interface TechDebtSuggestionResult {
   componentOptions: JiraNamedRef[];
   defaultComponents: JiraNamedRef[];
   defaultLabels: string[];
-  defaultStoryPoints: number;
   summaryTemplate: string;
   suggestions: TechDebtSuggestion[];
 }
@@ -184,7 +183,6 @@ export interface TechDebtCreatePayload {
   labels?: string[];
   componentIds?: string[];
   fixVersionIds?: string[];
-  storyPoints?: number;
   priorityName?: string;
   assigneeAccountId?: string | null;
 }
@@ -199,7 +197,6 @@ export interface TechDebtCreateResult {
 const TECH_DEBT_ISSUE_TYPE = 'TechDebt';
 const TECH_DEBT_LABEL = 'tech-debt';
 const TECH_DEBT_COMPONENT = 'Backend';
-const TECH_DEBT_STORY_POINTS = 10;
 const SPRINT_LENGTH_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SPRINT_LENGTH_MS = SPRINT_LENGTH_DAYS * DAY_MS;
@@ -961,7 +958,6 @@ export class JiraService {
       componentOptions: components,
       defaultComponents,
       defaultLabels: [TECH_DEBT_LABEL],
-      defaultStoryPoints: TECH_DEBT_STORY_POINTS,
       summaryTemplate: 'Techdebt sprint {n}',
       suggestions,
     };
@@ -1021,10 +1017,6 @@ export class JiraService {
     const allowed = (fieldId: string | null) => !!fieldId && (creatable.size === 0 || creatable.has(fieldId));
 
     const sprintField = this.findFieldIdByName(fieldMap, ['Sprint']);
-    // Project có thể bật "Story Points" hoặc "Story point estimate" — chọn field thật sự nằm trên create screen.
-    const storyPointsField = ['Story Points', 'Story point estimate']
-      .map((name) => this.findFieldIdByName(fieldMap, [name]))
-      .find((fieldId) => allowed(fieldId)) || null;
 
     const labels = (payload.labels || []).map((label) => label.trim()).filter(Boolean);
     const badLabel = labels.find((label) => /\s/.test(label));
@@ -1044,9 +1036,6 @@ export class JiraService {
       fields.fixVersions = payload.fixVersionIds.map((id) => ({ id: String(id) }));
     }
     if (allowed(sprintField)) fields[sprintField as string] = payload.sprintId;
-    if (typeof payload.storyPoints === 'number' && storyPointsField) {
-      fields[storyPointsField] = payload.storyPoints;
-    }
     if (payload.priorityName && allowed('priority')) fields.priority = { name: payload.priorityName };
     if (payload.assigneeAccountId && allowed('assignee')) {
       fields.assignee = { accountId: payload.assigneeAccountId };

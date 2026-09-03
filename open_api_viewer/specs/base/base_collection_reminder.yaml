@@ -184,6 +184,7 @@ components:
         - content_type
         - channel
         - dpd
+        - amount
         - updated_at
       properties:
         partner_name:
@@ -218,6 +219,10 @@ components:
           type: string
           description: Số ngày quá hạn (days past due)
           example: "-10"
+        amount:
+          type: string
+          description: Số tiền dư nợ của khách hàng buộc phải thanh toán (VNĐ)
+          example: "15331759"
         updated_at:
           type: string
           description: Thời gian cập nhật record (UTC+7, ISO 8601)
@@ -289,7 +294,7 @@ x-mermaid-flows:
 
       Note over P,C: Partner định kỳ (cron) gọi API để lấy danh sách nhắc nợ
       P->>C: collections(limit, cursor)
-      C-->>P: items[loan_account_id, content_type, channel, dpd, ...], cursor
+      C-->>P: items[loan_account_id, content_type, channel, dpd, amount, ...], cursor
       Note over P: Partner tự gửi thông báo (SMS/push/app) theo channel + content_type
       loop Còn dữ liệu (cursor != rỗng)
         P->>C: collections(limit, cursor)

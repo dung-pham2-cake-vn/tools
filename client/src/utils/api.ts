@@ -195,7 +195,6 @@ export interface TechDebtSuggestionResult {
   componentOptions: JiraNamedRef[];
   defaultComponents: JiraNamedRef[];
   defaultLabels: string[];
-  defaultStoryPoints: number;
   summaryTemplate: string;
   suggestions: TechDebtSuggestion[];
 }
@@ -208,7 +207,6 @@ export interface TechDebtCreatePayload {
   labels?: string[];
   componentIds?: string[];
   fixVersionIds?: string[];
-  storyPoints?: number;
   priorityName?: string;
   assigneeAccountId?: string | null;
 }

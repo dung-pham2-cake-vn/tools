@@ -183,12 +183,21 @@ const pickEarliestUnreleasedVersion = (versions: JiraVersion[]): { item: JiraVer
 };
 
 const pickSingleSprint = (issues: JiraSearchIssue[]): { item: NormalizedSprintDetail | null; notes: string[] } => {
-  const sprints = dedupeByName(
-    issues.flatMap((issue) => issue.fields.normalizedSprints || []).filter((s) => s.state === 'active')
-  );
+  const active = issues.flatMap((issue) => (issue.fields.normalizedSprints || []).filter((s) => s.state === 'active'));
+  const sprints = dedupeByName(active);
   if (sprints.length === 0) return { item: null, notes: ['no active sprint returned by JQL'] };
-  if (sprints.length > 1) return { item: null, notes: [`multiple active sprints: ${sprints.map((s) => s.name).join(', ')}`] };
-  return { item: sprints[0], notes: [] };
+  if (sprints.length === 1) return { item: sprints[0], notes: [] };
+
+  // Issue có thể nằm trong sprint share từ board khác (vd PL ticket trong "Sprint - LOS").
+  // Chọn sprint chiếm nhiều issue nhất của project; chỉ bỏ cuộc khi hoà.
+  const counts = new Map<string, number>();
+  active.forEach((s) => counts.set(s.name, (counts.get(s.name) || 0) + 1));
+  const ranked = [...sprints].sort((l, r) => (counts.get(r.name) || 0) - (counts.get(l.name) || 0));
+  const others = ranked.slice(1).map((s) => s.name).join(', ');
+  if ((counts.get(ranked[0].name) || 0) === (counts.get(ranked[1].name) || 0)) {
+    return { item: null, notes: [`multiple active sprints: ${sprints.map((s) => s.name).join(', ')}`] };
+  }
+  return { item: ranked[0], notes: [`bỏ qua sprint phụ: ${others}`] };
 };
 
 // ─── Sprint overview data loader ──────────────────────────────────────────────

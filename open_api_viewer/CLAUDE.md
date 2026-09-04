@@ -145,7 +145,8 @@ Mọi endpoint có prefix `partner-` là **callback: Cake gọi vào hệ thốn
   ```
   Không dùng `BaseResponse` cho `partner-*` (nó có thêm `response_id`, `timestamp` — không bắt partner sinh 2 field đó).
   Ngoại lệ duy nhất: `partner-disburse-status` là endpoint **truy vấn**, dùng `PartnerDisburseStatusResponse` = 3 field trên **+ `data`**.
-  Ngoại lệ thứ hai: `zlp_payday/` — ZLP đã cố định hợp đồng cho 2 endpoint họ expose, nên `/partner-update-status` dùng header `x-client-key` + `x-sign` và response `return_code`/`sub_return_code`, còn `/partner-disburse-request` (top-up) theo chuẩn ZaloPay bankconnector (`fnc`, `partnerId`, `bankTransId`, `data` string-json). Không đồng bộ 2 endpoint này về base.
+  Ngoại lệ thứ hai: `zlp_payday/` — ZLP đã cố định hợp đồng cho 2 endpoint họ expose, nên `/partner-update-status` dùng header `x-client-key` + `x-sign` và response `return_code`/`sub_return_code`, còn `/partner-disburse-request` (top-up, `fnc=BankCashIn`) và `/partner-disburse-status` (query, `fnc=QueryStatus`) theo chuẩn ZaloPay bankconnector (`fnc`, `partnerId`, `bankTransId`, `data` string-json). Không đồng bộ 3 endpoint này về base.
+  `zlp_cashloan/` cũng vậy: cả `/partner-disburse-request` lẫn `/partner-disburse-status` theo bankconnector ZLP (`Zalopay-IB_Mobile_Banking_Integration` v1.5). Bảng error code bankconnector dùng chung cho 2 file: `resultCode`/`returnCode` = `00` là đã giải ngân, mã khác là chưa.
 
 - Ví dụ response trong spec phải có `success: true`.
 

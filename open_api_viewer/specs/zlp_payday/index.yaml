@@ -61,8 +61,7 @@ info:
     |-----------|-------|-------|
     | 2026-09-03 | email_title | Khởi tạo tài liệu từ bản spec `ZLP Payday - API spec` |
     | 2026-09-03 | email_title | Bổ sung `/partner-disburse-status` (`fnc = QueryStatus`) theo tài liệu bankconnector ZLP §2.2.5 |
-    | 2026-09-04 | email_title | Bỏ bảng sFTP; ảnh GTTT ở client-update note theo trạng thái eKYC NFC |
-    | 2026-09-04 | email_title | Cập nhật `/partner-disburse-*` theo `Zalopay-IB_Mobile_Banking_Integration` v1.5: công thức ký request, `extraInfo.businessLine = CASHLOAN`, bảng error code bankconnector (`resultCode` = `00` là đã giải ngân) |
+    | 2026-09-04 | email_title | Cập nhật 2 API `/partner-disburse-*` theo tài liệu bankconnector ZLP v1.5 (ký request, `businessLine`, bảng error code) |
 
     ## Cơ chế xác thực (Signature)
 

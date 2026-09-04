@@ -56,8 +56,7 @@ info:
     | Thời gian | Email title | Cập nhật |
     |-----------|-------|-------|
     | 2026-08-31 | email_title | Khởi tạo tài liệu từ bản spec `ZLP Cashloan - API spec` |
-    | 2026-09-04 | email_title | `/partner-update-status` theo hợp đồng ZLP (`x-client-key`/`x-sign`, `return_code`); bỏ `is_exists`/`is_valid_user`/`is_duplicate_loan` ở check-profile, bỏ `education` ở data-config |
-    | 2026-09-04 | email_title | Chuyển `/partner-disburse-request` sang hợp đồng bankconnector ZLP (`fnc = BankCashIn`); bổ sung `/partner-disburse-status` (`fnc = QueryStatus`) và bảng error code bankconnector (`resultCode` = `00` là đã giải ngân), theo `Zalopay-IB_Mobile_Banking_Integration` v1.5 |
+    | 2026-09-04 | email_title | Cập nhật 3 API `partner-*` theo hợp đồng ZLP; đồng bộ với tài liệu ZLP Payday |
 
     ## Cơ chế xác thực (Signature)
     Tất cả request từ Partner gọi Cake đều phải ký signature:

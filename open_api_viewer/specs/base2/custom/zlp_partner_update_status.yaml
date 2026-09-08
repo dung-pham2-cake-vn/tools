@@ -1,0 +1,141 @@
+# ─────────────────────────────────────────────────────────────
+# FRAGMENT — ZaloPay /partner-update-status
+#
+# Dùng cho: zlp_cashloan, zlp_payday
+# Ghi đè:   /partner-update-status
+#
+# Khác quy ước `partner-*` chuẩn của Cake: header `x-client-key` + `x-sign`
+# (không dùng `signature`), response `return_message`/`return_code`/`sub_return_code`
+# thay cho `success`/`code`/`message`. Path phía ZLP:
+# `POST /cash-loan/cake/contract/callback`.
+# ─────────────────────────────────────────────────────────────
+x-fragment:
+  name: zlp_partner_update_status
+  applies-to: [ zlp_cashloan, zlp_payday ]
+  overrides-paths:
+    - /partner-update-status
+
+components:
+  parameters:
+    ClientKeyHeader:
+      name: x-client-key
+      in: header
+      required: true
+      description: client_key do ZLP cấp cho Cake (chỉ dùng ở /partner-update-status)
+      schema:
+        type: string
+
+    XSignHeader:
+      name: x-sign
+      in: header
+      required: true
+      description: |
+        Chữ ký của Cake cho request gọi sang ZLP (chỉ dùng ở /partner-update-status).
+        rawData = request_body + "|" + client_key
+        x-sign = base64(SHA256withRSA, PKCS#1 v1.5, sign(rawData, private_key))
+      schema:
+        type: string
+
+  schemas:
+    # ── Partner-side callback schemas (Cake → ZLP) ──
+    PartnerUpdateStatusRequest:
+      type: object
+      required:
+        - request_id
+        - status
+      properties:
+        request_id:
+          type: string
+          description: Request ID từ API /client-create
+          example: "req-abc123"
+        status:
+          type: string
+          enum:
+            - LOAN_APPROVE
+            - LOAN_REJECT
+            - LOAN_EXPIRED
+            - LOAN_SIGNED
+            - LOAN_CANCEL
+            - LOAN_ACTIVE
+            - LOAN_CLOSE
+          description: |
+            Trạng thái hồ sơ khoản vay tại Cake:
+            - LOAN_APPROVE: Hồ sơ đăng ký khoản vay đã được phê duyệt
+            - LOAN_REJECT: Hồ sơ đăng ký khoản vay bị từ chối
+            - LOAN_EXPIRED: Hồ sơ đăng ký khoản vay bị hết hạn (7 ngày)
+            - LOAN_SIGNED: Hồ sơ đã ký hợp đồng vay
+            - LOAN_CANCEL: Hồ sơ đăng ký khoản vay bị hủy
+            - LOAN_ACTIVE: Hồ sơ đã giải ngân thành công
+            - LOAN_CLOSE: Khoản vay đã tất toán
+          example: LOAN_APPROVE
+
+    PartnerUpdateStatusResponse:
+      type: object
+      required:
+        - return_message
+        - return_code
+      properties:
+        return_message:
+          type: string
+          description: Return code description
+          example: "SUCCESS"
+        return_code:
+          type: integer
+          description: "1 = SUCCESS, 2 = FAIL. Đây chỉ là trạng thái của API"
+          enum: [ 1, 2 ]
+          example: 1
+        sub_return_code:
+          type: integer
+          nullable: true
+          description: |
+            Chi tiết lỗi khi `return_code = 2`:
+            - `-400` Invalid params → Partner check lại params
+            - `-401` Authentication failed → Partner check lại signature
+            - `-404` Request ID not found → Partner check lại params
+            - `-503` System maintenance → Cake gọi lại API callback
+          example: null
+
+paths:
+  # ════════════════════
+  # PARTNER CALLBACKS (Cake gọi ZLP)
+  # ════════════════════
+  /partner-update-status:
+    post:
+      tags: [ Partner Callbacks ]
+      summary: "Cake cập nhật trạng thái hồ sơ/khoản vay sang ZLP"
+      description: |
+        **Chiều: Cake → ZLP** (bản spec ZLP gọi API này là `status-update`)
+
+        Path phía ZLP: `POST /cash-loan/cake/contract/callback`
+
+        Cake chủ động gọi API này trên hệ thống ZLP để thông báo thay đổi trạng thái khoản vay.
+        ZLP expose endpoint này.
+
+        **Header:** `Content-Type`, `x-client-key`, `x-sign` (khác quy ước `partner-*` chuẩn
+        của Cake — theo hợp đồng ZLP).
+
+        **Response:** `return_message`, `return_code` (1 = SUCCESS, 2 = FAIL), `sub_return_code`.
+      operationId: partnerUpdateStatus
+      servers:
+        - url: https://{zlp_host}
+          description: ZLP host (ZLP cấp) — path đầy đủ `/cash-loan/cake/contract/callback`
+          variables:
+            zlp_host:
+              default: zlp-host
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/ClientKeyHeader"
+        - $ref: "#/components/parameters/XSignHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerUpdateStatusRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerUpdateStatusResponse"

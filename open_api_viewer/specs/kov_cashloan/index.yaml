@@ -14,7 +14,7 @@ info:
     |-----------|-------|-------|
     | 2026-07-28 | [CAKE-KV] BRD sản phẩm Vay merchant Lending | Khởi tạo tài liệu |
     | 2026-08-21 | [CAKE-KV] BRD sản phẩm Vay merchant Lending | Cập nhật theo BRD |
-    | 2026-08-xx | [CAKE-KV] BRD sản phẩm Vay merchant Lending | partner_score đổi thành float; 3 field `partner_bank_*_disbursement` chuyển vào `metadata`; `front_nid_image`/`back_nid_image`/`nfc_data` thành optional (required khi `is_exists=false`); `loan_account_status` bỏ `LOAN_LOCK`, `LOAN_LOCKED`; `partner-update-status`: `partner_reference_id` required, `loan_code` optional (không trả khi LOAN_REJECT) |
+    | 2026-09-07 | [CAKE-KV] BRD sản phẩm Vay merchant Lending | partner_score đổi thành float; 3 field `partner_bank_*_disbursement` chuyển vào `metadata`; `front_nid_image`/`back_nid_image`/`nfc_data` thành optional (required khi `is_exists=false`); `loan_account_status` bỏ `LOAN_LOCK`, `LOAN_LOCKED`; `partner-update-status`: `partner_reference_id` required, `loan_code` optional (chỉ truyền từ khi loan approve), `request_id` đổi thành `client_request_id`, bổ sung mô tả từng giá trị `status` |
 
     ## Cơ chế xác thực (Signature)
     Tất cả request từ Partner gọi Cake đều phải ký signature:
@@ -1124,28 +1124,26 @@ components:
     PartnerUpdateStatusRequest:
       type: object
       required:
-        - request_id
+        - client_request_id
         - partner_reference_id
         - phone_number
         - status
       properties:
-        request_id:
+        client_request_id:
           type: string
-          description: ID được sinh ra mỗi request
+          description: request_id được sinh ra ở API /client-create
         partner_reference_id:
           type: string
-          description: ID đối tác truyền ở API /client-create
+          description: partner_reference_id của đối tác truyền ở API /client-create
         loan_code:
           type: string
           nullable: true
-          description: |
-            Mã khoản vay. Optional — khi hồ sơ bị từ chối (LOAN_REJECT) Cake không trả loan_code,
-            Partner đối chiếu hồ sơ bằng partner_reference_id.
+          description: Mã khoản vay, chỉ truyền từ khi loan approve
           example: "u8123123Sjsdb"
         phone_number:
           type: string
-          description: Số điện thoại KH (bắt đầu bằng số 0)
-          example: "0xxxxxxxxx"
+          description: SĐT của KH (định dạng bắt đầu bằng số 0)
+          example: "034xxxxx00"
         status:
           type: string
           enum:
@@ -1158,7 +1156,17 @@ components:
             - LOAN_SIGNED
             - LOAN_ACTIVE
             - LOAN_CLOSE
-          description: Trạng thái hồ sơ khoản vay Cake
+          description: |
+            Trạng thái hồ sơ khoản vay Cake:
+            - EKYC_REJECT: Hồ sơ eKYC của khách hàng bị từ chối thủ công
+            - EKYC_SUCCESS: Hồ sơ eKYC của khách hàng đã duyệt thủ công
+            - LOAN_APPROVE: Hồ sơ đăng ký khoản vay đã được phê duyệt
+            - LOAN_REJECT: Khoản vay bị từ chối, có thể đăng ký lại sau 7 ngày
+            - LOAN_CANCEL: Khoản vay bị hủy, có thể đăng ký lại ngay
+            - LOAN_EXPIRED: Khoản vay bị hết hạn sau 7 ngày chưa ký
+            - LOAN_SIGNED: Hồ sơ KH đã ký hợp đồng vay
+            - LOAN_ACTIVE: Hồ sơ đã giải ngân thành công
+            - LOAN_CLOSE: Khoản vay đã tất toán
 
     PartnerRepaymentStatusRequest:
       type: object

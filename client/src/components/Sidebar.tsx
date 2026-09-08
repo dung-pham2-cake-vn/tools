@@ -44,7 +44,15 @@ const navItems: NavItem[] = [
     ],
   },
   { label: 'Support', path: '/support', icon: '🛠️' },
-  { label: 'OpenAPI Spec', path: '/openapispec', icon: '📄' },
+  {
+    label: 'OpenAPI Spec',
+    path: '/openapispec',
+    icon: '📄',
+    children: [
+      { label: 'Viewer', path: '/openapispec' },
+      { label: 'Spec Builder', path: '/specbuilder' },
+    ],
+  },
   { label: 'Settings', path: '/config', icon: '⚙️' },
 ];
 

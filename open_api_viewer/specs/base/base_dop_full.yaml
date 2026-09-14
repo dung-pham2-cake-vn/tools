@@ -409,11 +409,11 @@ components:
                   example: "197494"
                 penalty_principal_balance:
                   type: string
-                  description: "[CL/PD] Lãi phạt gốc quá hạn"
+                  description: Lãi phạt gốc quá hạn (nếu có)
                   example: "2494265"
                 penalty_interest_balance:
                   type: string
-                  description: "[CL/PD] Lãi phạt lãi quá hạn"
+                  description: Lãi phạt lãi quá hạn (nếu có)
                   example: "0"
                 payment_period:
                   type: string

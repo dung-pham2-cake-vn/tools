@@ -14,7 +14,7 @@ info:
     |-----------|-------|-------|
     | 2026-07-28 | [CAKE-KV] BRD sản phẩm Vay merchant Lending | Khởi tạo tài liệu |
     | 2026-08-21 | [CAKE-KV] BRD sản phẩm Vay merchant Lending | Cập nhật theo BRD |
-    | 2026-09-07 | [CAKE-KV] BRD sản phẩm Vay merchant Lending | partner_score đổi thành float; 3 field `partner_bank_*_disbursement` chuyển vào `metadata`; `front_nid_image`/`back_nid_image`/`nfc_data` thành optional (required khi `is_exists=false`); `loan_account_status` bỏ `LOAN_LOCK`, `LOAN_LOCKED`; `partner-update-status`: `partner_reference_id` required, `loan_code` optional (chỉ truyền từ khi loan approve), `request_id` đổi thành `client_request_id`, bổ sung mô tả từng giá trị `status` |
+    | 2026-09-07 | [CAKE-KV] BRD sản phẩm Vay merchant Lending | partner_score đổi thành float; 3 field `partner_bank_*_disbursement` chuyển vào `metadata`; `front_nid_image`/`back_nid_image`/`nfc_data` thành optional (required khi `is_exists=false`); `loan_account_status` bỏ `LOAN_LOCK`, `LOAN_LOCKED`; `partner-update-status`: `partner_reference_id` required, `loan_code` optional (chỉ truyền từ khi loan approve), `request_id` đổi thành `client_request_id`, bổ sung mô tả từng giá trị `status`; `data-config` bổ sung `bank[].img_url`, `bank[].full_name` |
 
     ## Cơ chế xác thực (Signature)
     Tất cả request từ Partner gọi Cake đều phải ký signature:
@@ -281,6 +281,14 @@ components:
                         type: string
                         description: Tên viết tắt
                         example: "ABB"
+                      img_url:
+                        type: string
+                        description: URL logo ngân hàng
+                        example: "https://cdn.cake.vn/bank-logo/970425.png"
+                      full_name:
+                        type: string
+                        description: Tên đầy đủ
+                        example: "Ngân hàng TMCP An Bình"
 
     CheckProfileRequest:
       type: object

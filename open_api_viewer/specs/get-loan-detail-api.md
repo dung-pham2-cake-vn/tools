@@ -88,6 +88,8 @@ Các field này có mặt trong response của **Cashloan, Payday, và Paylater*
 | `interest_rate` | string | Lãi suất | `"43"` |
 | `principle_balance` | string | Dư nợ gốc khả dụng còn lại | `"12640000"` |
 | `interest_balance` | string | Dư nợ lãi phát sinh | `"197494"` |
+| `penalty_principal_balance` | string | Lãi phạt gốc quá hạn (nếu có) | `"2494265"` |
+| `penalty_interest_balance` | string | Lãi phạt lãi quá hạn (nếu có) | `"0"` |
 | `due_date` | string (date) | Ngày đến hạn thanh toán gần nhất (`yyyy-mm-dd`) | `"2025-06-27"` |
 | `day_arrears` | string | Số ngày quá hạn | `"191"` |
 | `total_payment_amount` | string | Tổng tiền KH có thể/cần thanh toán | `"15331759"` |
@@ -102,8 +104,6 @@ Lý do: Cashloan/Payday là vay giải ngân **lump-sum một lần** (có ngày
 | --- | --- | --- | --- |
 | `loan_insurance` | string | Số tiền bảo hiểm khoản vay | `"840000"` |
 | `disburse_date` | string (date) | Ngày giải ngân (`yyyy-mm-dd`) | `"2025-06-03"` |
-| `penalty_principal_balance` | string | Lãi phạt gốc quá hạn | `"2494265"` |
-| `penalty_interest_balance` | string | Lãi phạt lãi quá hạn | `"0"` |
 | `paid_amount` | string | Số tiền KH đã thanh toán (lũy kế) | `"200000"` |
 
 ---
@@ -126,7 +126,7 @@ Lý do: Cashloan/Paylater trả góp theo **kỳ hạn** (payment_period) nên t
 | Field | Cashloan | Payday | Paylater |
 | --- | --- | --- | --- |
 | Field chung (mục 1) | ✅ | ✅ | ✅ |
-| `loan_insurance`, `disburse_date`, `penalty_principal_balance`, `penalty_interest_balance`, `paid_amount` | ✅ | ✅ | ❌ |
+| `loan_insurance`, `disburse_date`, `paid_amount` | ✅ | ✅ | ❌ |
 | `payment_period`, `monthly_payment_amount`, `overdue_payment_amount`, `prepayment_amount` | ✅ | ❌ | ✅ |
 
 → **Cashloan** nhận đầy đủ tất cả field (union của cả 2 nhóm). **Payday** và **Paylater** mỗi bên chỉ nhận 1 nhóm field riêng, cộng với field chung.
@@ -211,7 +211,7 @@ Không có `payment_period`, `monthly_payment_amount`, `overdue_payment_amount`,
 
 ### Paylater
 
-Không có `loan_insurance`, `disburse_date`, `penalty_principal_balance`, `penalty_interest_balance`, `paid_amount` — thay vào đó dùng `payment_period`, `monthly_payment_amount`, `overdue_payment_amount`, `prepayment_amount` để mô tả trả góp theo kỳ trên hạn mức tín dụng.
+Không có `loan_insurance`, `disburse_date`, `paid_amount` — thay vào đó dùng `payment_period`, `monthly_payment_amount`, `overdue_payment_amount`, `prepayment_amount` để mô tả trả góp theo kỳ trên hạn mức tín dụng.
 
 ```json
 {
@@ -233,6 +233,8 @@ Không có `loan_insurance`, `disburse_date`, `penalty_principal_balance`, `pena
     "interest_rate": "35",
     "principle_balance": "3500000",
     "interest_balance": "61250",
+    "penalty_principal_balance": "0",
+    "penalty_interest_balance": "0",
     "payment_period": "3",
     "due_date": "2025-06-27",
     "day_arrears": "0",

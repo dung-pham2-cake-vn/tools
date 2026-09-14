@@ -392,6 +392,14 @@ components:
                   type: string
                   description: Dư nợ lãi phát sinh
                   example: "197494"
+                penalty_principal_balance:
+                  type: string
+                  description: Lãi phạt gốc quá hạn (nếu có)
+                  example: "2494265"
+                penalty_interest_balance:
+                  type: string
+                  description: Lãi phạt lãi quá hạn (nếu có)
+                  example: "0"
                 payment_period:
                   type: string
                   description: "Kỳ thanh toán số"

@@ -541,6 +541,14 @@ export default function BacklogPage() {
     anchorRef.current = null;
   };
 
+  // Tick hàng loạt (select-all sprint, shift-range) chỉ chạm ticket khớp filter.
+  // Không filter → mọi ticket đều tick được. Click đơn vẫn tick được cha (chủ đích rõ ràng).
+  const tickable = (key: string): boolean => {
+    if (!filterActive) return true;
+    const issue = issueByKey.get(key);
+    return issue ? matches(issue) : false;
+  };
+
   // Shift-tick: quét từ ô mốc tới ô vừa bấm theo đúng thứ tự dòng đang hiển thị.
   // Mốc khác sprint group → coi như tick đơn (đặt mốc mới), tránh quét nhầm cả trang.
   const onBoxClick = (e: React.MouseEvent, key: string, group: number, order: string[]) => {
@@ -550,7 +558,7 @@ export default function BacklogPage() {
       const b = order.indexOf(key);
       if (a >= 0 && b >= 0) {
         const [lo, hi] = a < b ? [a, b] : [b, a];
-        const range = order.slice(lo, hi + 1);
+        const range = order.slice(lo, hi + 1).filter(tickable);
         // Hướng theo ô vừa bấm: đang chưa tick → tick cả dải; đang tick → bỏ tick cả dải.
         const turnOn = !checked.has(key);
         setChecked((prev) => {
@@ -1155,7 +1163,10 @@ export default function BacklogPage() {
     const stats = sprintStats(allRoots, sprint.id);
     const rowOrder = roots.flatMap((r) => visibleRowKeys(r, sprint.id, flatMode));
     const isCollapsed = collapsedSprints.has(sprint.id);
-    const sprintKeys = allRoots.flatMap((r) => flattenVisible(r, sprint.id)).map((i) => i.key);
+    const sprintKeys = allRoots
+      .flatMap((r) => flattenVisible(r, sprint.id))
+      .map((i) => i.key)
+      .filter(tickable);
     const checkedInSprint = sprintKeys.filter((k) => checked.has(k)).length;
     const allChecked = sprintKeys.length > 0 && checkedInSprint === sprintKeys.length;
     const someChecked = checkedInSprint > 0 && !allChecked;
@@ -1179,7 +1190,7 @@ export default function BacklogPage() {
             }}
             onChange={toggleSprintChecked}
             onClick={(e) => e.stopPropagation()}
-            title="Tick/bỏ tick toàn bộ ticket trong sprint"
+            title={filterActive ? 'Tick/bỏ tick ticket khớp filter trong sprint' : 'Tick/bỏ tick toàn bộ ticket trong sprint'}
             className="h-4 w-4 cursor-pointer rounded border-gray-300 text-blue-600 focus:ring-blue-500"
           />
           <button type="button" onClick={() => toggleSprint(sprint.id)} className="text-gray-500">

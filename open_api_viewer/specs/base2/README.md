@@ -38,7 +38,8 @@ Tập field theo sản phẩm (nguồn: `specs/get-loan-detail-api.md` + đối 
 | Nhóm field | cashloan | payday | paylater |
 |---|:--:|:--:|:--:|
 | chung (15 field) | ✅ | ✅ | ✅ |
-| `loan_insurance`, `disburse_date`, `penalty_principal_balance`, `penalty_interest_balance`, `paid_amount` | ✅ | ✅ | ❌ |
+| `loan_insurance`, `disburse_date`, `paid_amount` | ✅ | ✅ | ❌ |
+| `penalty_principal_balance`, `penalty_interest_balance` | ✅ | ✅ | ✅ |
 | `payment_period`, `prepayment_amount` | ✅ | ❌ | ✅ |
 | `predue_payment_amount`, `due_payment_amount` | ✅ | ❌ | ❌ |
 | `period_payment_amount` | ❌ | ❌ | ✅ |

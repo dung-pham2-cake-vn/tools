@@ -13,6 +13,7 @@ info:
     - **Onboarding & liên kết tài khoản**: `generate-webview/onboarding` → `partner-update-status`
     - **Thông tin khoản vay**: `get-loan-detail`, `generate-webview/loan-detail`
     - **Thanh toán dịch vụ**: `generate-webview/payment-request` → `payment-status` → `payment-revert`
+    - **Callback Cake → Partner**: `partner-update-status`, `partner-payment-status`
 
     Việc chuyển đổi trả góp (installment) do KH thực hiện trực tiếp trong webview Cake,
     không có API riêng cho Partner.
@@ -24,6 +25,8 @@ info:
     | 2026-07-16 | Weekly meeting Cake x Long Châu | Khởi tạo tài liệu |
     | 2026-08-25 | N/A | `get-loan-detail`: bỏ `monthly_payment_amount`, đổi `overdue_payment_amount` → `period_payment_amount`. Chuyển luồng thanh toán sang webview: bổ sung `generate-webview/loan-detail`, `generate-webview/payment-request`. Bỏ `repayment-van`, `repayment-status`, `payment-request`, `payment-confirm`, các API installment, `partner-repayment-status`, `partner-payment-status` |
     | 2026-08-26 | Weekly meeting Cake x Long Châu | `generate-webview/payment-request`: bổ sung `installment_tenor` (kỳ hạn trả góp theo tháng) |
+    | 2026-09-08 | Weekly meeting Cake x Long Châu | Bổ sung API callback `partner-payment-status`; `payment-status` trả thêm `payment_amount`, `revert_amount`; `generate-webview/payment-request` bổ sung bảng mã lỗi |
+    | 2026-09-11 | Weekly meeting Cake x Long Châu | `get-loan-detail`: bổ sung `penalty_principal_balance`, `penalty_interest_balance` |
 
     ## Cơ chế xác thực (Signature)
     Tất cả request từ Partner gọi Cake đều phải ký signature:
@@ -382,6 +385,14 @@ components:
                   type: string
                   description: Dư nợ lãi phát sinh
                   example: "197494"
+                penalty_principal_balance:
+                  type: string
+                  description: Lãi phạt gốc quá hạn (nếu có)
+                  example: "2494265"
+                penalty_interest_balance:
+                  type: string
+                  description: Lãi phạt lãi quá hạn (nếu có)
+                  example: "0"
                 payment_period:
                   type: string
                   description: "Kỳ thanh toán số"
@@ -449,6 +460,62 @@ components:
             - LOAN_CLOSE
           example: "LOAN_APPROVE"
 
+
+    PartnerPaymentStatusRequest:
+      type: object
+      required:
+        - request_id
+        - loan_code
+        - phone_number
+        - partner_reference_id
+        - order_id
+        - status
+        - payment_amount
+      properties:
+        request_id:
+          type: string
+          description: Mã định danh cho request
+          example: "req-0001"
+        loan_code:
+          type: string
+          description: Mã khoản vay
+          example: "u8123123Sjsdb"
+        phone_number:
+          type: string
+          description: SĐT của KH (định dạng bắt đầu bằng số 0)
+          example: "0xxxxxxxxx"
+        partner_reference_id:
+          type: string
+          description: partner_reference_id Partner đã truyền ở /generate-webview/payment-request
+          example: "bf133c7c-8e10-45a2-b9d2-4d04a352917a"
+        order_id:
+          type: string
+          description: order_id từ response API /generate-webview/payment-request
+          example: "ORD20260102000001"
+        status:
+          type: string
+          enum: [ SUCCESS, FAILED, REVERT ]
+          description: |
+            Kết quả cuối cùng của giao dịch thanh toán:
+            - `SUCCESS`: Thanh toán thành công
+            - `FAILED`: Thanh toán thất bại, KH hủy hoặc yêu cầu hết hạn
+            - `REVERT`: Giao dịch đã được hoàn tiền qua API /payment-revert
+          example: "SUCCESS"
+        status_installment:
+          type: string
+          nullable: true
+          enum: [ SUCCESS, FAILED ]
+          description: Trạng thái chuyển đổi trả góp (chỉ trả khi KH chọn trả góp trong webview)
+          example: null
+        payment_amount:
+          type: integer
+          description: Số tiền giao dịch (VNĐ)
+          example: 5000000
+        revert_amount:
+          type: integer
+          nullable: true
+          description: Số tiền đã hoàn (VNĐ), chỉ trả khi status = REVERT
+          example: null
 
     # ── Partner callback response (code/message) ──
     PartnerCallbackResponse:
@@ -657,6 +724,19 @@ components:
                     - `SUCCESS`: Chuyển đổi trả góp thành công
                     - `FAILED`: Chuyển đổi trả góp thất bại
                   example: "NONE"
+                payment_amount:
+                  type: integer
+                  description: |
+                    Số tiền giao dịch (VNĐ) — bằng `payment_amount` đã truyền ở
+                    /generate-webview/payment-request.
+                  example: 5000000
+                revert_amount:
+                  type: integer
+                  nullable: true
+                  description: |
+                    Số tiền đã hoàn (VNĐ) qua API /payment-revert. Mỗi giao dịch chỉ hoàn được
+                    **1 lần**, nên chỉ trả khi `payment_status` = `REVERT`.
+                  example: null
 
     PaymentRevertRequest:
       type: object
@@ -685,7 +765,9 @@ components:
           example: "ORD20260102000001"
         revert_amount:
           type: integer
-          description: Số tiền cần hoàn (VNĐ), phải ≤ số tiền đơn hàng gốc của order_id
+          description: |
+            Số tiền cần hoàn (VNĐ), phải ≤ số tiền đơn hàng gốc của order_id.
+            Chỉ hoàn được 1 lần cho mỗi order_id.
           example: 2000000
 
 
@@ -792,6 +874,16 @@ paths:
         `partner_reference_id` phải là duy nhất mỗi đơn hàng.
         Sau khi webview redirect về `redirect_url`, Partner **phải** gọi `/payment-status`
         với `order_id` để lấy kết quả cuối cùng, không dựa vào redirect.
+
+        **Mã lỗi:**
+
+        | Code | Message |
+        |------|---------|
+        | `400001` | Không có thông tin khoản vay |
+        | `500006` | Dịch vụ thanh toán không hợp lệ |
+        | `600000` | Thông tin thanh toán không hợp lệ |
+        | `600002` | Giao dịch không được thực hiện thành công, vui lòng ra quầy để được phục vụ. |
+        | `600001` | Giao dịch đã bị chặn, vui lòng thử lại sau. |
       operationId: generateWebviewPaymentRequest
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
@@ -851,6 +943,8 @@ paths:
         Giao dịch hoàn tất chuyển sang trạng thái `REVERT` khi tra qua `/payment-status`.
 
         Chỉ hoàn được giao dịch ở trạng thái `SUCCESS`; các trạng thái khác trả lỗi.
+        Mỗi giao dịch chỉ hoàn được **1 lần** — sau khi hoàn thành công trạng thái đã là `REVERT`
+        nên không gọi lại được.
       operationId: paymentRevert
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
@@ -899,6 +993,36 @@ paths:
               schema:
                 $ref: "#/components/schemas/PartnerCallbackResponse"
 
+  /partner-payment-status:
+    post:
+      tags: [ Partner Callbacks ]
+      summary: Cake cập nhật trạng thái thanh toán dịch vụ sang Partner
+      description: |
+        **Chiều: Cake → Partner**
+        Cake chủ động thông báo kết quả cuối cùng của giao dịch thanh toán (và trả góp nếu có)
+        cho Partner, thay vì để Partner poll `/payment-status`.
+        Partner cần expose endpoint này, yêu cầu path là */partner-payment-status.
+
+        Callback không thay thế `/payment-status` — Partner vẫn nên gọi `/payment-status`
+        để đối chiếu khi không nhận được callback.
+      operationId: partnerPaymentStatus
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerPaymentStatusRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerCallbackResponse"
+
 tags:
   - name: Onboarding
     description: |
@@ -913,7 +1037,8 @@ tags:
       generate-webview/payment-request → (KH xác nhận trong webview) → payment-status → payment-revert (nếu cần)
   - name: Partner Callbacks
     description: |
-      API Cake gọi sang Partner (webhook/callback). Partner phải expose các endpoint này.
+      API Cake gọi sang Partner (webhook/callback): partner-update-status (trạng thái hồ sơ),
+      partner-payment-status (kết quả thanh toán dịch vụ). Partner phải expose các endpoint này.
       Xác thực ngược chiều (Cake ký, Partner verify).
 
 # ─────────────────────────────────────────────
@@ -984,8 +1109,10 @@ x-mermaid-flows:
       Note over P: Catch redirect event, đóng webview
 
       Note over P,C: VERIFY KẾT QUẢ (bắt buộc)
+      C->>P: partner-payment-status(order_id, status, status_installment?, payment_amount)
+      P-->>C: Response (success, code, message)
       P->>C: payment-status(loan_code, phone_number, partner_reference_id, order_id)
-      C-->>P: payment_status, installment_status
+      C-->>P: payment_status, installment_status, payment_amount, revert_amount
       P-->>Cl: Response transaction result
 
       Note over Cl,C: REVERT (nếu cần)

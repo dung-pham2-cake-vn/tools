@@ -110,11 +110,10 @@ LOAN_DETAIL_PRODUCT = {
     'approved_amount': ALL3, 'approved_term': ALL3, 'disburse_amount': ALL3,
     'interest_rate': ALL3, 'principle_balance': ALL3, 'interest_balance': ALL3,
     'due_date': ALL3, 'day_arrears': ALL3, 'total_payment_amount': ALL3,
+    'penalty_principal_balance': ALL3, 'penalty_interest_balance': ALL3,
     # chỉ vay giải ngân lump-sum
     'loan_insurance': ['cashloan', 'payday'],
     'disburse_date': ['cashloan', 'payday'],
-    'penalty_principal_balance': ['cashloan', 'payday'],
-    'penalty_interest_balance': ['cashloan', 'payday'],
     'paid_amount': ['cashloan', 'payday'],
     # chỉ sản phẩm trả theo kỳ
     'payment_period': ['cashloan', 'paylater'],

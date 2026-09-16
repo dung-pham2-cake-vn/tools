@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supportAPI } from '../utils/api';
+import {
+  workingDaysSince,
+  buildRows,
+  type Urgency,
+  type SvkComment,
+  type LinkedPl,
+  type SvkTicketDoc,
+  type SvkRow,
+} from '../utils/svk';
 import AdfRenderer from '../components/AdfRenderer';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
@@ -68,23 +77,6 @@ function groupTickets(tickets: Ticket[]): { label: string; items: Ticket[] }[] {
   ].filter((g) => g.items.length > 0);
 }
 
-function workingDaysSince(createdIso: string): number {
-  if (!createdIso) return 0;
-  const start = new Date(createdIso);
-  const today = new Date();
-  start.setHours(0, 0, 0, 0);
-  today.setHours(0, 0, 0, 0);
-  if (start > today) return 0;
-  let count = 0;
-  const cursor = new Date(start);
-  while (cursor <= today) {
-    const day = cursor.getDay();
-    if (day !== 0 && day !== 6) count++;
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return count;
-}
-
 function workingDaysClass(days: number): string {
   if (days > 10) return 'text-red-600 font-semibold';
   if (days > 5) return 'text-orange-500 font-medium';
@@ -96,49 +88,6 @@ const JIRA_BASE = 'https://cakedigitalbank.atlassian.net';
 const cmdClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
   if (!e.metaKey && !e.ctrlKey) e.preventDefault();
 };
-
-type Urgency = '🔴' | '🟢' | '🟡';
-
-interface SvkComment {
-  id: string;
-  author: string;
-  body: string;
-  bodyAdf?: any;
-  created: string;
-  updated: string;
-}
-
-interface LinkedPl {
-  key: string;
-  summary: string;
-  status: string;
-  assignee: string;
-  sprint: string;
-  created: string;
-  description: string;
-  descriptionAdf?: any;
-  comments: SvkComment[];
-}
-
-interface SvkTicketDoc {
-  _id: string;
-  key: string;
-  summary: string;
-  status: string;
-  priority: string;
-  created: string;
-  updated: string;
-  hyperlink: string;
-  description: string;
-  descriptionAdf?: any;
-  comments: SvkComment[];
-  linkedPlKeys: string[];
-  linkedPl: LinkedPl[];
-  aiResult: string;
-  aiError: string;
-  aiRunAt?: string;
-  lastScanAt?: string;
-}
 
 interface SvkHistoryDoc extends SvkTicketDoc {
   firstLoadedAt?: string;
@@ -153,61 +102,6 @@ interface AiJobState {
   failed: number;
   queued: number;
   current: string[];
-}
-
-function commentsText(comments: SvkComment[]): string {
-  return (comments || []).map((c) => c.body || '').join(' ');
-}
-
-function calcSvkUrgency(doc: SvkTicketDoc, workingDays: number): Urgency {
-  const title = (doc.summary || '').toLowerCase();
-  const allText = [commentsText(doc.comments), ...(doc.linkedPl || []).map((pl) => commentsText(pl.comments))].join(' ');
-
-  const reducedPriority = /giảm.*ưu tiên|không.*khẩn|không.*gấp|low priority|hạ.*ưu tiên/i.test(allText);
-  const hasMerge = /đã merge|has been merged|merged|hotfix.*deploy|đã deploy|deploy.*done/i.test(allText);
-  const hasVerify = /đã verify|verified|verify.*xong|confirm.*fix|đã confirm/i.test(allText);
-  if (hasMerge && !hasVerify) return '🟢';
-
-  if (!reducedPriority) {
-    if (workingDays >= 5) return '🔴';
-    if (/gấp|urgent|ảnh hưởng nhiều|nhiều kh\b|nhiều khách|dpd.*tăng|tăng.*dpd|cần xử lý gấp/i.test(title)) return '🔴';
-  }
-
-  return '🟡';
-}
-
-function checkIsRecurrence(linkedPl: LinkedPl[]): boolean {
-  if (!linkedPl || linkedPl.length < 2) return false;
-  const CLOSED_TERMS = ['done', 'invalid', 'test passed', 'closed', 'cancelled'];
-  const isClosed = (pl: LinkedPl) => CLOSED_TERMS.some((t) => (pl.status || '').toLowerCase().includes(t));
-  return linkedPl.some(isClosed) && linkedPl.some((pl) => !isClosed(pl));
-}
-
-interface SvkRow {
-  doc: SvkTicketDoc;
-  workingDays: number;
-  plWorkingDays: number;
-  urgency: Urgency;
-  isRecurrence: boolean;
-}
-
-function buildRows(docs: SvkTicketDoc[]): SvkRow[] {
-  return docs
-    .map((doc) => {
-      const workingDays = workingDaysSince(doc.created);
-      const plWorkingDays = (doc.linkedPl || []).reduce(
-        (max, pl) => Math.max(max, workingDaysSince(pl.created)),
-        0
-      );
-      return {
-        doc,
-        workingDays,
-        plWorkingDays,
-        urgency: calcSvkUrgency(doc, workingDays),
-        isRecurrence: checkIsRecurrence(doc.linkedPl),
-      };
-    })
-    .sort((a, b) => b.plWorkingDays - a.plWorkingDays || b.workingDays - a.workingDays);
 }
 
 function statusBadge(status: string): string {

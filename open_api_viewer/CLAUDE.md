@@ -45,7 +45,12 @@ Khi tạo lock mới từ working spec: lock chỉ là bản copy của working,
 open_api_viewer/
 ├── CLAUDE.md                    # file này
 ├── index.html                   # viewer, 1 file standalone
+├── partner-guide.html           # tài liệu tổng quan cho đối tác mới — xem §6
 ├── build-specs-index.mjs        # bake specs/ → specs/specs-index.js
+├── builder/
+│   ├── catalog.mjs              # feature → endpoint / error-section / flow
+│   ├── cli.mjs, engine.mjs, manifest.mjs
+│   └── mk_partner_guide_api.mjs # sinh §17 API Reference của partner-guide.html
 └── specs/
     ├── base/
     │   └── base_*.yaml          # spec gốc (source of truth) — xem §3
@@ -192,3 +197,36 @@ Tính năng viewer: cây thư mục spec, render endpoint + flatten schema, merm
 
 Dependency nạp từ CDN: js-yaml, marked, highlight.js, mermaid → cần internet lần đầu.
 
+---
+
+## 6. `partner-guide.html` — tài liệu tổng quan cho đối tác
+
+Một file HTML standalone, tiếng Việt, mô tả toàn bộ bề mặt tích hợp ở mức tổng quan:
+chia theo **mô hình** (Native / Web-DOP), theo **sản phẩm** (cashloan / payday / paylater),
+rồi theo **luồng nghiệp vụ** (đăng ký vay → giải ngân → tra cứu → trả nợ/tất toán →
+thanh toán/trả góp → collection). Mỗi luồng có tab Native | Web.
+
+Dùng khi giới thiệu tích hợp cho đối tác mới; spec OpenAPI riêng của sản phẩm vẫn là chuẩn
+khi hai tài liệu lệch nhau.
+
+### §17 API Reference là file sinh tự động
+
+Phần API Reference (header / request / response / error code của từng endpoint) nằm giữa
+2 marker trong `partner-guide.html`:
+
+```html
+<!-- API-REF:START -->  ... nội dung sinh tự động ...  <!-- API-REF:END -->
+```
+
+**Không sửa tay phần giữa 2 marker.** Sửa base spec rồi chạy lại:
+
+```bash
+node open_api_viewer/builder/mk_partner_guide_api.mjs
+```
+
+Script đọc `specs/base2/base_{native,dop,collection}.yaml`, resolve `$ref`/`allOf`,
+flatten schema, và lấy error code theo `ERROR_SECTIONS` trong `builder/catalog.mjs`
+— thêm/bớt endpoint trong base thì nhớ cập nhật `catalog.mjs`, nếu không endpoint đó
+chỉ hiện nhóm error `General`.
+
+Phần còn lại của `partner-guide.html` (§1–16, §18–19) viết tay, sửa trực tiếp.

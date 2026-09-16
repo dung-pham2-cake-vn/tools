@@ -58,7 +58,7 @@ export const FEATURE_PATHS = {
     cb_payment_status: ['/partner-payment-status'],
   },
   collection: {
-    collections: ['/collections'],
+    collections: ['/collection-notifications'],
   },
 };
 

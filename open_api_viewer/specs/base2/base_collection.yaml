@@ -31,7 +31,7 @@ info:
 
     | Key | Value | Description |
     |-----|-------|-------------|
-    | CAKE_API_URL | `https://gw.stage.cakedigibank.tech/ext/loan/{group}/{product_id}/collections` | |
+    | CAKE_API_URL | `https://gw.stage.cakedigibank.tech/ext/loan/{group}/{product_id}/collection-notifications` | |
     | CAKE_PARTNER_ID | *(Cake cấp)* | Gắn ở header khi gọi API Cake |
     | CAKE_PARTNER_KEY | *(Cake cấp)* | Gắn sau body khi ký api partner |
     | PARTNER_API_URL | *(Partner cấp)* | |
@@ -41,7 +41,7 @@ info:
 
     | Key | Value | Description |
     |-----|-------|-------------|
-    | CAKE_API_URL | `https://gw.cake.vn/ext/loan/{group}/{product_id}/collections` | |
+    | CAKE_API_URL | `https://gw.cake.vn/ext/loan/{group}/{product_id}/collection-notifications` | |
     | CAKE_PARTNER_ID | *(Cake cấp)* | Gắn ở header khi gọi API Cake |
     | CAKE_PARTNER_KEY | *(Cake cấp)* | Gắn sau body khi ký api partner |
     | PARTNER_API_URL | *(Partner cấp)* | |
@@ -245,7 +245,7 @@ paths:
   # ════════════════════
   # COLLECTION REMINDER
   # ════════════════════
-  /collections:
+  /collection-notifications:
     post:
       tags: [ Collection Reminder ]
       summary: Lấy danh sách khoản vay cần nhắc nợ (trước hạn + quá hạn) cho KH
@@ -293,10 +293,10 @@ x-mermaid-flows:
       participant C as Cake
 
       Note over P,C: Partner định kỳ (cron) gọi API để lấy danh sách nhắc nợ
-      P->>C: collections(limit, cursor)
+      P->>C: collection-notifications(limit, cursor)
       C-->>P: items[loan_account_id, content_type, channel, dpd, amount, ...], cursor
       Note over P: Partner tự gửi thông báo (SMS/push/app) theo channel + content_type
       loop Còn dữ liệu (cursor != rỗng)
-        P->>C: collections(limit, cursor)
+        P->>C: collection-notifications(limit, cursor)
         C-->>P: items[], cursor
       end

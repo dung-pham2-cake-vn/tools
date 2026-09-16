@@ -190,11 +190,13 @@ export default function RoadmapPage() {
             plainLines.push('   No linked work items');
           }
 
+          // <br> thay vì <div>: Confluence gói mỗi block con thành <p> riêng -> giãn dòng.
+          // Giữ tiêu đề + link trong cùng một paragraph của <li>.
           const linkedHtml = linkedWorkItemUrls.length
             ? linkedWorkItemUrls
-                .map((url) => `<div><a href="${escapeHtml(url)}">${escapeHtml(url)}</a></div>`)
+                .map((url) => `<br /><a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`)
                 .join('')
-            : '<div>No linked work items</div>';
+            : '<br />No linked work items';
 
           htmlItems.push(
             `<li>🟡 <strong>[${escapeHtml(activeSegmentMeta.prefix)}]</strong> ` +

@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import toast, { Toaster } from 'react-hot-toast';
-import { jiraAPI, sprintManagementAPI } from '@/utils/api';
+import { jiraAPI, sprintManagementAPI, supportAPI } from '@/utils/api';
+import { buildRows, type SvkTicketDoc, type Urgency } from '@/utils/svk';
 import {
   extractSprintNumber,
   sprintPageLabel,
@@ -148,6 +150,33 @@ const formatRange = (startDate: string | null, endDate: string | null, status: T
   const start = startDate || '?';
   const end = endDate || '?';
   return appendTimeStatus(`(${start} -> ${end})`, status);
+};
+
+interface SprintDayInfo {
+  startDate: string | null;
+  endDate: string | null;
+  /** Ngày hiện tại, clamp trong độ dài sprint (dùng cho card tổng quan). */
+  dayNumber: number | null;
+  /** Ngày hiện tại tính từ start date, không clamp — > totalDays nghĩa là sprint quá hạn. */
+  rawDay: number | null;
+  totalDays: number | null;
+}
+
+const getSprintDayInfo = (reports: ProjectReport[]): SprintDayInfo => {
+  const report = reports.find((r) => r.projectKey === 'PL') ?? reports[0];
+  const startDate = report?.sprintLine.startDate ?? null;
+  const endDate = report?.sprintLine.endDate ?? null;
+  if (!startDate || !endDate) {
+    return { startDate, endDate, dayNumber: null, rawDay: null, totalDays: null };
+  }
+  const msPerDay = 86_400_000;
+  const today = getTodayUtc7();
+  const totalDays = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / msPerDay) + 1;
+  const raw = Math.max(
+    1,
+    Math.round((new Date(today).getTime() - new Date(startDate).getTime()) / msPerDay) + 1
+  );
+  return { startDate, endDate, totalDays, rawDay: raw, dayNumber: Math.min(raw, totalDays) };
 };
 
 const getMostCommonDate = (dates: Array<string | null>): string | null => {
@@ -303,6 +332,70 @@ async function loadSprintMgmtData(activeSprintName: string): Promise<SprintMgmtL
   };
 }
 
+// ─── Jira-style status / type badges ─────────────────────────────────────────
+
+type JiraStatusCategory = 'new' | 'indeterminate' | 'done';
+
+// Bảng màu lexical của Jira theo status category.
+const STATUS_CATEGORY_STYLE: Record<JiraStatusCategory, string> = {
+  new: 'bg-[#DFE1E6] text-[#42526E]',
+  indeterminate: 'bg-[#DEEBFF] text-[#0052CC]',
+  done: 'bg-[#E3FCEF] text-[#006644]',
+};
+
+const DONE_STATUS_NAMES = new Set([
+  'done', 'closed', 'released', 'ready4release', 'will not do', 'resolved', 'cancelled', 'canceled',
+]);
+const NEW_STATUS_NAMES = new Set(['open', 'to do', 'backlog', 'draft', 'new', 'wait4dev', 'in coding']);
+
+function statusCategoryOf(statusName: string, rawCategoryKey?: string): JiraStatusCategory {
+  const raw = (rawCategoryKey || '').toLowerCase();
+  if (raw === 'new' || raw === 'indeterminate' || raw === 'done') return raw;
+  const s = (statusName || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (DONE_STATUS_NAMES.has(s)) return 'done';
+  if (NEW_STATUS_NAMES.has(s) || SM_TODO.has(s)) return 'new';
+  return 'indeterminate';
+}
+
+function JiraStatusPill({ name, categoryKey }: { name: string; categoryKey?: string }) {
+  if (!name) return <span className="text-xs text-gray-400">—</span>;
+  const cls = STATUS_CATEGORY_STYLE[statusCategoryOf(name, categoryKey)];
+  return (
+    <span className={`inline-block rounded-[3px] px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide ${cls}`}>
+      {name}
+    </span>
+  );
+}
+
+// Màu/glyph icon type theo Jira.
+function typeVisual(typeName: string): { color: string; glyph: string } {
+  const t = (typeName || '').toLowerCase();
+  if (t.includes('epic')) return { color: '#904EE2', glyph: '⚡' };
+  if (t.includes('initiative')) return { color: '#904EE2', glyph: '◈' };
+  if (t.includes('story')) return { color: '#63BA3C', glyph: '✦' };
+  if (t.includes('bug') || t.includes('defect')) return { color: '#E5493A', glyph: '●' };
+  if (t.includes('subtask') || t.includes('sub-task')) return { color: '#4BADE8', glyph: '↳' };
+  if (t.includes('techdebt') || t.includes('tech debt')) return { color: '#FF991F', glyph: '◆' };
+  if (t.includes('security')) return { color: '#FF5630', glyph: '⚑' };
+  return { color: '#4BADE8', glyph: '✓' };
+}
+
+function JiraTypeTag({ name }: { name: string }) {
+  if (!name) return <span className="text-xs text-gray-400">—</span>;
+  const { color, glyph } = typeVisual(name);
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      <span
+        className="flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] text-[10px] leading-none text-white"
+        style={{ backgroundColor: color }}
+      >
+        {glyph}
+      </span>
+      <span className="text-xs text-gray-600">{name}</span>
+    </span>
+  );
+}
+
 // ─── Dev ticket helpers ───────────────────────────────────────────────────────
 
 function isSoftwareEngineer(rawAssignee: string, contributors: Record<string, string>): boolean {
@@ -318,13 +411,6 @@ function smShortName(fullName: string): string {
   const clean = fullName.replace(/\s*\(.*?\)\s*/g, '').trim();
   const parts = clean.split(/\s+/);
   return parts.length <= 2 ? clean : `${parts[parts.length - 1]} ${parts[0]}`;
-}
-
-function smStatusCls(status: string): string {
-  const s = (status || '').toLowerCase().replace(/\s+/g, ' ').trim();
-  if (SM_TODO.has(s)) return 'bg-gray-100 text-gray-600 border-gray-200';
-  if (SM_IN_PROGRESS.has(s)) return 'bg-blue-50 text-blue-700 border-blue-200';
-  return 'bg-emerald-50 text-emerald-700 border-emerald-200';
 }
 
 function smFormatDate(iso: string): string {
@@ -482,23 +568,10 @@ function SprintOverviewCard({
   smStats: SmStats | null;
   smLoading: boolean;
 }) {
-  const today = getTodayUtc7();
-
   const plReport = sprintReports.find((r) => r.projectKey === 'PL') ?? sprintReports[0];
-  const sprint = plReport?.sprintLine;
-  const startDate = sprint?.startDate ?? null;
-  const endDate = sprint?.endDate ?? null;
-  const rawSprintName = sprint?.name ?? '';
+  const rawSprintName = plReport?.sprintLine.name ?? '';
   const sprintLabel = rawSprintName ? sprintPageLabel(rawSprintName) : '—';
-
-  let dayNumber: number | null = null;
-  let totalDays: number | null = null;
-  if (startDate && endDate) {
-    const msPerDay = 86_400_000;
-    totalDays = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / msPerDay) + 1;
-    const raw = Math.round((new Date(today).getTime() - new Date(startDate).getTime()) / msPerDay) + 1;
-    dayNumber = Math.max(1, Math.min(raw, totalDays));
-  }
+  const { startDate, endDate, dayNumber, totalDays } = getSprintDayInfo(sprintReports);
 
   const progress = dayNumber && totalDays ? (dayNumber / totalDays) * 100 : 0;
 
@@ -509,7 +582,7 @@ function SprintOverviewCard({
   };
 
   return (
-    <div className="rounded-lg bg-white shadow-md px-6 py-5">
+    <div className="px-6 py-5">
       <h2 className="text-base font-semibold text-gray-900 mb-4">Sprint hiện tại</h2>
 
       {sprintLoading ? (
@@ -578,6 +651,7 @@ interface SprintHealthIssue {
   key: string;
   summary: string;
   statusName: string;
+  statusCategoryKey?: string;
   assigneeName: string;
 }
 
@@ -594,6 +668,7 @@ async function loadSprintTicketHealth(): Promise<SprintHealthResult> {
     key: issue.key as string,
     summary: issue.fields?.summary || '',
     statusName: issue.fields?.normalizedStatusName || '',
+    statusCategoryKey: issue.fields?.status?.statusCategory?.key || '',
     assigneeName: issue.fields?.normalizedAssigneeName || '',
   }));
   return {
@@ -615,8 +690,8 @@ function HealthIssueTable({ issues, emptyMsg }: { issues: SprintHealthIssue[]; e
           <tr className="bg-gray-100 text-xs text-gray-500 uppercase tracking-wide">
             <th className="text-left px-3 py-2 font-semibold w-[110px]">Ticket</th>
             <th className="text-left px-3 py-2 font-semibold">Tên</th>
-            <th className="text-left px-3 py-2 font-semibold w-[130px]">Status</th>
-            <th className="text-left px-3 py-2 font-semibold w-[150px]">Assignee</th>
+            <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Status</th>
+            <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Assignee</th>
           </tr>
         </thead>
         <tbody>
@@ -633,12 +708,10 @@ function HealthIssueTable({ issues, emptyMsg }: { issues: SprintHealthIssue[]; e
                 </a>
               </td>
               <td className="px-3 py-2 text-sm text-gray-700">{issue.summary || '—'}</td>
-              <td className="px-3 py-2">
-                <span className="text-xs px-2 py-0.5 rounded border font-medium bg-amber-50 text-amber-700 border-amber-200">
-                  {issue.statusName || '—'}
-                </span>
+              <td className="px-3 py-2 whitespace-nowrap">
+                <JiraStatusPill name={issue.statusName} categoryKey={issue.statusCategoryKey} />
               </td>
-              <td className="px-3 py-2 text-xs text-gray-500">{issue.assigneeName || <span className="text-red-500">Chưa gán</span>}</td>
+              <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{issue.assigneeName || <span className="text-red-500">Chưa gán</span>}</td>
             </tr>
           ))}
         </tbody>
@@ -668,12 +741,653 @@ function SprintTicketHealthPanel({ result, loading }: { result: SprintHealthResu
   );
 }
 
+// ─── Sprint close check (đóng sprint cũ) ─────────────────────────────────────
+
+interface UnclosedIssue {
+  key: string;
+  summary: string;
+  typeName: string;
+  statusName: string;
+  statusCategoryKey?: string;
+  assigneeName: string;
+  reporterName: string;
+  sprintNames: string[];
+}
+
+interface OverdueSprint {
+  name: string;
+  endDate: string | null;
+  daysOverdue: number;
+}
+
+interface SprintCloseResult {
+  overdueSprints: OverdueSprint[];
+  issues: UnclosedIssue[];
+}
+
+const UNCLOSED_JQL =
+  'project IN (PL, PLO) AND Sprint IN openSprints() AND statusCategory != Done ORDER BY reporter ASC';
+
+// Thứ tự hiển thị theo type; type lạ rơi xuống cuối và sort theo tên.
+const TYPE_RANK: Record<string, number> = {
+  epic: 0,
+  story: 1,
+  task: 2,
+  bug: 3,
+  'sub-task': 4,
+  subtask: 4,
+};
+
+const typeRank = (typeName: string) => TYPE_RANK[(typeName || '').toLowerCase()] ?? 90;
+
+const diffDays = (fromDate: string, toDate: string) =>
+  Math.round((new Date(toDate).getTime() - new Date(fromDate).getTime()) / 86_400_000);
+
+async function loadSprintCloseCheck(): Promise<SprintCloseResult> {
+  // Jira /search/jql trả tối đa 100 issue/trang -> phải cuốn theo nextPageToken.
+  const issues: any[] = [];
+  let nextPageToken: string | undefined;
+  for (let page = 0; page < 6; page++) {
+    const res = await jiraAPI.searchIssues({
+      jql: UNCLOSED_JQL,
+      maxResults: 100,
+      fields: ['summary', 'status', 'assignee', 'reporter', 'issuetype'],
+      nextPageToken,
+    });
+    const payload = res.data.data as { issues?: any[]; nextPageToken?: string } | undefined;
+    issues.push(...(payload?.issues || []));
+    nextPageToken = payload?.nextPageToken;
+    if (!nextPageToken) break;
+  }
+  const today = getTodayUtc7();
+
+  // Sprint "cũ chưa đóng" = sprint còn mở (active) nhưng đã qua end date.
+  const overdueMap = new Map<string, OverdueSprint>();
+  for (const issue of issues) {
+    for (const sprint of (issue.fields?.normalizedSprints || []) as NormalizedSprintDetail[]) {
+      if ((sprint.state || '').toLowerCase() === 'closed') continue;
+      const end = toUtc7Date(sprint.endDate);
+      if (!end || compareDateStrings(end, today) >= 0) continue;
+      overdueMap.set(sprint.name, { name: sprint.name, endDate: end, daysOverdue: diffDays(end, today) });
+    }
+  }
+
+  const overdueSprints = Array.from(overdueMap.values()).sort((a, b) => b.daysOverdue - a.daysOverdue);
+  if (overdueSprints.length === 0) return { overdueSprints, issues: [] };
+
+  const overdueNames = new Set(overdueSprints.map((s) => s.name));
+  const mapped: UnclosedIssue[] = issues
+    .map((issue: any) => ({
+      key: issue.key as string,
+      summary: issue.fields?.summary || '',
+      typeName: issue.fields?.issuetype?.name || '',
+      statusName: issue.fields?.normalizedStatusName || issue.fields?.status?.name || '',
+      statusCategoryKey: issue.fields?.status?.statusCategory?.key || '',
+      assigneeName: issue.fields?.normalizedAssigneeName || '',
+      reporterName: issue.fields?.reporter?.displayName || '',
+      sprintNames: ((issue.fields?.normalizedSprints || []) as NormalizedSprintDetail[]).map((sp) => sp.name),
+    }))
+    .filter((issue) => issue.sprintNames.some((name) => overdueNames.has(name)));
+
+  return { overdueSprints, issues: mapped };
+}
+
+// ─── SprintClosePanel ────────────────────────────────────────────────────────
+
+type ReporterRole = 'po' | 'dev' | 'qa' | 'other';
+
+const ROLE_RANK: Record<ReporterRole, number> = { po: 0, dev: 1, qa: 2, other: 3 };
+const ROLE_LABEL: Record<ReporterRole, string> = { po: 'PO', dev: 'DEV', qa: 'QA', other: 'KHÁC' };
+const ROLE_CHIP: Record<ReporterRole, string> = {
+  po: 'bg-purple-50 text-purple-700 border-purple-200',
+  dev: 'bg-blue-50 text-blue-700 border-blue-200',
+  qa: 'bg-amber-50 text-amber-700 border-amber-200',
+  other: 'bg-gray-100 text-gray-500 border-gray-200',
+};
+
+/** Role lấy từ chức danh trong ngoặc của display name Jira. QA phải check trước dev
+ *  vì "QA Manual Engineer" cũng chứa "engineer". */
+function reporterRole(reporterName: string): ReporterRole {
+  const title = (reporterName.match(/\(([^)]*)\)/)?.[1] || reporterName).toLowerCase();
+  if (/product manager|product owner|\bpo\b|\btpm\b|business analyst|\bba\b/.test(title)) return 'po';
+  if (/\bqa\b|quality|tester|\bsdet\b/.test(title)) return 'qa';
+  if (/engineer|developer|\bdev\b|\bsre\b|devops|architect|\bem\b/.test(title)) return 'dev';
+  return 'other';
+}
+
+interface ReporterGroup {
+  reporter: string;
+  role: ReporterRole;
+  issues: UnclosedIssue[];
+}
+
+function groupUnclosedByReporter(issues: UnclosedIssue[]): ReporterGroup[] {
+  const groups = new Map<string, UnclosedIssue[]>();
+  for (const issue of issues) {
+    const reporter = issue.reporterName || 'Không có reporter';
+    const bucket = groups.get(reporter);
+    if (bucket) bucket.push(issue);
+    else groups.set(reporter, [issue]);
+  }
+  return Array.from(groups.entries())
+    .map(([reporter, list]) => ({
+      reporter,
+      role: reporterRole(reporter),
+      // trong mỗi reporter: sort theo type trước, rồi tới assignee
+      issues: [...list].sort(
+        (a, b) =>
+          typeRank(a.typeName) - typeRank(b.typeName) ||
+          a.typeName.localeCompare(b.typeName) ||
+          (a.assigneeName || 'zzz').localeCompare(b.assigneeName || 'zzz') ||
+          a.key.localeCompare(b.key)
+      ),
+    }))
+    // PO -> DEV -> QA -> khác; trong cùng role thì nhiều item lên trước
+    .sort(
+      (a, b) =>
+        ROLE_RANK[a.role] - ROLE_RANK[b.role] ||
+        b.issues.length - a.issues.length ||
+        a.reporter.localeCompare(b.reporter)
+    );
+}
+
+const escapeHtml = (value: string) =>
+  value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** Text thuần — fallback khi chỗ dán không nhận HTML. */
+function buildReporterText(group: ReporterGroup): string {
+  const lines = group.issues.map(
+    (issue, index) => `${index + 1}. ${issue.key} - ${issue.statusName || 'No status'} - ${issue.summary}`
+  );
+  return [`[${ROLE_LABEL[group.role]}] ${group.reporter} (${group.issues.length} item chưa đóng)`, ...lines].join('\n');
+}
+
+/** Bản HTML: tên PIC in đậm, ticket id là link Jira, list đánh số. */
+function buildReporterHtml(group: ReporterGroup): string {
+  const items = group.issues
+    .map(
+      (issue) =>
+        `<li><a href="${JIRA_BASE}/browse/${issue.key}">${issue.key}</a> - ${escapeHtml(
+          issue.statusName || 'No status'
+        )} - ${escapeHtml(issue.summary)}</li>`
+    )
+    .join('');
+  const heading = `[${ROLE_LABEL[group.role]}] ${group.reporter} (${group.issues.length} item chưa đóng)`;
+  return `<p><strong>${escapeHtml(heading)}</strong></p><ol>${items}</ol>`;
+}
+
+const buildFullText = (groups: ReporterGroup[]) => groups.map(buildReporterText).join('\n\n');
+const buildFullHtml = (groups: ReporterGroup[]) => groups.map(buildReporterHtml).join('');
+
+function CopyReportButton({ text, html, label = 'Copy' }: { text: string; html: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = useCallback(async () => {
+    try {
+      if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+        // ghi cả 2 flavor: chỗ nhận rich text (Slack, Confluence, Gmail) lấy HTML,
+        // chỗ chỉ nhận plain text lấy bản text
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            'text/html': new Blob([html], { type: 'text/html' }),
+            'text/plain': new Blob([text], { type: 'text/plain' }),
+          }),
+        ]);
+      } else {
+        // fallback: select node contentEditable rồi execCommand để giữ format
+        const holder = document.createElement('div');
+        holder.contentEditable = 'true';
+        holder.innerHTML = html;
+        holder.style.position = 'fixed';
+        holder.style.opacity = '0';
+        document.body.appendChild(holder);
+        const range = document.createRange();
+        range.selectNodeContents(holder);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        document.execCommand('copy');
+        selection?.removeAllRanges();
+        document.body.removeChild(holder);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error('Copy thất bại');
+    }
+  }, [text, html]);
+
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title="Copy danh sách ticket (giữ link + đánh số)"
+      className={`rounded border px-2 py-0.5 text-[11px] font-medium transition ${
+        copied
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+          : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+      }`}
+    >
+      {copied ? '✓ Đã copy' : `⧉ ${label}`}
+    </button>
+  );
+}
+
+function SprintClosePanel({
+  result,
+  loading,
+  onReload,
+}: {
+  result: SprintCloseResult | null;
+  loading: boolean;
+  onReload: () => void;
+}) {
+  const groups = useMemo(() => groupUnclosedByReporter(result?.issues || []), [result]);
+
+  if (loading) return <div className="py-6 text-center text-gray-500 text-sm">Đang tải...</div>;
+  if (!result) return <div className="py-6 text-center text-gray-400 text-sm">Không có dữ liệu</div>;
+
+  if (result.overdueSprints.length === 0) {
+    return (
+      <p className="pt-4 text-sm font-medium text-green-600">✅ Không có sprint quá hạn nào đang mở</p>
+    );
+  }
+
+  return (
+    <div className="pt-4 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="space-y-1">
+          {result.overdueSprints.map((sprint) => (
+            <p key={sprint.name} className="text-sm text-red-600">
+              ❌ <span className="font-semibold">{sprint.name}</span> hết hạn {sprint.endDate} — quá{' '}
+              {sprint.daysOverdue} ngày, chưa đóng
+            </p>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={onReload}
+          className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+        >
+          Tải lại
+        </button>
+      </div>
+
+      {result.issues.length === 0 ? (
+        <p className="text-sm font-medium text-emerald-600">
+          ✅ Không còn item nào chưa xong — đóng sprint được rồi
+        </p>
+      ) : (
+        <>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-gray-400">
+              {result.issues.length} item chưa đóng · {groups.length} reporter
+            </p>
+            <CopyReportButton text={buildFullText(groups)} html={buildFullHtml(groups)} label="Copy tất cả" />
+          </div>
+          <div className="space-y-4">
+            {groups.map((group) => (
+              <div key={group.reporter}>
+                <div className="mb-2 flex items-center gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    {group.reporter} ({group.issues.length})
+                  </p>
+                  <span className={`rounded border px-1.5 py-0.5 text-[10px] font-bold ${ROLE_CHIP[group.role]}`}>
+                    {ROLE_LABEL[group.role]}
+                  </span>
+                  <CopyReportButton text={buildReporterText(group)} html={buildReporterHtml(group)} />
+                </div>
+                <div className="overflow-hidden rounded-lg border border-gray-200">
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-gray-100 text-xs uppercase tracking-wide text-gray-500">
+                        <th className="w-[110px] px-3 py-2 text-left font-semibold">Ticket</th>
+                        <th className="w-[100px] px-3 py-2 text-left font-semibold">Type</th>
+                        <th className="px-3 py-2 text-left font-semibold">Tên</th>
+                        <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">Status</th>
+                        <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">Assignee</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.issues.map((issue) => (
+                        <tr key={issue.key} className="border-t border-gray-100 transition-colors hover:bg-gray-50">
+                          <td className="px-3 py-2">
+                            <a
+                              href={`${JIRA_BASE}/browse/${issue.key}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-mono text-xs font-semibold text-blue-600 hover:underline"
+                            >
+                              {issue.key}
+                            </a>
+                          </td>
+                          <td className="px-3 py-2">
+                            <JiraTypeTag name={issue.typeName} />
+                          </td>
+                          <td className="px-3 py-2 text-sm text-gray-700">{issue.summary || '—'}</td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <JiraStatusPill name={issue.statusName} categoryKey={issue.statusCategoryKey} />
+                          </td>
+                          <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                            {issue.assigneeName || <span className="text-red-500">Chưa gán</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Fix version migration (item còn dính fix version cũ) ────────────────────
+
+interface OldFixVersionIssue {
+  key: string;
+  projectKey: string;
+  summary: string;
+  typeName: string;
+  statusName: string;
+  statusCategoryKey?: string;
+  assigneeName: string;
+  oldVersionNames: string[];
+}
+
+interface FixVersionMigrationResult {
+  items: OldFixVersionIssue[];
+  versionsByProject: Record<string, JiraVersion[]>;
+}
+
+const OLD_FIX_VER_JQL =
+  'project IN (PL, PLO) AND statusCategory != Done AND fixVersion IS NOT EMPTY ORDER BY key ASC';
+
+const MIGRATION_PROJECTS = ['PL', 'PLO'];
+
+/** Fix version "cũ" = đã released, hoặc release date đã qua mà ticket vẫn chưa Done. */
+function isOldFixVersion(version: NormalizedFixVersionDetail, today: string): boolean {
+  if (version.archived) return true;
+  if (version.released) return true;
+  const release = toUtc7Date(version.releaseDate);
+  return Boolean(release && compareDateStrings(release, today) < 0);
+}
+
+async function loadFixVersionMigration(): Promise<FixVersionMigrationResult> {
+  const rawIssues: any[] = [];
+  let nextPageToken: string | undefined;
+  for (let page = 0; page < 6; page++) {
+    const res = await jiraAPI.searchIssues({
+      jql: OLD_FIX_VER_JQL,
+      maxResults: 100,
+      fields: ['summary', 'status', 'assignee', 'issuetype', 'fixVersions'],
+      nextPageToken,
+    });
+    const payload = res.data.data as { issues?: any[]; nextPageToken?: string } | undefined;
+    rawIssues.push(...(payload?.issues || []));
+    nextPageToken = payload?.nextPageToken;
+    if (!nextPageToken) break;
+  }
+
+  const today = getTodayUtc7();
+  const items: OldFixVersionIssue[] = [];
+  for (const issue of rawIssues) {
+    const versions = (issue.fields?.normalizedFixVersions || []) as NormalizedFixVersionDetail[];
+    const oldVersionNames = versions.filter((v) => isOldFixVersion(v, today)).map((v) => v.name);
+    if (oldVersionNames.length === 0) continue;
+    items.push({
+      key: issue.key,
+      projectKey: (issue.key as string).split('-')[0],
+      summary: issue.fields?.summary || '',
+      typeName: issue.fields?.issuetype?.name || '',
+      statusName: issue.fields?.normalizedStatusName || issue.fields?.status?.name || '',
+      statusCategoryKey: issue.fields?.status?.statusCategory?.key || '',
+      assigneeName: issue.fields?.normalizedAssigneeName || '',
+      oldVersionNames,
+    });
+  }
+
+  const versionLists = await Promise.all(
+    MIGRATION_PROJECTS.map(async (projectKey) => {
+      try {
+        const res = await jiraAPI.getProjectVersions(projectKey);
+        const versions: JiraVersion[] = (res.data.data as JiraVersion[]) || [];
+        const usable = versions
+          .filter((v) => !v.released && !v.archived)
+          .sort((a, b) => (a.releaseDate || '9999').localeCompare(b.releaseDate || '9999'));
+        return [projectKey, usable] as const;
+      } catch {
+        return [projectKey, [] as JiraVersion[]] as const;
+      }
+    })
+  );
+
+  return { items, versionsByProject: Object.fromEntries(versionLists) };
+}
+
+// ─── FixVersionMigrationPanel ────────────────────────────────────────────────
+
+function ProjectMigrationBlock({
+  projectKey,
+  items,
+  versions,
+  onDone,
+}: {
+  projectKey: string;
+  items: OldFixVersionIssue[];
+  versions: JiraVersion[];
+  onDone: () => void;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [targetVersionId, setTargetVersionId] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const allChecked = items.length > 0 && selected.size === items.length;
+
+  const toggle = (key: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const toggleAll = () => setSelected(allChecked ? new Set() : new Set(items.map((i) => i.key)));
+
+  const handleMigrate = async () => {
+    const target = versions.find((v) => v.id === targetVersionId);
+    if (!target || selected.size === 0) return;
+    const keys = Array.from(selected);
+    const confirmed = window.confirm(
+      `Đổi fix version sang "${target.name}" cho ${keys.length} ticket?\n\n${keys.join(', ')}\n\n` +
+        'Fix version hiện tại của ticket sẽ bị thay hoàn toàn.'
+    );
+    if (!confirmed) return;
+
+    setSubmitting(true);
+    const results: Array<{ key: string; ok: boolean; error?: string }> = [];
+    for (const key of keys) {
+      try {
+        await jiraAPI.setIssueFixVersions(key, [target.id]);
+        results.push({ key, ok: true });
+      } catch (err: any) {
+        results.push({ key, ok: false, error: err?.response?.data?.error || err.message });
+      }
+    }
+    setSubmitting(false);
+
+    const okCount = results.filter((r) => r.ok).length;
+    const failed = results.filter((r) => !r.ok);
+    if (failed.length === 0) {
+      toast.success(`Đã đổi fix version cho ${okCount} ticket sang ${target.name}`);
+    } else {
+      toast.error(
+        `${okCount} OK, ${failed.length} lỗi:\n${failed.map((r) => `${r.key}: ${r.error}`).join('\n')}`
+      );
+    }
+    setSelected(new Set());
+    onDone();
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+          {projectKey} ({items.length} item)
+        </span>
+        <select
+          value={targetVersionId}
+          onChange={(e) => setTargetVersionId(e.target.value)}
+          className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-700"
+        >
+          <option value="">— Chọn fix version mới —</option>
+          {versions.map((version) => (
+            <option key={version.id} value={version.id}>
+              {version.name}
+              {version.releaseDate ? ` (release ${version.releaseDate})` : ''}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          disabled={!targetVersionId || selected.size === 0 || submitting}
+          onClick={handleMigrate}
+          className="rounded bg-blue-600 px-3 py-1 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
+        >
+          {submitting ? 'Đang đổi...' : `Đổi fix version (${selected.size})`}
+        </button>
+        {versions.length === 0 && (
+          <span className="text-xs text-red-500">Không có version nào chưa release</span>
+        )}
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-gray-200">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="bg-gray-100 text-xs uppercase tracking-wide text-gray-500">
+              <th className="w-[36px] px-3 py-2 text-left">
+                <input type="checkbox" checked={allChecked} onChange={toggleAll} className="cursor-pointer" />
+              </th>
+              <th className="w-[110px] px-3 py-2 text-left font-semibold">Ticket</th>
+              <th className="px-3 py-2 text-left font-semibold">Tên</th>
+              <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">Fix version cũ</th>
+              <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">Status</th>
+              <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">Assignee</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((issue) => (
+              <tr key={issue.key} className="border-t border-gray-100 transition-colors hover:bg-gray-50">
+                <td className="px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(issue.key)}
+                    onChange={() => toggle(issue.key)}
+                    className="cursor-pointer"
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  <a
+                    href={`${JIRA_BASE}/browse/${issue.key}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-xs font-semibold text-blue-600 hover:underline"
+                  >
+                    {issue.key}
+                  </a>
+                </td>
+                <td className="px-3 py-2 text-sm text-gray-700">
+                  <div className="flex items-center gap-2">
+                    <JiraTypeTag name={issue.typeName} />
+                    <span>{issue.summary || '—'}</span>
+                  </div>
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  {issue.oldVersionNames.map((name) => (
+                    <span
+                      key={name}
+                      className="mr-1 inline-block rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[11px] font-medium text-red-700"
+                    >
+                      {name}
+                    </span>
+                  ))}
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <JiraStatusPill name={issue.statusName} categoryKey={issue.statusCategoryKey} />
+                </td>
+                <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                  {issue.assigneeName || <span className="text-red-500">Chưa gán</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function FixVersionMigrationPanel({
+  result,
+  loading,
+  onReload,
+}: {
+  result: FixVersionMigrationResult | null;
+  loading: boolean;
+  onReload: () => void;
+}) {
+  if (loading) return <div className="py-6 text-center text-sm text-gray-500">Đang tải...</div>;
+  if (!result) return <div className="py-6 text-center text-sm text-gray-400">Không có dữ liệu</div>;
+  if (result.items.length === 0) {
+    return (
+      <p className="pt-4 text-sm font-medium text-green-600">
+        ✅ Không có item nào còn dính fix version cũ
+      </p>
+    );
+  }
+
+  const byProject = MIGRATION_PROJECTS.map((projectKey) => ({
+    projectKey,
+    items: result.items.filter((item) => item.projectKey === projectKey),
+  })).filter((group) => group.items.length > 0);
+
+  return (
+    <div className="space-y-5 pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-gray-400">
+          {result.items.length} item chưa Done còn gắn fix version đã release / quá hạn
+        </p>
+        <button
+          type="button"
+          onClick={onReload}
+          className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+        >
+          Tải lại
+        </button>
+      </div>
+      {byProject.map((group) => (
+        <ProjectMigrationBlock
+          key={group.projectKey}
+          projectKey={group.projectKey}
+          items={group.items}
+          versions={result.versionsByProject[group.projectKey] || []}
+          onDone={onReload}
+        />
+      ))}
+    </div>
+  );
+}
+
 // ─── Fix Version review types + loader ───────────────────────────────────────
 
 interface FixVersionIssue {
   key: string;
   summary: string;
   statusName: string;
+  statusCategoryKey?: string;
   assigneeName: string;
 }
 
@@ -793,8 +1507,8 @@ function PoReviewTable({
               </th>
               <th className="text-left px-3 py-2 font-semibold w-[110px]">Ticket</th>
               <th className="text-left px-3 py-2 font-semibold">Tên</th>
-              <th className="text-left px-3 py-2 font-semibold w-[130px]">Status</th>
-              <th className="text-left px-3 py-2 font-semibold w-[150px]">Assignee</th>
+              <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Status</th>
+              <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Assignee</th>
             </tr>
           </thead>
           <tbody>
@@ -818,12 +1532,10 @@ function PoReviewTable({
                   </a>
                 </td>
                 <td className="px-3 py-2 text-sm text-gray-700">{issue.summary || '—'}</td>
-                <td className="px-3 py-2">
-                  <span className="text-xs px-2 py-0.5 rounded border font-medium bg-amber-50 text-amber-700 border-amber-200">
-                    {issue.statusName || '—'}
-                  </span>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <JiraStatusPill name={issue.statusName} categoryKey={issue.statusCategoryKey} />
                 </td>
-                <td className="px-3 py-2 text-xs text-gray-500">
+                <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
                   {issue.assigneeName || <span className="text-red-500">Chưa gán</span>}
                 </td>
               </tr>
@@ -846,8 +1558,8 @@ function FixVersionNotDoneTable({ issues }: { issues: FixVersionIssue[] }) {
           <tr className="bg-gray-100 text-xs text-gray-500 uppercase tracking-wide">
             <th className="text-left px-3 py-2 font-semibold w-[110px]">Ticket</th>
             <th className="text-left px-3 py-2 font-semibold">Tên</th>
-            <th className="text-left px-3 py-2 font-semibold w-[130px]">Status</th>
-            <th className="text-left px-3 py-2 font-semibold w-[150px]">Assignee</th>
+            <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Status</th>
+            <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Assignee</th>
           </tr>
         </thead>
         <tbody>
@@ -864,12 +1576,10 @@ function FixVersionNotDoneTable({ issues }: { issues: FixVersionIssue[] }) {
                 </a>
               </td>
               <td className="px-3 py-2 text-sm text-gray-700">{issue.summary || '—'}</td>
-              <td className="px-3 py-2">
-                <span className="text-xs px-2 py-0.5 rounded border font-medium bg-amber-50 text-amber-700 border-amber-200">
-                  {issue.statusName || '—'}
-                </span>
+              <td className="px-3 py-2 whitespace-nowrap">
+                <JiraStatusPill name={issue.statusName} categoryKey={issue.statusCategoryKey} />
               </td>
-              <td className="px-3 py-2 text-xs text-gray-500">
+              <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
                 {issue.assigneeName || <span className="text-red-500">Chưa gán</span>}
               </td>
             </tr>
@@ -956,8 +1666,8 @@ function DevTicketTable({
               <tr className="bg-gray-100 text-xs text-gray-500 uppercase tracking-wide">
                 <th className="text-left px-3 py-2 font-semibold w-[110px]">Ticket ID</th>
                 <th className="text-left px-3 py-2 font-semibold">Tên Ticket</th>
-                <th className="text-left px-3 py-2 font-semibold w-[130px]">Trạng thái</th>
-                <th className="text-left px-3 py-2 font-semibold w-[150px]">Assignee</th>
+                <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Trạng thái</th>
+                <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Assignee</th>
                 <th className="text-center px-3 py-2 font-semibold w-[48px]">SP</th>
                 <th className="text-left px-3 py-2 font-semibold w-[100px]">Parent</th>
                 <th className="text-left px-3 py-2 font-semibold w-[130px]">Parent Fix Ver</th>
@@ -979,12 +1689,10 @@ function DevTicketTable({
                       </a>
                     </td>
                     <td className="px-3 py-2 text-sm text-gray-700">{ticket.name || '—'}</td>
-                    <td className="px-3 py-2">
-                      <span className={`text-xs px-2 py-0.5 rounded border font-medium ${smStatusCls(ticket.status)}`}>
-                        {ticket.status || '—'}
-                      </span>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <JiraStatusPill name={ticket.status} />
                     </td>
-                    <td className="px-3 py-2 text-xs text-gray-700">
+                    <td className="px-3 py-2 text-xs text-gray-700 whitespace-nowrap">
                       {smShortName(ticket.assignee) || 'Unassigned'}
                     </td>
                     <td className="px-3 py-2 text-xs text-gray-500 font-mono text-center">
@@ -1028,6 +1736,7 @@ type TaskStatus = 'loading' | 'ok' | 'error';
 interface TaskItemProps {
   title: string;
   status: TaskStatus;
+  defaultOpen?: boolean;
   children: React.ReactNode;
 }
 
@@ -1054,9 +1763,9 @@ function StatusBadge({ status }: { status: TaskStatus }) {
   );
 }
 
-function TaskItem({ title, status, children }: TaskItemProps) {
-  const [open, setOpen] = useState(false);
-  const [everOpened, setEverOpened] = useState(false);
+function TaskItem({ title, status, defaultOpen = false, children }: TaskItemProps) {
+  const [open, setOpen] = useState(defaultOpen);
+  const [everOpened, setEverOpened] = useState(defaultOpen);
 
   const toggle = useCallback(() => {
     setOpen((prev) => {
@@ -1066,23 +1775,272 @@ function TaskItem({ title, status, children }: TaskItemProps) {
   }, []);
 
   return (
-    <div className="rounded-lg bg-white shadow-md">
+    <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
       <button
         type="button"
         onClick={toggle}
-        className="flex w-full items-center justify-between px-5 py-4 text-left"
+        className="flex w-full items-center gap-3 px-5 py-4 text-left"
       >
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold text-gray-400 select-none">{open ? '▼' : '▶'}</span>
-          <span className="text-base font-semibold text-gray-900">{title}</span>
-        </div>
+        <span className="text-sm font-semibold text-gray-400 select-none">{open ? '▼' : '▶'}</span>
         <StatusBadge status={status} />
+        <span className="text-base font-semibold text-gray-900">{title}</span>
       </button>
 
       {open && everOpened && (
         <div className="border-t border-slate-100 px-5 pb-5">
           {children}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Sprint day timeline ──────────────────────────────────────────────────────
+
+const TIMELINE_DAYS = 14;
+
+interface DayTask {
+  day: number;
+  title: string;
+  status: TaskStatus;
+  content: React.ReactNode;
+}
+
+type DayNodeState = 'pass' | 'fail' | 'loading' | 'empty' | 'future';
+
+interface DayMark {
+  day: number;
+  state: DayNodeState;
+  tasks: DayTask[];
+}
+
+function buildDayMarks(tasks: DayTask[], totalDays: number, currentDay: number | null): DayMark[] {
+  return Array.from({ length: totalDays }, (_, index) => {
+    const day = index + 1;
+    const dayTasks = tasks.filter((task) => task.day === day);
+    let state: DayNodeState;
+    if (dayTasks.length === 0) state = 'empty';
+    else if (currentDay !== null && day > currentDay) state = 'future';
+    else if (dayTasks.some((task) => task.status === 'loading')) state = 'loading';
+    else if (dayTasks.some((task) => task.status === 'error')) state = 'fail';
+    else state = 'pass';
+    return { day, state, tasks: dayTasks };
+  });
+}
+
+const NODE_STYLE: Record<DayNodeState, { cls: string; glyph: string; hint: string }> = {
+  pass: { cls: 'bg-emerald-500 border-emerald-500 text-white', glyph: '✓', hint: 'Đã xong' },
+  fail: { cls: 'bg-red-500 border-red-500 text-white', glyph: '✕', hint: 'Cần xử lý' },
+  loading: { cls: 'bg-white border-slate-300 text-slate-400 animate-pulse', glyph: '•', hint: 'Đang tải' },
+  future: { cls: 'bg-slate-100 border-slate-200 text-slate-400', glyph: '', hint: 'Chưa tới' },
+  empty: { cls: 'bg-white border-dashed border-slate-200 text-slate-300', glyph: '', hint: 'Không có việc' },
+};
+
+function SprintTimeline({
+  marks,
+  currentDay,
+  overdueDays,
+  selectedDay,
+  onSelect,
+}: {
+  marks: DayMark[];
+  currentDay: number | null;
+  overdueDays: number;
+  selectedDay: number | null;
+  onSelect: (day: number) => void;
+}) {
+  const totalDays = marks.length;
+  const progressPct =
+    currentDay && totalDays > 1 ? (Math.min(currentDay, totalDays) - 1) / (totalDays - 1) * 100 : 0;
+
+  return (
+    <div className="border-t border-gray-100 px-6 py-5">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-base font-semibold text-gray-900">Timeline sprint ({totalDays} ngày)</h2>
+          {overdueDays > 0 && (
+            <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
+              Sprint quá hạn {overdueDays} ngày — chưa đóng sprint
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-3 text-[11px] text-gray-500">
+          <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Đã xong</span>
+          <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-red-500" /> Cần xử lý</span>
+          <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-slate-200" /> Chưa tới / không có việc</span>
+        </div>
+      </div>
+
+      {/* px-6 + py-3: chừa chỗ cho vòng ping và nhãn "hôm nay" ở mốc đầu/cuối khỏi bị cắt */}
+      <div className="overflow-x-auto px-1 py-3">
+        <div className="relative min-w-[680px] px-6">
+          <div className="absolute left-[33px] right-[33px] top-[9px] h-0.5 bg-slate-200" />
+          <div
+            className="absolute left-[33px] top-[9px] h-0.5 bg-blue-400 transition-all"
+            style={{ width: `calc((100% - 66px) * ${(progressPct / 100).toFixed(4)})` }}
+          />
+          <div className="relative flex items-start justify-between">
+            {marks.map((mark) => {
+              const style = NODE_STYLE[mark.state];
+              const isToday = currentDay === mark.day;
+              const isSelected = selectedDay === mark.day;
+              const clickable = mark.tasks.length > 0;
+              return (
+                <div key={mark.day} className="flex flex-col items-center gap-1.5">
+                  <span className="relative flex h-[18px] w-[18px] items-center justify-center">
+                    {isToday && (
+                      <>
+                        {/* 2 lớp sóng + nhịp nền cho mốc hôm nay nổi hẳn lên */}
+                        <span className="absolute -inset-[6px] animate-ping rounded-full bg-blue-500/60" />
+                        <span className="absolute -inset-[3px] animate-pulse rounded-full bg-blue-400/50" />
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      disabled={!clickable}
+                      onClick={() => clickable && onSelect(mark.day)}
+                      title={`Ngày ${mark.day} — ${style.hint}${mark.tasks.length ? ` (${mark.tasks.length} việc)` : ''}`}
+                      className={`relative flex h-[18px] w-[18px] items-center justify-center rounded-full border text-[10px] font-bold leading-none transition
+                        ${style.cls}
+                        ${clickable ? 'cursor-pointer hover:scale-125' : 'cursor-default'}
+                        ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''}
+                        ${isToday ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
+                    >
+                      {style.glyph}
+                    </button>
+                  </span>
+                  <span
+                    className={`text-[11px] tabular-nums ${isToday ? 'font-bold text-blue-600' : 'text-gray-400'}`}
+                  >
+                    {mark.day}
+                  </span>
+                  {isToday && (
+                    <span className="whitespace-nowrap text-[10px] font-semibold text-blue-600">hôm nay</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Công việc chung: SVK support ────────────────────────────────────────────
+
+interface SvkUrgencyStat {
+  count: number;
+  maxWorkingDays: number;
+  oldestKey: string;
+}
+
+interface SvkSummary {
+  total: number;
+  byUrgency: Record<Urgency, SvkUrgencyStat>;
+  oldest: { key: string; summary: string; workingDays: number; plWorkingDays: number } | null;
+}
+
+const URGENCY_ORDER: Urgency[] = ['🔴', '🟡', '🟢'];
+
+const URGENCY_META: Record<Urgency, { label: string; cls: string; num: string }> = {
+  '🔴': { label: 'Cần xử lý gấp', cls: 'border-red-200 bg-red-50', num: 'text-red-600' },
+  '🟡': { label: 'Đang theo dõi', cls: 'border-amber-200 bg-amber-50', num: 'text-amber-600' },
+  '🟢': { label: 'Đã merge, chờ verify', cls: 'border-emerald-200 bg-emerald-50', num: 'text-emerald-600' },
+};
+
+async function loadSvkSummary(): Promise<SvkSummary> {
+  const res = await supportAPI.getSvkTickets();
+  const rows = buildRows((res.data as SvkTicketDoc[]) || []);
+
+  const byUrgency = URGENCY_ORDER.reduce((acc, urgency) => {
+    acc[urgency] = { count: 0, maxWorkingDays: 0, oldestKey: '' };
+    return acc;
+  }, {} as Record<Urgency, SvkUrgencyStat>);
+
+  for (const row of rows) {
+    const stat = byUrgency[row.urgency];
+    stat.count += 1;
+    if (row.workingDays > stat.maxWorkingDays) {
+      stat.maxWorkingDays = row.workingDays;
+      stat.oldestKey = row.doc.key;
+    }
+  }
+
+  // buildRows đã sort theo tuổi PL rồi tới tuổi SVK -> phần tử đầu là ticket già nhất
+  const top = [...rows].sort((a, b) => b.workingDays - a.workingDays)[0];
+
+  return {
+    total: rows.length,
+    byUrgency,
+    oldest: top
+      ? {
+          key: top.doc.key,
+          summary: top.doc.summary,
+          workingDays: top.workingDays,
+          plWorkingDays: top.plWorkingDays,
+        }
+      : null,
+  };
+}
+
+function SvkSupportCard({ summary, loading }: { summary: SvkSummary | null; loading: boolean }) {
+  return (
+    <div className="rounded-lg border border-gray-100 p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-gray-900">Support SVK</h3>
+          {summary && <span className="text-xs text-gray-400">{summary.total} ticket đang mở</span>}
+        </div>
+        <Link href="/support" className="text-xs font-medium text-blue-600 hover:underline">
+          Mở trang Support →
+        </Link>
+      </div>
+
+      {loading ? (
+        <div className="h-20 animate-pulse rounded bg-gray-50" />
+      ) : !summary || summary.total === 0 ? (
+        <p className="text-sm font-medium text-green-600">✅ Không có ticket SVK nào đang mở</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {URGENCY_ORDER.map((urgency) => {
+              const meta = URGENCY_META[urgency];
+              const stat = summary.byUrgency[urgency];
+              return (
+                <div key={urgency} className={`rounded-lg border px-4 py-3 ${meta.cls}`}>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-lg leading-none">{urgency}</span>
+                    <span className={`text-2xl font-bold tabular-nums ${meta.num}`}>{stat.count}</span>
+                  </div>
+                  <p className="mt-1 text-[11px] font-medium text-gray-600">{meta.label}</p>
+                  <p className="mt-1 text-[11px] text-gray-500">
+                    {stat.count === 0
+                      ? '—'
+                      : `Già nhất ${stat.maxWorkingDays} ngày công · ${stat.oldestKey}`}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          {summary.oldest && (
+            <p className="mt-3 text-xs text-gray-500">
+              Ticket già nhất:{' '}
+              <a
+                href={`${JIRA_BASE}/browse/${summary.oldest.key}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono font-semibold text-blue-600 hover:underline"
+              >
+                {summary.oldest.key}
+              </a>{' '}
+              — {summary.oldest.workingDays} ngày công
+              {summary.oldest.plWorkingDays > 0 ? ` (PL link: ${summary.oldest.plWorkingDays} ngày công)` : ''}
+              <span className="text-gray-400"> · {summary.oldest.summary}</span>
+            </p>
+          )}
+        </>
       )}
     </div>
   );
@@ -1107,6 +2065,35 @@ export default function Dashboard() {
   const [sprintHealthLoading, setSprintHealthLoading] = useState(true);
   const [fixVerReview, setFixVerReview] = useState<FixVersionReviewResult | null>(null);
   const [fixVerReviewLoading, setFixVerReviewLoading] = useState(true);
+  const [sprintClose, setSprintClose] = useState<SprintCloseResult | null>(null);
+  const [sprintCloseLoading, setSprintCloseLoading] = useState(true);
+  const [fixVerMigration, setFixVerMigration] = useState<FixVersionMigrationResult | null>(null);
+  const [fixVerMigrationLoading, setFixVerMigrationLoading] = useState(true);
+  const [svkSummary, setSvkSummary] = useState<SvkSummary | null>(null);
+  const [svkLoading, setSvkLoading] = useState(true);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+
+  const reloadFixVerMigration = useCallback(async () => {
+    setFixVerMigrationLoading(true);
+    try {
+      setFixVerMigration(await loadFixVersionMigration());
+    } catch (err: any) {
+      toast.error(`Tải check fix version thất bại: ${err?.response?.data?.error || err.message}`);
+    } finally {
+      setFixVerMigrationLoading(false);
+    }
+  }, []);
+
+  const reloadSprintClose = useCallback(async () => {
+    setSprintCloseLoading(true);
+    try {
+      setSprintClose(await loadSprintCloseCheck());
+    } catch (err: any) {
+      toast.error(`Tải check đóng sprint thất bại: ${err?.response?.data?.error || err.message}`);
+    } finally {
+      setSprintCloseLoading(false);
+    }
+  }, []);
 
   const reloadFixVerReview = useCallback(async () => {
     setFixVerReviewLoading(true);
@@ -1151,6 +2138,18 @@ export default function Dashboard() {
             setFixVerReview(result);
             setFixVerReviewLoading(false);
           }).catch(() => setFixVerReviewLoading(false)),
+          loadSprintCloseCheck().then((result) => {
+            setSprintClose(result);
+            setSprintCloseLoading(false);
+          }).catch(() => setSprintCloseLoading(false)),
+          loadFixVersionMigration().then((result) => {
+            setFixVerMigration(result);
+            setFixVerMigrationLoading(false);
+          }).catch(() => setFixVerMigrationLoading(false)),
+          loadSvkSummary().then((result) => {
+            setSvkSummary(result);
+            setSvkLoading(false);
+          }).catch(() => setSvkLoading(false)),
         ]);
         setSprintReports(reports);
         setSprintLoading(false);
@@ -1258,11 +2257,164 @@ export default function Dashboard() {
     : !sprintHealth || (sprintHealth.draftStories.length === 0 && sprintHealth.unassignedStories.length === 0)
     ? 'ok'
     : 'error';
+  const sprintCloseStatus: TaskStatus = sprintCloseLoading
+    ? 'loading'
+    : !sprintClose || sprintClose.overdueSprints.length === 0
+    ? 'ok'
+    : 'error';
+  const fixVerMigrationStatus: TaskStatus = fixVerMigrationLoading
+    ? 'loading'
+    : !fixVerMigration || fixVerMigration.items.length === 0
+    ? 'ok'
+    : 'error';
   const fixVerStatus: TaskStatus = fixVerReviewLoading
     ? 'loading'
     : !fixVerReview || (fixVerReview.poReviewIssues.length === 0 && fixVerReview.notDoneIssues.length === 0)
     ? 'ok'
     : 'error';
+
+  const { rawDay, totalDays: sprintTotalDays } = useMemo(
+    () => getSprintDayInfo(sprintReports),
+    [sprintReports]
+  );
+  // Timeline luôn 14 mốc; sprint quá hạn (rawDay > 14) coi như đang ở mốc cuối.
+  const timelineDays = TIMELINE_DAYS;
+  const currentSprintDay = rawDay === null ? null : Math.min(rawDay, timelineDays);
+  const sprintOverdue = rawDay !== null && sprintTotalDays !== null && rawDay > sprintTotalDays;
+
+  const dayTasks: DayTask[] = [
+    {
+      day: 1,
+      title: 'Ngày 1 trở đi ticket đúng sprint',
+      status: healthStatus,
+      content: <SprintTicketHealthPanel result={sprintHealth} loading={sprintHealthLoading} />,
+    },
+    {
+      day: 1,
+      title: 'Đóng sprint cũ',
+      status: sprintCloseStatus,
+      content: (
+        <SprintClosePanel
+          result={sprintClose}
+          loading={sprintCloseLoading}
+          onReload={reloadSprintClose}
+        />
+      ),
+    },
+    {
+      day: 1,
+      title: 'Check fix version — item còn dính version cũ',
+      status: fixVerMigrationStatus,
+      content: (
+        <FixVersionMigrationPanel
+          result={fixVerMigration}
+          loading={fixVerMigrationLoading}
+          onReload={reloadFixVerMigration}
+        />
+      ),
+    },
+    {
+      day: 1,
+      title: 'Cập nhật sprint và fix version',
+      status: sprintStatus,
+      content: sprintLoading ? (
+        <div className="py-6 text-center text-gray-500">Đang tải...</div>
+      ) : (
+        <SprintAlignmentDetail reports={sprintReports} loadError={sprintError} />
+      ),
+    },
+    {
+      day: 7,
+      title: 'Ngày 7 trở đi xong hết subtask dev',
+      status: devStatus,
+      content: (
+        <DevTicketTable
+          tickets={devTickets}
+          ticketCache={smTicketCache}
+          reloadingAll={devReloadingAll}
+          onReloadAll={handleReloadAllDev}
+          loading={smLoading}
+        />
+      ),
+    },
+    {
+      day: 9,
+      title: 'Ngày 9 trở đi gửi UAT',
+      status: uatStatus,
+      content: smLoading ? (
+        <div className="py-6 text-center text-gray-500 text-sm">Đang tải...</div>
+      ) : needUatItems.length === 0 ? (
+        <div className="py-4 text-center text-sm text-green-600 font-medium">
+          ✅ Không có item nào cần UAT!
+        </div>
+      ) : (
+        <div className="pt-4 space-y-2">
+          <p className="text-xs text-gray-400">{needUatItems.length} item cần gửi UAT</p>
+          <div className="rounded-lg border border-gray-200 overflow-hidden">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-gray-100 text-xs text-gray-500 uppercase tracking-wide">
+                  <th className="text-left px-3 py-2 font-semibold w-[80px]">PR</th>
+                  <th className="text-left px-3 py-2 font-semibold">Tên item</th>
+                  <th className="text-left px-3 py-2 font-semibold w-[120px]">Teams</th>
+                  <th className="text-left px-3 py-2 font-semibold w-[100px]">PO Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {needUatItems.map((item) => (
+                  <tr key={item.prNumber || item.number} className="border-t border-gray-100 hover:bg-gray-50">
+                    <td className="px-3 py-2 text-xs font-mono text-gray-500">{item.prNumber || `#${item.number}`}</td>
+                    <td className="px-3 py-2 text-sm text-gray-800">{item.icon} {item.title || '—'}</td>
+                    <td className="px-3 py-2 text-xs text-gray-500">{item.teams.join(', ') || '—'}</td>
+                    <td className="px-3 py-2">
+                      <span className="text-xs px-2 py-0.5 rounded border font-medium bg-red-50 text-red-700 border-red-300">
+                        Need UAT
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ),
+    },
+    {
+      day: 13,
+      title: 'Ngày 13 trở đi kiểm tra status PO và Fix version',
+      status: fixVerStatus,
+      content: (
+        <FixVersionReviewPanel
+          result={fixVerReview}
+          loading={fixVerReviewLoading}
+          onReload={reloadFixVerReview}
+        />
+      ),
+    },
+  ];
+
+  const dayMarks = buildDayMarks(dayTasks, timelineDays, currentSprintDay);
+
+  // mặc định luôn đứng ở ngày hôm nay — kể cả ngày đó không có việc,
+  // để panel không hiện nhầm việc của ngày khác
+  const defaultDay =
+    currentSprintDay ?? dayMarks.find((mark) => mark.tasks.length > 0)?.day ?? 1;
+
+  const activeDay = selectedDay ?? defaultDay;
+  const activeMark = dayMarks.find((mark) => mark.day === activeDay) ?? null;
+
+  // mốc gợi ý khi ngày đang chọn rỗng: ưu tiên ngày đang có việc cần xử lý,
+  // sau đó tới mốc có việc gần nhất đã qua
+  const suggestedMark =
+    dayMarks.find((mark) => mark.state === 'fail') ??
+    [...dayMarks]
+      .reverse()
+      .find(
+        (mark) =>
+          mark.tasks.length > 0 && (currentSprintDay === null || mark.day <= currentSprintDay)
+      ) ??
+    dayMarks.find((mark) => mark.tasks.length > 0) ??
+    null;
 
   return (
     <div className="space-y-6">
@@ -1273,83 +2425,67 @@ export default function Dashboard() {
         <p className="mt-2 text-sm text-gray-600">Tổng quan các việc cần quản lý</p>
       </div>
 
-      <SprintOverviewCard
-        sprintReports={sprintReports}
-        sprintLoading={sprintLoading}
-        smStats={smStats}
-        smLoading={smLoading}
-      />
+      {/* sprint + timeline + việc theo ngày gộp chung một card */}
+      <div className="overflow-hidden rounded-lg bg-white shadow-md">
+        <SprintOverviewCard
+          sprintReports={sprintReports}
+          sprintLoading={sprintLoading}
+          smStats={smStats}
+          smLoading={smLoading}
+        />
 
-      <div className="space-y-3">
-        <TaskItem title="Ngày 1 trở đi ticket đúng sprint" status={healthStatus}>
-          <SprintTicketHealthPanel result={sprintHealth} loading={sprintHealthLoading} />
-        </TaskItem>
+        <SprintTimeline
+          marks={dayMarks}
+          currentDay={currentSprintDay}
+          overdueDays={sprintOverdue && rawDay !== null && sprintTotalDays !== null ? rawDay - sprintTotalDays : 0}
+          selectedDay={activeDay}
+          onSelect={setSelectedDay}
+        />
 
-        <TaskItem title="Ngày 7 trở đi xong hết subtask dev" status={devStatus}>
-          <DevTicketTable
-            tickets={devTickets}
-            ticketCache={smTicketCache}
-            reloadingAll={devReloadingAll}
-            onReloadAll={handleReloadAllDev}
-            loading={smLoading}
-          />
-        </TaskItem>
-
-        <TaskItem title="Ngày 9 trở đi gửi UAT" status={uatStatus}>
-          {smLoading ? (
-            <div className="py-6 text-center text-gray-500 text-sm">Đang tải...</div>
-          ) : needUatItems.length === 0 ? (
-            <div className="py-4 text-center text-sm text-green-600 font-medium">
-              ✅ Không có item nào cần UAT!
+        <div className="space-y-3 border-t border-gray-100 bg-slate-50 px-6 py-5">
+        {activeMark && activeMark.tasks.length > 0 ? (
+          <>
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-base font-semibold text-gray-900">Ngày {activeMark.day}</h2>
+              <span className="text-xs text-gray-400">
+                {activeMark.tasks.length} việc
+                {currentSprintDay !== null && activeMark.day > currentSprintDay ? ' · chưa tới' : ''}
+              </span>
             </div>
-          ) : (
-            <div className="pt-4 space-y-2">
-              <p className="text-xs text-gray-400">{needUatItems.length} item cần gửi UAT</p>
-              <div className="rounded-lg border border-gray-200 overflow-hidden">
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="bg-gray-100 text-xs text-gray-500 uppercase tracking-wide">
-                      <th className="text-left px-3 py-2 font-semibold w-[80px]">PR</th>
-                      <th className="text-left px-3 py-2 font-semibold">Tên item</th>
-                      <th className="text-left px-3 py-2 font-semibold w-[120px]">Teams</th>
-                      <th className="text-left px-3 py-2 font-semibold w-[100px]">PO Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {needUatItems.map((item) => (
-                      <tr key={item.prNumber || item.number} className="border-t border-gray-100 hover:bg-gray-50">
-                        <td className="px-3 py-2 text-xs font-mono text-gray-500">{item.prNumber || `#${item.number}`}</td>
-                        <td className="px-3 py-2 text-sm text-gray-800">{item.icon} {item.title || '—'}</td>
-                        <td className="px-3 py-2 text-xs text-gray-500">{item.teams.join(', ') || '—'}</td>
-                        <td className="px-3 py-2">
-                          <span className="text-xs px-2 py-0.5 rounded border font-medium bg-red-50 text-red-700 border-red-300">
-                            Need UAT
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </TaskItem>
+            {activeMark.tasks.map((task) => (
+              <TaskItem
+                key={task.title}
+                title={task.title}
+                status={task.status}
+                defaultOpen={activeMark.tasks.length === 1}
+              >
+                {task.content}
+              </TaskItem>
+            ))}
+          </>
+        ) : (
+          <div className="rounded-lg border border-gray-200 bg-white px-5 py-8 text-center shadow-sm">
+            <p className="text-sm text-gray-500">
+              {activeDay ? `Ngày ${activeDay} không có việc cần làm` : 'Chọn một mốc trên timeline'}
+            </p>
+            {suggestedMark && suggestedMark.day !== activeDay && (
+              <button
+                type="button"
+                onClick={() => setSelectedDay(suggestedMark.day)}
+                className="mt-2 text-sm font-medium text-blue-600 hover:underline"
+              >
+                Xem việc ngày {suggestedMark.day} ({suggestedMark.tasks.length} việc
+                {suggestedMark.state === 'fail' ? ' · cần xử lý' : ''})
+              </button>
+            )}
+          </div>
+        )}
+        </div>
+      </div>
 
-        <TaskItem title="Ngày 13 trở đi kiểm tra status PO và Fix version" status={fixVerStatus}>
-          <FixVersionReviewPanel
-            result={fixVerReview}
-            loading={fixVerReviewLoading}
-            onReload={reloadFixVerReview}
-          />
-        </TaskItem>
-
-        <TaskItem title="Cập nhật sprint và fix version" status={sprintStatus}>
-          {sprintLoading ? (
-            <div className="py-6 text-center text-gray-500">Đang tải...</div>
-          ) : (
-            <SprintAlignmentDetail reports={sprintReports} loadError={sprintError} />
-          )}
-        </TaskItem>
+      <div className="rounded-lg bg-white shadow-md px-6 py-5">
+        <h2 className="mb-4 text-base font-semibold text-gray-900">Công việc chung</h2>
+        <SvkSupportCard summary={svkSummary} loading={svkLoading} />
       </div>
     </div>
   );

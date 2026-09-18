@@ -211,6 +211,8 @@ const pickEarliestUnreleasedVersion = (versions: JiraVersion[]): { item: JiraVer
   return { item: sorted[0], notes: [] };
 };
 
+const MAX_KEYS_SHOWN = 6;
+
 const pickSingleSprint = (issues: JiraSearchIssue[]): { item: NormalizedSprintDetail | null; notes: string[] } => {
   const active = issues.flatMap((issue) => (issue.fields.normalizedSprints || []).filter((s) => s.state === 'active'));
   const sprints = dedupeByName(active);
@@ -219,13 +221,34 @@ const pickSingleSprint = (issues: JiraSearchIssue[]): { item: NormalizedSprintDe
 
   // Issue có thể nằm trong sprint share từ board khác (vd PL ticket trong "Sprint - LOS").
   // Chọn sprint chiếm nhiều issue nhất của project; chỉ bỏ cuộc khi hoà.
+  // Ticket nào kéo sprint phụ vào cũng được ghi lại để còn truy ngược mà sửa.
+  const keysBySprint = new Map<string, string[]>();
+  issues.forEach((issue) => {
+    (issue.fields.normalizedSprints || [])
+      .filter((s) => s.state === 'active')
+      .forEach((s) => {
+        const list = keysBySprint.get(s.name) || [];
+        if (!list.includes(issue.key)) list.push(issue.key);
+        keysBySprint.set(s.name, list);
+      });
+  });
+
   const counts = new Map<string, number>();
   active.forEach((s) => counts.set(s.name, (counts.get(s.name) || 0) + 1));
   const ranked = [...sprints].sort((l, r) => (counts.get(r.name) || 0) - (counts.get(l.name) || 0));
-  const others = ranked.slice(1).map((s) => s.name).join(', ');
   if ((counts.get(ranked[0].name) || 0) === (counts.get(ranked[1].name) || 0)) {
     return { item: null, notes: [`multiple active sprints: ${sprints.map((s) => s.name).join(', ')}`] };
   }
+
+  const others = ranked
+    .slice(1)
+    .map((s) => {
+      const keys = keysBySprint.get(s.name) || [];
+      const shown = keys.slice(0, MAX_KEYS_SHOWN).join(', ');
+      const rest = keys.length > MAX_KEYS_SHOWN ? ` +${keys.length - MAX_KEYS_SHOWN} ticket nữa` : '';
+      return `${s.name} (${shown}${rest})`;
+    })
+    .join(' · ');
   return { item: ranked[0], notes: [`bỏ qua sprint phụ: ${others}`] };
 };
 

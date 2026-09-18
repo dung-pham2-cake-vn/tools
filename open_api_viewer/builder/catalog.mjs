@@ -18,7 +18,7 @@ export const FEATURE_PATHS = {
     challenge_facematch: ['/challenge-facematch'],
     data_config: ['/data-config'],
     onboarding: ['/check-profile', '/client-create', '/client-update', '/loan-register'],
-    get_status: ['/get-status'],
+    get_status: ['/get-onboarding-status'],
     loan_detail_api: ['/get-loan-detail'],
     contract: ['/get-esign', '/get-otp', '/verify-esign'],
     contract_cancel: ['/contract-cancel'],

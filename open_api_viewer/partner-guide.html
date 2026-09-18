@@ -397,7 +397,7 @@ code.fp.d1{padding-left:12px}code.fp.d2{padding-left:24px}code.fp.d3{padding-lef
           <tr><td>4</td><td><code>/challenge-verify-otp</code></td><td>Xác thực OTP — <b>chỉ khi</b> <code>challenge_level ≠ [1]</code></td><td>Theo BRD</td></tr>
           <tr><td>5</td><td><code>/client-create</code></td><td>Tạo hồ sơ KH, nhận <code>request_id</code></td><td>Có</td></tr>
           <tr><td>6</td><td><code>/client-update</code></td><td>Upload ảnh eKYC (selfie + 2 mặt CCCD)</td><td>Có</td></tr>
-          <tr><td>7</td><td><code>/get-status</code></td><td>Poll trạng thái eKYC khi trả <code>EKYC_PENDING</code></td><td>Có</td></tr>
+          <tr><td>7</td><td><code>/get-onboarding-status</code></td><td>Poll tiến độ hồ sơ khi <code>/client-update</code> trả <code>EKYC_PENDING</code>; cũng dùng để khôi phục trạng thái khi partner mất context</td><td>Có</td></tr>
           <tr><td>8</td><td><code>/loan-register</code></td><td>Đăng ký khoản vay, nhận <code>loan_code</code></td><td>Có</td></tr>
           <tr><td>9</td><td><code>/get-loan-detail</code></td><td>Poll đến <code>LOAN_APPROVE</code></td><td>Có</td></tr>
           <tr><td>10</td><td><code>/get-esign</code></td><td>Lấy URL hợp đồng (HTML + PDF) cho KH xem</td><td>Có</td></tr>
@@ -411,7 +411,7 @@ code.fp.d1{padding-left:12px}code.fp.d2{padding-left:24px}code.fp.d3{padding-lef
         <span class="ep">/data-config</span><span class="ep">/check-profile</span>
         <span class="ep">/challenge-get-otp</span><span class="ep">/challenge-verify-otp</span>
         <span class="ep">/client-create</span><span class="ep">/client-update</span>
-        <span class="ep">/get-status</span><span class="ep">/loan-register</span>
+        <span class="ep">/get-onboarding-status</span><span class="ep">/loan-register</span>
         <span class="ep">/get-loan-detail</span><span class="ep">/get-esign</span>
         <span class="ep">/get-otp</span><span class="ep">/verify-esign</span>
         <span class="ep">/contract-cancel</span>
@@ -447,9 +447,9 @@ sequenceDiagram
     P->>C: client-update(request_id, selfie, front_nid, back_nid)
     C-->>P: status
     alt status = EKYC_PENDING
-      Note over P: Poll get-status cho đến EKYC_SUCCESS
-      P->>C: get-status(request_id, phone)
-      C-->>P: status=EKYC_SUCCESS
+      Note over P: Poll get-onboarding-status cho đến EKYC_SUCCESS
+      P->>C: get-onboarding-status(request_id, phone)
+      C-->>P: onboarding_status, ekyc_status=EKYC_SUCCESS
     else status = EKYC_REJECT
       Note over P: Làm lại hồ sơ từ đầu - gọi lại check-profile
     end
@@ -482,12 +482,32 @@ sequenceDiagram
         <thead><tr><th>Status</th><th>Ý nghĩa</th><th>Partner làm gì</th></tr></thead>
         <tbody>
           <tr><td><code>EKYC_INIT</code></td><td>Hồ sơ vừa tạo, chưa có ảnh</td><td>Gọi <code>/client-update</code></td></tr>
-          <tr><td><code>EKYC_PENDING</code></td><td>Đang xử lý ảnh</td><td>Poll <code>/get-status</code></td></tr>
+          <tr><td><code>EKYC_PENDING</code></td><td>Đang xử lý ảnh</td><td>Poll <code>/get-onboarding-status</code></td></tr>
           <tr><td><code>EKYC_SUCCESS</code></td><td>eKYC đạt</td><td>Gọi <code>/loan-register</code></td></tr>
           <tr><td><code>EKYC_REJECT</code></td><td>eKYC không đạt</td><td><b>Thực hiện lại từ đầu — gọi lại <code>/check-profile</code></b>,
             không upload lại ảnh lên <code>request_id</code> cũ</td></tr>
         </tbody>
       </table></div>
+
+      <h4>Tiến độ onboarding — <code>/get-onboarding-status</code></h4>
+      <p>Input: <code>request_id</code> + <code>phone_number</code> (cả hai bắt buộc).
+      Response cho biết hồ sơ đang ở bước nào, các field phụ chỉ xuất hiện khi bước tương ứng đã xong.</p>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Field</th><th>Trả về khi</th><th>Giá trị</th></tr></thead>
+        <tbody>
+          <tr><td><code>onboarding_status</code></td><td>Luôn có</td>
+            <td><code>ONBOARDING_CREATE</code> — đã <code>client-create</code><br>
+                <code>ONBOARDING_UPDATE</code> — đã <code>client-update</code> và eKYC đạt<br>
+                <code>ONBOARDING_REGISTER</code> — đã <code>loan-register</code> và khoản vay đã có kết quả duyệt/từ chối</td></tr>
+          <tr><td><code>ekyc_status</code></td><td>Đã gọi <code>/client-update</code> thành công</td>
+            <td><code>EKYC_PENDING</code> / <code>EKYC_REJECT</code> / <code>EKYC_SUCCESS</code></td></tr>
+          <tr><td><code>loan_code</code></td><td>Đã gọi <code>/loan-register</code> thành công</td><td>Mã khoản vay</td></tr>
+          <tr><td><code>loan_status</code></td><td>Đã gọi <code>/loan-register</code> thành công</td>
+            <td>Như <code>loan_account_status</code> của <code>/get-loan-detail</code></td></tr>
+        </tbody>
+      </table></div>
+      <div class="note">Hồ sơ đã <code>client-update</code> nhưng eKYC còn <code>EKYC_PENDING</code> vẫn giữ
+      <code>onboarding_status = ONBOARDING_CREATE</code> — đọc <code>ekyc_status</code> để biết chi tiết.</div>
 
       <h4>Ràng buộc luồng ký hợp đồng</h4>
       <div class="warn">Hợp đồng hết hạn sau 7 ngày (<code>300001</code>). <code>/get-esign</code> gọi 1 lần/ngày.
@@ -669,7 +689,7 @@ sequenceDiagram
     <div class="tabpanel" id="ln-native">
       <p>Partner gọi API lấy dữ liệu thô rồi tự render màn hình chi tiết khoản vay.</p>
       <div class="eplist">
-        <span class="ep">/get-loan-detail</span><span class="ep">/get-status</span>
+        <span class="ep">/get-loan-detail</span><span class="ep">/get-onboarding-status</span>
         <span class="ep cb">/partner-update-status</span>
       </div>
       <figure class="diagram">
@@ -1239,7 +1259,7 @@ signature = base64_encode(rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA256, 
       <tr><td>Số tiền</td><td>VND, kiểu string số nguyên, không phần thập phân, không dấu phân cách</td></tr>
       <tr><td>Thời gian</td><td>ISO 8601 có timezone: <code>2025-11-03T07:00:00+07:00</code></td></tr>
       <tr><td><code>request_id</code></td><td>Cake sinh ở <code>/client-create</code>, định danh <b>hồ sơ đăng ký</b> xuyên suốt onboarding
-        (<code>client-update</code>, <code>get-status</code>, <code>loan-register</code>)</td></tr>
+        (<code>client-update</code>, <code>get-onboarding-status</code>, <code>loan-register</code>)</td></tr>
       <tr><td><code>loan_code</code></td><td>Cake sinh ở <code>/loan-register</code>, định danh khoản vay xuyên suốt vòng đời</td></tr>
       <tr><td><code>partner_reference_id</code></td><td>Partner sinh, duy nhất mỗi <b>giao dịch tiền</b>. Trùng lặp → lỗi <code>400000</code></td></tr>
       <tr><td><code>order_id</code></td><td>Cake sinh, định danh một giao dịch trả nợ / chi tiêu</td></tr>
@@ -1733,7 +1753,7 @@ signature = base64_encode(rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA256, 
 <tr><td><code class="fp d0">response_id</code></td><td>string</td><td>—</td><td>Mã định danh duy nhất của mỗi phản hồi</td><td><code>&quot;849KTQG7SQWLWQW5&quot;</code></td></tr>
 <tr><td><code class="fp d0">timestamp</code></td><td>string (date-time)</td><td>—</td><td>Thời gian phản hồi (ISO 8601)</td><td><code>&quot;2025-11-03T07:00:00+07:00&quot;</code></td></tr>
 <tr><td><code class="fp d0">data</code></td><td>object</td><td>—</td><td></td><td></td></tr>
-<tr><td><code class="fp d1">data.request_id</code></td><td>string</td><td>—</td><td>ID dùng cho các API client-update, loan-register (và get-status nếu sản phẩm bật)</td><td><code>&quot;req-abc123&quot;</code></td></tr>
+<tr><td><code class="fp d1">data.request_id</code></td><td>string</td><td>—</td><td>ID dùng cho các API client-update, loan-register, get-onboarding-status</td><td><code>&quot;req-abc123&quot;</code></td></tr>
 </tbody></table></div>
 <h5>Error codes liên quan</h5><div class="tablewrap"><table>
 <thead><tr><th>Code</th><th>Message</th><th>Nhóm</th></tr></thead><tbody>
@@ -1888,12 +1908,12 @@ signature = base64_encode(rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA256, 
 <tr><td><code>500031</code></td><td>Tài khoản giải ngân không hợp lệ</td><td class="mut">Onboarding / Pre-check</td></tr>
 </tbody></table></div>
 </div></details>
-<details class="api" id="api-native--get-status">
-<summary><span class="ep">/get-status</span> <span class="apisum">Truy vấn trạng thái hồ sơ eKYC</span></summary>
+<details class="api" id="api-native--get-onboarding-status">
+<summary><span class="ep">/get-onboarding-status</span> <span class="apisum">Truy vấn tiến độ onboarding của hồ sơ</span></summary>
 <div class="apibody">
-
+<p class="apidesc">Trả về bước onboarding xa nhất hồ sơ đã hoàn tất (<code>onboarding_status</code>), kèm trạng thái eKYC và thông tin khoản vay nếu đã có.<br><br>Dùng để poll khi <code>/client-update</code> trả <code>EKYC_PENDING</code>, hoặc khi partner mất trạng thái (app bị kill, mất mạng) và cần biết hồ sơ đang ở đâu để đi tiếp.</p>
 <p class="legend"><b>Chiều gọi:</b> Partner → Cake
-&nbsp;·&nbsp; <b>Method:</b> POST &nbsp;·&nbsp; <b>operationId:</b> <code>getStatus</code></p>
+&nbsp;·&nbsp; <b>Method:</b> POST &nbsp;·&nbsp; <b>operationId:</b> <code>getOnboardingStatus</code></p>
 <h5>Header</h5><div class="tablewrap"><table>
 <thead><tr><th>Header</th><th>Bắt buộc</th><th>Mô tả</th></tr></thead><tbody>
 <tr><td><code>Content-Type</code></td><td><b>Có</b></td><td>Mặc định: <code>application/json; charset=utf-8</code></td></tr>
@@ -1904,7 +1924,7 @@ signature = base64_encode(rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA256, 
 <div class="tablewrap"><table class="fields">
 <thead><tr><th>Field</th><th>Kiểu</th><th>Bắt buộc</th><th>Mô tả</th><th>Example</th></tr></thead>
 <tbody>
-<tr><td><code class="fp d0">request_id</code></td><td>string</td><td>—</td><td>Request ID từ API /client-create (optional)</td><td></td></tr>
+<tr><td><code class="fp d0">request_id</code></td><td>string</td><td><b>Có</b></td><td>Request ID từ API /client-create</td><td><code>&quot;req-abc123&quot;</code></td></tr>
 <tr><td><code class="fp d0">phone_number</code></td><td>string</td><td><b>Có</b></td><td>Số điện thoại KH (bắt đầu bằng số 0)</td><td><code>&quot;0xxxxxxxxx&quot;</code></td></tr>
 </tbody></table></div>
 <h5>Response 200</h5>
@@ -1917,7 +1937,10 @@ signature = base64_encode(rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA256, 
 <tr><td><code class="fp d0">response_id</code></td><td>string</td><td>—</td><td>Mã định danh duy nhất của mỗi phản hồi</td><td><code>&quot;849KTQG7SQWLWQW5&quot;</code></td></tr>
 <tr><td><code class="fp d0">timestamp</code></td><td>string (date-time)</td><td>—</td><td>Thời gian phản hồi (ISO 8601)</td><td><code>&quot;2025-11-03T07:00:00+07:00&quot;</code></td></tr>
 <tr><td><code class="fp d0">data</code></td><td>object</td><td>—</td><td></td><td></td></tr>
-<tr><td><code class="fp d1">data.status</code></td><td>string</td><td>—</td><td>— enum: EKYC_INIT, EKYC_PENDING, EKYC_REJECT, EKYC_SUCCESS</td><td></td></tr>
+<tr><td><code class="fp d1">data.onboarding_status</code></td><td>string</td><td><b>Có</b></td><td>Bước onboarding xa nhất mà hồ sơ đã hoàn tất: - <code>ONBOARDING_CREATE</code>: đã gọi /client-create thành công - <code>ONBOARDING_UPDATE</code>: đã gọi /client-update thành công và eKYC đạt (<code>ekyc_status=EKYC_SUCCESS</code>) - <code>ONBOARDING_REGISTER</code>: đã gọi /loan-register thành công và khoản vay đã có kết quả duyệt hoặc từ chối<br><br>Hồ sơ đã gọi /client-update nhưng eKYC chưa đạt (<code>EKYC_PENDING</code>) hoặc trượt (<code>EKYC_REJECT</code>) vẫn giữ <code>ONBOARDING_CREATE</code> — đọc <code>ekyc_status</code> để biết chi tiết.  — enum: ONBOARDING_CREATE, ONBOARDING_UPDATE, ONBOARDING_REGISTER</td><td><code>&quot;ONBOARDING_UPDATE&quot;</code></td></tr>
+<tr><td><code class="fp d1">data.ekyc_status</code></td><td>string</td><td>—</td><td>Trạng thái eKYC. Chỉ trả về khi đã gọi /client-update thành công, ngược lại là null. — enum: EKYC_PENDING, EKYC_REJECT, EKYC_SUCCESS</td><td><code>&quot;EKYC_SUCCESS&quot;</code></td></tr>
+<tr><td><code class="fp d1">data.loan_code</code></td><td>string</td><td>—</td><td>Mã khoản vay. Chỉ trả về khi đã gọi /loan-register thành công, ngược lại là null.</td><td><code>&quot;u8123123Sjsdb&quot;</code></td></tr>
+<tr><td><code class="fp d1">data.loan_status</code></td><td>string</td><td>—</td><td>Trạng thái khoản vay (giá trị như <code>loan_account_status</code> của /get-loan-detail). Chỉ trả về khi đã gọi /loan-register thành công, ngược lại là null. — enum: LOAN_INIT, LOAN_REVIEWING, LOAN_REJECT, LOAN_APPROVE, LOAN_EXPIRED, LOAN_CANCEL, LOAN_SIGNED, LOAN_ACTIVE, LOAN_CLOSE</td><td><code>&quot;LOAN_APPROVE&quot;</code></td></tr>
 </tbody></table></div>
 <h5>Error codes liên quan</h5><div class="tablewrap"><table>
 <thead><tr><th>Code</th><th>Message</th><th>Nhóm</th></tr></thead><tbody>

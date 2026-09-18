@@ -21,6 +21,7 @@ interface CarryoverTicket {
   summary: string;
   status: string;
   assignee: string;
+  reporter: string;
   issueType: string;
   sprintCount: number;
   created: string;
@@ -84,7 +85,7 @@ export default function CarryoverPage() {
       const res = await jiraAPI.searchIssues({
         jql: JQL,
         maxResults: 500,
-        fields: ['summary', 'status', 'assignee', 'created', 'issuetype'],
+        fields: ['summary', 'status', 'assignee', 'reporter', 'created', 'issuetype'],
       });
       const issues: any[] = ((res.data.data as { issues?: any[] })?.issues) || [];
       const nowMs = Date.now();
@@ -97,6 +98,7 @@ export default function CarryoverPage() {
             summary: issue.fields?.summary || '',
             status: issue.fields?.normalizedStatusName || '',
             assignee: issue.fields?.normalizedAssigneeName || '',
+            reporter: issue.fields?.normalizedReporterName || issue.fields?.reporter?.displayName || '',
             issueType: issue.fields?.issuetype?.name || '',
             sprintCount: sprints.length,
             created,
@@ -184,6 +186,7 @@ export default function CarryoverPage() {
                   <th className="text-left px-3 py-2 font-semibold w-[120px]">Ticket</th>
                   <th className="text-left px-3 py-2 font-semibold">Tên</th>
                   <th className="text-left px-3 py-2 font-semibold w-[160px]">Assignee</th>
+                  <th className="text-left px-3 py-2 font-semibold w-[160px]">Reporter</th>
                   <th className="text-left px-3 py-2 font-semibold w-[130px]">Trạng thái</th>
                   <th
                     className="text-right px-3 py-2 font-semibold w-[90px] cursor-pointer select-none hover:text-gray-700"
@@ -217,6 +220,9 @@ export default function CarryoverPage() {
                     <td className="px-3 py-2 text-gray-800">{t.summary || '—'}</td>
                     <td className="px-3 py-2 text-xs text-gray-600">
                       {t.assignee ? shortName(t.assignee) : <span className="text-red-500">Chưa gán</span>}
+                    </td>
+                    <td className="px-3 py-2 text-xs text-gray-600" title={t.reporter}>
+                      {t.reporter ? shortName(t.reporter) : '—'}
                     </td>
                     <td className="px-3 py-2">
                       <span className={`text-xs px-2 py-0.5 rounded border font-medium ${statusBadgeClass(t.status)}`}>

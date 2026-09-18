@@ -1168,6 +1168,7 @@ export class JiraService {
     const status = issue.fields.status as { name?: string } | undefined;
     const priority = issue.fields.priority as { name?: string } | undefined;
     const assignee = issue.fields.assignee as { displayName?: string } | null | undefined;
+    const reporter = issue.fields.reporter as { displayName?: string } | null | undefined;
     const fixVersions = issue.fields.fixVersions as Array<{ name?: string }> | undefined;
     const sprintDetails = this.extractSprintDetails(sprintValues);
     const fixVersionDetails = this.extractFixVersionDetails(
@@ -1184,6 +1185,7 @@ export class JiraService {
         normalizedStatusName: status?.name || '',
         normalizedPriorityName: priority?.name || '',
         normalizedAssigneeName: assignee?.displayName || '',
+        normalizedReporterName: reporter?.displayName || '',
         normalizedFixVersionNames: (fixVersions || []).map((item) => item.name || '').filter(Boolean),
         normalizedFixVersions: fixVersionDetails,
         // LexoRank string — plain lexicographic compare gives Jira backlog order

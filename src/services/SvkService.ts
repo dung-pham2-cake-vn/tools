@@ -3,7 +3,7 @@ import { jiraService } from './JiraService';
 import { SvkTicket, ISvkTicket, ISvkComment } from '../models/SvkTicket';
 import { SvkHistory } from '../models/SvkHistory';
 import { SupportTicket } from '../models/SupportTicket';
-import { analyzeWithCustomPrompt } from './AIService';
+import { analyzeWithCustomPrompt, testAIConfig } from './AIService';
 import { SVK_REVIEW_PROMPT } from './svkReviewPrompt';
 
 const SVK_JQL = `project = SVK AND "Request Type" IN ("Lending Onboarding DOP","Lending Onboarding API","Lending Onboarding Appcake","Lending Disburse","Lending Payment Installment","Lending Repayment","Lending Get Detail","Lending Termination","Lending Core","Lending Portal Support","Lending Risk Support","Lending Others") AND status NOT IN (Done,Cancelled,Ready4Test,"Waiting for customer") ORDER BY created DESC`;
@@ -117,7 +117,30 @@ async function recordHistory(snapshot: Record<string, any>, keepAi: { aiResult: 
   );
 }
 
-export const scanSvkTickets = async (): Promise<{ total: number; pendingAi: number }> => {
+export interface ScanResult {
+  total: number;
+  pendingAi: number;
+  /** Tickets whose content changed (or are new) — the ones queued for a fresh AI review. */
+  changedKeys: string[];
+  /** false = the AI provider failed its probe, so no ticket was sent for review. */
+  aiAvailable: boolean;
+  aiUnavailableReason: string;
+}
+
+let scanInFlight: Promise<ScanResult> | null = null;
+
+/** Only one scan at a time — a concurrent caller joins the running scan instead of starting a second one. */
+export const scanSvkTickets = async (): Promise<ScanResult> => {
+  if (scanInFlight) return scanInFlight;
+  scanInFlight = runScan().finally(() => {
+    scanInFlight = null;
+  });
+  return scanInFlight;
+};
+
+export const isScanRunning = (): boolean => scanInFlight !== null;
+
+const runScan = async (): Promise<ScanResult> => {
   const svkIssues = await fetchAllPages(SVK_JQL, SVK_FIELDS);
 
   // map SVK -> linked PL keys
@@ -155,7 +178,15 @@ export const scanSvkTickets = async (): Promise<{ total: number; pendingAi: numb
   });
 
   const jiraHost = process.env.JIRA_HOST || '';
-  let pendingAi = 0;
+  const changedKeys: string[] = [];
+
+  // One cheap probe up front: if the provider is down or the key is dead, every ticket
+  // would fail the same way — skip the whole AI pass instead of burning N failing calls.
+  const probe = await testAIConfig();
+  aiUnavailableReason = probe.ok ? '' : probe.error || 'AI không khả dụng';
+  if (!probe.ok) {
+    console.warn(`[SVK AI] provider không khả dụng (${aiUnavailableReason}) — bỏ qua AI review cho lần scan này`);
+  }
 
   await mapLimit(svkIssues, 5, async (svk) => {
     const f = svk.fields || {};
@@ -184,7 +215,7 @@ export const scanSvkTickets = async (): Promise<{ total: number; pendingAi: numb
 
     const existing = await SvkTicket.findOne({ key: svk.key }).select('aiInputHash aiResult aiError aiRunAt').lean();
     const needsAi = !existing || existing.aiInputHash !== aiInputHash || !existing.aiResult;
-    if (needsAi) pendingAi++;
+    if (needsAi) changedKeys.push(svk.key);
 
     await SvkTicket.findOneAndUpdate(
       { key: svk.key },
@@ -205,7 +236,7 @@ export const scanSvkTickets = async (): Promise<{ total: number; pendingAi: numb
         aiInputHash,
         lastScanAt: new Date(),
         // stale AI output is cleared so the UI never shows a result for outdated content
-        ...(needsAi ? { aiResult: '', aiError: '' } : {}),
+        ...(needsAi ? { aiResult: '', aiError: probe.ok ? '' : aiUnavailableReason } : {}),
       },
       { upsert: true, new: true }
     );
@@ -232,14 +263,20 @@ export const scanSvkTickets = async (): Promise<{ total: number; pendingAi: numb
     );
 
     // kick AI off right away — don't wait for the rest of the scan
-    if (needsAi) enqueueAi(svk.key);
+    if (needsAi && probe.ok) enqueueAi(svk.key);
   });
 
   // drop tickets that no longer match the JQL (closed/cancelled since last scan)
   const liveKeys = svkIssues.map((i) => i.key);
   await SvkTicket.deleteMany({ key: { $nin: liveKeys } });
 
-  return { total: svkIssues.length, pendingAi };
+  return {
+    total: svkIssues.length,
+    pendingAi: probe.ok ? changedKeys.length : 0,
+    changedKeys,
+    aiAvailable: probe.ok,
+    aiUnavailableReason,
+  };
 };
 
 // ── AI review ────────────────────────────────────────────────────────────────
@@ -352,6 +389,8 @@ export const runAiForTicket = async (key: string): Promise<string> => {
   const prompt = buildSvkReviewPrompt(doc, similar as any);
   const result = await analyzeWithCustomPrompt(prompt);
 
+  aiUnavailableReason = '';
+  consecutiveFailures = 0;
   doc.aiResult = result;
   doc.aiError = '';
   doc.aiRunAt = new Date();
@@ -372,13 +411,25 @@ export interface AiJobState {
   total: number;
   done: number;
   failed: number;
+  /** Tickets dropped from the queue because the provider was declared unavailable. */
+  skipped: number;
   queued: number;
   current: string[];
   startedAt: string | null;
   finishedAt: string | null;
+  aiAvailable: boolean;
+  aiUnavailableReason: string;
 }
 
 const AI_CONCURRENCY = 3;
+/** Consecutive failures that mean the provider itself is down, not one bad ticket. */
+const AI_FAIL_LIMIT = Number(process.env.SVK_AI_FAIL_LIMIT ?? 3);
+
+/** Why AI was skipped, from the pre-scan probe or the circuit breaker. Empty = AI is fine. */
+let aiUnavailableReason = '';
+let consecutiveFailures = 0;
+
+export const getAiUnavailableReason = (): string => aiUnavailableReason;
 
 const queue: string[] = [];
 const inFlight = new Set<string>();
@@ -388,6 +439,7 @@ const counters = {
   total: 0,
   done: 0,
   failed: 0,
+  skipped: 0,
   startedAt: null as string | null,
   finishedAt: null as string | null,
 };
@@ -399,11 +451,31 @@ export const getAiJobState = (): AiJobState => ({
   total: counters.total,
   done: counters.done,
   failed: counters.failed,
+  skipped: counters.skipped,
   queued: queue.length,
   current: [...inFlight],
   startedAt: counters.startedAt,
   finishedAt: counters.finishedAt,
+  aiAvailable: !aiUnavailableReason,
+  aiUnavailableReason,
 });
+
+/**
+ * The provider died mid-run: drop everything still queued instead of replaying the same
+ * error per ticket. Each dropped ticket records the reason so the UI explains itself.
+ */
+async function abortQueue(reason: string) {
+  const dropped = queue.splice(0, queue.length);
+  aiUnavailableReason = reason;
+  counters.skipped += dropped.length;
+  console.error(`[SVK AI] dừng hàng đợi — ${reason}. Bỏ qua ${dropped.length} ticket.`);
+  if (dropped.length) {
+    await SvkTicket.updateMany(
+      { key: { $in: dropped } },
+      { aiError: reason, aiRunAt: new Date() }
+    ).catch(() => {});
+  }
+}
 
 async function worker() {
   for (;;) {
@@ -413,12 +485,18 @@ async function worker() {
     try {
       await runAiForTicket(key);
       counters.done++;
+      consecutiveFailures = 0;
       console.log(`[SVK AI] ${key} done (${counters.done}/${counters.total})`);
     } catch (error: any) {
       counters.failed++;
+      consecutiveFailures++;
       const message = error?.message || String(error);
       console.error(`[SVK AI] ${key} failed:`, message);
       await SvkTicket.updateOne({ key }, { aiError: message, aiRunAt: new Date() }).catch(() => {});
+      // a run of failures means the provider is down, not that these tickets are odd
+      if (consecutiveFailures >= AI_FAIL_LIMIT) {
+        await abortQueue(`AI lỗi ${consecutiveFailures} lần liên tiếp: ${message}`);
+      }
     } finally {
       inFlight.delete(key);
     }
@@ -443,6 +521,8 @@ export const enqueueAi = (key: string): void => {
     counters.total = 0;
     counters.done = 0;
     counters.failed = 0;
+    counters.skipped = 0;
+    consecutiveFailures = 0;
     counters.startedAt = new Date().toISOString();
     counters.finishedAt = null;
   }
@@ -452,8 +532,28 @@ export const enqueueAi = (key: string): void => {
   pump();
 };
 
+/** Resolve once the AI queue has drained, or after `timeoutMs` — whichever comes first. */
+export const waitForAiIdle = async (timeoutMs = 20 * 60 * 1000, pollMs = 5000): Promise<boolean> => {
+  const deadline = Date.now() + timeoutMs;
+  while (!isIdle()) {
+    if (Date.now() > deadline) return false;
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+  return true;
+};
+
 /** Queue every ticket that has no AI result yet (force = re-run all). */
 export const startPendingAiJob = async (force = false): Promise<AiJobState> => {
+  // same guard as the scan: one probe beats N identical failures
+  const probe = await testAIConfig();
+  if (!probe.ok) {
+    aiUnavailableReason = probe.error || 'AI không khả dụng';
+    console.warn(`[SVK AI] không chạy job — ${aiUnavailableReason}`);
+    return getAiJobState();
+  }
+  aiUnavailableReason = '';
+  consecutiveFailures = 0;
+
   const filter = force ? {} : { $or: [{ aiResult: '' }, { aiResult: { $exists: false } }] };
   const pending = await SvkTicket.find(filter).select('key').sort({ created: -1 }).lean();
   for (const { key } of pending) enqueueAi(key);

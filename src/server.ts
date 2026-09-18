@@ -11,6 +11,7 @@ import jiraRoutes from './routes/jiraRoutes';
 import supportRoutes from './routes/supportRoutes';
 import configRoutes from './routes/configRoutes';
 import sprintManagementRoutes from './routes/sprintManagementRoutes';
+import { startSvkAutoScan } from './services/svkAutoScan';
 
 dotenv.config();
 
@@ -63,6 +64,7 @@ const startServer = async (): Promise<void> => {
     app.listen(PORT, () => {
       console.log(`🚀 Server is running at http://localhost:${PORT}`);
     });
+    startSvkAutoScan();
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);

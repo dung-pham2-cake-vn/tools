@@ -4,8 +4,11 @@
   "description": "Comprehensive tools management system with Jira integration, task/story point management, sprint management, and roadmap management",
   "main": "dist/server.js",
   "scripts": {
+    "kill-dev": "bash scripts/kill-dev.sh",
+    "predev": "npm run kill-dev",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "dev:backend": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "predev:all": "npm run kill-dev",
     "dev:all": "concurrently \"npm run dev\" \"cd client && npm run dev\"",
     "build": "tsc",
     "start": "node dist/server.js",

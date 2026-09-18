@@ -4,6 +4,7 @@ import { scanUnclosed, scanAll, executeJQLQuery, saveTicketsToDatabase } from '.
 import { SupportTicket } from '../models/SupportTicket';
 import { SvkNote } from '../models/SvkNote';
 import { analyzeTicketWithAI } from '../services/AIService';
+import { reportScan } from '../services/svkAutoScan';
 import {
   scanSvkTickets,
   getSvkTickets as fetchSvkTickets,
@@ -30,11 +31,14 @@ export const getSvkHistoryTickets = async (_req: Request, res: Response) => {
 };
 
 export const scanSvk = async (_req: Request, res: Response) => {
+  const startedAt = Date.now();
   try {
     // each ticket is queued for AI as soon as it is saved, so by the time the scan
     // returns the AI job is already partway through; client polls /svk/ai-status
     const result = await scanSvkTickets();
     res.status(200).json({ ...result, aiJob: getAiJobState() });
+    // the Telegram report waits for the AI queue to drain — don't hold the response for it
+    void reportScan('thủ công', result, startedAt);
   } catch (error: any) {
     console.error('Error scanning SVK tickets:', error);
     res.status(500).json({ message: 'SVK scan failed', error: error?.message });

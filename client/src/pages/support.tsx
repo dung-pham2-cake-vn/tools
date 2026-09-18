@@ -100,8 +100,11 @@ interface AiJobState {
   total: number;
   done: number;
   failed: number;
+  skipped: number;
   queued: number;
   current: string[];
+  aiAvailable: boolean;
+  aiUnavailableReason: string;
 }
 
 function statusBadge(status: string): string {
@@ -707,6 +710,57 @@ const CommentList: React.FC<{ comments: SvkComment[] }> = ({ comments }) => {
 };
 
 // ── SVK detail panel (slide-in from right) ───────────────────────────────────
+/** Tiêu đề + nội dung SVK gom thành một khối dán được sang nơi khác. */
+function buildTemplate(doc: SvkTicketDoc): string {
+  const keys = doc.linkedPlKeys || [];
+  const heading = `${keys.join(', ') || '(chưa có PL)'} x ${doc.key}`;
+  const links = keys.map((key) => `${JIRA_BASE}/browse/${key}`).join('\n');
+  const body = (doc.description || '').trim() || '(ticket không có nội dung)';
+  return [heading, links, body].filter(Boolean).join('\n');
+}
+
+const CopyTemplateButton: React.FC<{ doc: SvkTicketDoc; className?: string }> = ({ doc, className }) => {
+  const [state, setState] = useState<'idle' | 'copied' | 'error'>('idle');
+
+  const copy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(buildTemplate(doc));
+      setState('copied');
+    } catch {
+      // clipboard bị chặn (http, quyền trình duyệt) — mở Detail rồi bôi đen copy tay
+      setState('error');
+    }
+    setTimeout(() => setState('idle'), 1500);
+  };
+
+  return (
+    <button
+      onClick={copy}
+      title="Copy template (PL x SVK + link + nội dung)"
+      className={className || 'text-xs px-2.5 py-1.5 border border-gray-300 rounded hover:bg-gray-100 text-gray-700'}
+    >
+      {state === 'copied' ? '✓ Copied' : state === 'error' ? '✗ Lỗi' : '⧉ Copy'}
+    </button>
+  );
+};
+
+const TemplateBlock: React.FC<{ doc: SvkTicketDoc }> = ({ doc }) => {
+  const text = buildTemplate(doc);
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <CopyTemplateButton doc={doc} className="text-xs px-3 py-1.5 bg-gray-700 text-white rounded hover:bg-gray-800" />
+        <span className="text-[11px] text-gray-400">Dán thẳng sang Jira / chat</span>
+      </div>
+      <pre className="text-xs bg-gray-50 border border-gray-200 rounded p-3 whitespace-pre-wrap break-words text-gray-800 max-h-80 overflow-y-auto">
+        {text}
+      </pre>
+    </div>
+  );
+};
+
 const SvkDetailPanel: React.FC<{
   row: SvkRow;
   onClose: () => void;
@@ -771,6 +825,10 @@ const SvkDetailPanel: React.FC<{
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+          <Collapse title="📋 Template" defaultOpen>
+            <TemplateBlock doc={doc} />
+          </Collapse>
+
           <Collapse title={`${doc.key} — Nội dung`}>
             {doc.descriptionAdf || doc.description ? (
               <AdfRenderer adf={doc.descriptionAdf} fallback={doc.description} />
@@ -1073,6 +1131,13 @@ const SVKTicketsTab: React.FC = () => {
             {aiJob.current.length > 0 && ` — ${aiJob.current.join(', ')}`}
           </span>
         )}
+        {aiJob && !aiJob.aiAvailable && (
+          <span className="text-sm text-amber-700" title={aiJob.aiUnavailableReason}>
+            🚫 AI không khả dụng — bỏ qua review
+            {aiJob.skipped > 0 && ` (${aiJob.skipped} ticket)`}
+            : {aiJob.aiUnavailableReason}
+          </span>
+        )}
         {scanError && <span className="text-sm text-red-600">✗ {scanError}</span>}
       </div>
 
@@ -1097,7 +1162,7 @@ const SVKTicketsTab: React.FC = () => {
                   <th className="px-3 py-3 text-left w-[130px]">TT SVK</th>
                   <th className="px-3 py-3 text-left w-[140px]">TT PL</th>
                   <th className="px-3 py-3 text-left w-[220px]">Note</th>
-                  <th className="px-3 py-3 text-center w-[90px]">Detail</th>
+                  <th className="px-3 py-3 text-center w-[150px]">Detail</th>
                 </tr>
               </thead>
               <tbody>
@@ -1211,12 +1276,15 @@ const SVKTicketsTab: React.FC = () => {
                         />
                       </td>
                       <td className="px-3 py-3 text-center whitespace-nowrap">
-                        <button
-                          onClick={() => setSelectedKey(doc.key)}
-                          className="text-xs px-2.5 py-1.5 border border-gray-300 rounded hover:bg-gray-100 text-gray-700"
-                        >
-                          Detail
-                        </button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => setSelectedKey(doc.key)}
+                            className="text-xs px-2.5 py-1.5 border border-gray-300 rounded hover:bg-gray-100 text-gray-700"
+                          >
+                            Detail
+                          </button>
+                          <CopyTemplateButton doc={doc} />
+                        </div>
                         <div className="mt-1 text-[10px] leading-3">
                           {doc.aiResult ? (
                             <span className="text-violet-600" title="Đã có kết quả AI">✦ AI</span>
@@ -1337,7 +1405,7 @@ const SvkHistoryTab: React.FC = () => {
                   <th className="px-3 py-3 text-left w-[150px]">Load gần nhất</th>
                   <th className="px-3 py-3 text-center w-[70px]">Số lần</th>
                   <th className="px-3 py-3 text-left w-[220px]">Note</th>
-                  <th className="px-3 py-3 text-center w-[90px]">Detail</th>
+                  <th className="px-3 py-3 text-center w-[150px]">Detail</th>
                 </tr>
               </thead>
               <tbody>
@@ -1375,12 +1443,15 @@ const SvkHistoryTab: React.FC = () => {
                       <NoteCell svkKey={doc.key} value={notes[doc.key] || ''} onChange={handleNoteChange} />
                     </td>
                     <td className="px-3 py-3 text-center whitespace-nowrap">
-                      <button
-                        onClick={() => setSelectedKey(doc.key)}
-                        className="text-xs px-2.5 py-1.5 border border-gray-300 rounded hover:bg-gray-100 text-gray-700"
-                      >
-                        Detail
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => setSelectedKey(doc.key)}
+                          className="text-xs px-2.5 py-1.5 border border-gray-300 rounded hover:bg-gray-100 text-gray-700"
+                        >
+                          Detail
+                        </button>
+                        <CopyTemplateButton doc={doc} />
+                      </div>
                       <div className="mt-1 text-[10px] leading-3">
                         {doc.aiResult ? (
                           <span className="text-violet-600" title="Đã có kết quả AI">✦ AI</span>

@@ -749,7 +749,7 @@ components:
               properties:
                 request_id:
                   type: string
-                  description: ID dùng cho các API client-update, loan-register (và get-status nếu sản phẩm bật)
+                  description: ID dùng cho các API client-update, loan-register, get-onboarding-status
                   example: "req-abc123"
 
     ClientUpdateRequest:
@@ -877,35 +877,76 @@ components:
                   description: Mã khoản vay (null nếu REJECTED)
                   example: "u8123123Sjsdb"
 
-    GetStatusRequest:
+    GetOnboardingStatusRequest:
       type: object
       required:
+        - request_id
         - phone_number
       properties:
         request_id:
           type: string
-          nullable: true
-          description: Request ID từ API /client-create (optional)
+          description: Request ID từ API /client-create
+          example: "req-abc123"
         phone_number:
           type: string
           description: Số điện thoại KH (bắt đầu bằng số 0)
           example: "0xxxxxxxxx"
 
-    GetStatusResponse:
+    GetOnboardingStatusResponse:
       allOf:
         - $ref: "#/components/schemas/BaseResponse"
         - type: object
           properties:
             data:
               type: object
+              required:
+                - onboarding_status
               properties:
-                status:
+                onboarding_status:
                   type: string
+                  description: |
+                    Bước onboarding xa nhất mà hồ sơ đã hoàn tất:
+                    - `ONBOARDING_CREATE`: đã gọi /client-create thành công
+                    - `ONBOARDING_UPDATE`: đã gọi /client-update thành công và eKYC đạt (`ekyc_status=EKYC_SUCCESS`)
+                    - `ONBOARDING_REGISTER`: đã gọi /loan-register thành công và khoản vay đã có kết quả duyệt hoặc từ chối
+
+                    Hồ sơ đã gọi /client-update nhưng eKYC chưa đạt (`EKYC_PENDING`) hoặc trượt (`EKYC_REJECT`)
+                    vẫn giữ `ONBOARDING_CREATE` — đọc `ekyc_status` để biết chi tiết.
                   enum:
-                    - EKYC_INIT
+                    - ONBOARDING_CREATE
+                    - ONBOARDING_UPDATE
+                    - ONBOARDING_REGISTER
+                  example: ONBOARDING_UPDATE
+                ekyc_status:
+                  type: string
+                  nullable: true
+                  description: Trạng thái eKYC. Chỉ trả về khi đã gọi /client-update thành công, ngược lại là null.
+                  enum:
                     - EKYC_PENDING
                     - EKYC_REJECT
                     - EKYC_SUCCESS
+                  example: EKYC_SUCCESS
+                loan_code:
+                  type: string
+                  nullable: true
+                  description: Mã khoản vay. Chỉ trả về khi đã gọi /loan-register thành công, ngược lại là null.
+                  example: "u8123123Sjsdb"
+                loan_status:
+                  type: string
+                  nullable: true
+                  description: Trạng thái khoản vay (giá trị như `loan_account_status` của /get-loan-detail).
+                    Chỉ trả về khi đã gọi /loan-register thành công, ngược lại là null.
+                  enum:
+                    - LOAN_INIT
+                    - LOAN_REVIEWING
+                    - LOAN_REJECT
+                    - LOAN_APPROVE
+                    - LOAN_EXPIRED
+                    - LOAN_CANCEL
+                    - LOAN_SIGNED
+                    - LOAN_ACTIVE
+                    - LOAN_CLOSE
+                  example: LOAN_APPROVE
 
     GetLoanDetailRequest:
       type: object
@@ -2423,11 +2464,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/LoanRegisterResponse"
 
-  /get-status:
+  /get-onboarding-status:
     post:
       tags: [ Onboarding ]
-      summary: Truy vấn trạng thái hồ sơ eKYC
-      operationId: getStatus
+      summary: Truy vấn tiến độ onboarding của hồ sơ
+      description: |
+        Trả về bước onboarding xa nhất hồ sơ đã hoàn tất (`onboarding_status`), kèm trạng thái eKYC
+        và thông tin khoản vay nếu đã có.
+
+        Dùng để poll khi `/client-update` trả `EKYC_PENDING`, hoặc khi partner mất trạng thái
+        (app bị kill, mất mạng) và cần biết hồ sơ đang ở đâu để đi tiếp.
+      operationId: getOnboardingStatus
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
         - $ref: "#/components/parameters/PartnerHeader"
@@ -2437,14 +2484,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/GetStatusRequest"
+              $ref: "#/components/schemas/GetOnboardingStatusRequest"
       responses:
         "200":
           description: Thành công
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GetStatusResponse"
+                $ref: "#/components/schemas/GetOnboardingStatusResponse"
 
   /get-loan-detail:
     post:
@@ -3343,9 +3390,9 @@ x-mermaid-flows:
         P->>C: client-update(request_id, selfie, front_nid, back_nid)
         C-->>P: status
         alt status = EKYC_PENDING
-          Note over P: Poll get-status cho đến EKYC_SUCCESS
-          P->>C: get-status(request_id, phone)
-          C-->>P: status=EKYC_SUCCESS
+          Note over P: Poll get-onboarding-status cho đến EKYC_SUCCESS
+          P->>C: get-onboarding-status(request_id, phone)
+          C-->>P: onboarding_status=ONBOARDING_UPDATE, ekyc_status=EKYC_SUCCESS
         end
         Note over P,C: BƯỚC 5 - ĐĂNG KÝ KHOẢN VAY
         P->>C: loan-register(request_id, phone)

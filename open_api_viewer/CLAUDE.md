@@ -79,7 +79,7 @@ Placeholder trong base: `product_id`, `email_title`, `2026-0x-0x`.
 
 | Thư mục | Spec | Mô hình | Lock hiện có |
 |---|---|---|---|
-| `be_cashloan/` | Be_Cashloan - BE x CAKE Lending APIs | custom (create-link/token, get-be-score) | — |
+| `be_cashloan/` | be_cashloan - API specs | custom (create-link/token, get-be-score) | — |
 | `dvs/` | DVS - Repayment APIs | thu hộ tại quầy `cake-proxy/cash-collection` (order/inquiry, transaction/collect, transaction/inquiry) | `lending_only.lock.yaml` |
 | `be_payday/` | be_payday - APIs spec | DOP | `20260608.lock.yaml`, `20260611.lock.yaml` |
 | `fiza_cashloan/` | Fiza Cashloan - Native API | Native | `index.lock.yaml` |

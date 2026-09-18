@@ -12,7 +12,6 @@ info:
     | 2026-08-10 | [VDS-CAKE] API SPEC SẢN PHẨM PAYDAY NATIVE | Khởi tạo tài liệu |
     | 2026-08-19 | [VDS-CAKE] API SPEC SẢN PHẨM PAYDAY NATIVE | Bổ sung 3 API disburse |
     | 2026-09-16 | [VDS-CAKE] API SPEC SẢN PHẨM PAYDAY NATIVE | Bổ sung API `/get-onboarding-status`; `client-update` đổi 3 ảnh base64 sang `*_image_url` (đối tác host ảnh, Cake tải về); `check-profile` bổ sung input `metadata.non_viettel` và output `is_repeated`; `nfc_data` chốt required cho toàn bộ field bên trong |
-    | 2026-09-17 | [VDS-CAKE] API SPEC SẢN PHẨM PAYDAY NATIVE | Bỏ API `/get-loan-code-from-loan-id` (tag `Legacy Support`); đổi cơ chế ký từ RSA 1024 bit sang **RSA 2048 bit**; `/partner-disburse-request` bỏ field `partner_disburse_status` |
 
     ## Cơ chế xác thực (Signature)
     ```
@@ -20,7 +19,7 @@ info:
     hash     = sha256(rawBody)
     signature = base64_encode(rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA256, hash))
     ```
-    Partner tạo cặp khóa RSA 2048 bit: private key (PKCS#8) và public key (X.509), gửi public key cho Cake.
+    Partner tạo cặp khóa RSA 1024 bit: private key (PKCS#8) và public key (X.509), gửi public key cho Cake.
 
     ## Môi trường
 
@@ -1279,6 +1278,7 @@ components:
         - phone_number
         - approved_amount
         - disburse_amount
+        - partner_disburse_status
       properties:
         request_id:
           type: string
@@ -1308,6 +1308,15 @@ components:
           type: string
           description: Số tiền giải ngân có bảo hiểm
           example: "12840000"
+        partner_disburse_status:
+          type: string
+          description: |
+            SUCCESS: CAKE thực hiện giải ngân
+            FAILURE: CAKE thực hiện hủy khoản vay do giải ngân thất bại đầu đối tác
+          enum:
+            - SUCCESS
+            - FAILURE
+          example: "SUCCESS"
 
     PartnerDisburseStatusRequest:
       type: object
@@ -1411,6 +1420,35 @@ components:
             - LOAN_SIGNED
             - LOAN_ACTIVE
             - LOAN_CLOSE
+
+    # ── Legacy Support ──
+    GetLoanCodeFromLoanIdRequest:
+      type: object
+      required:
+        - loan_id
+        - phone_number
+      properties:
+        loan_id:
+          type: string
+          description: Mã khoản vay theo hệ thống cũ (DOP), dùng làm loan_id trong API LoanRepayment trước đây
+          example: "27614531"
+        phone_number:
+          type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
+          example: "0xxxxxxxxx"
+
+    GetLoanCodeFromLoanIdResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                loan_code:
+                  type: string
+                  description: Mã khoản vay theo hệ thống mới (Native), dùng cho get-loan-detail, repayment-request...
+                  example: "u8123123Sjsdb"
 
 # ─────────────────────────────────────────────
 # PATHS
@@ -2007,6 +2045,7 @@ paths:
               approved_amount: "12000000"
               loan_insurance: "840000"
               disburse_amount: "12840000"
+              partner_disburse_status: "SUCCESS"
       responses:
         "200":
           description: Partner xác nhận nhận callback
@@ -2058,6 +2097,41 @@ paths:
                 data:
                   partner_disburse_status: "SUCCESS"
 
+  # ════════════════════════════════════
+  # LEGACY SUPPORT
+  # ════════════════════════════════════
+  /get-loan-code-from-loan-id:
+    post:
+      tags: [Legacy Support]
+      summary: Tra cứu loan_code từ loan_id hệ thống cũ
+      description: |
+        Trước đây (mô hình DOP) các khoản vay được định danh bằng `loan_id`
+        (xem API `LoanRepayment` cũ). Sản phẩm chuyển sang mô hình Native dùng `loan_code`.
+
+        API này hỗ trợ các khoản vay cũ: truyền `loan_id` để lấy `loan_code` tương ứng,
+        dùng cho các API Native khác (get-loan-detail, repayment-request...).
+      operationId: getLoanCodeFromLoanId
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetLoanCodeFromLoanIdRequest"
+            example:
+              loan_id: "27614531"
+              phone_number: "0996908143"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetLoanCodeFromLoanIdResponse"
+
 # ─────────────────────────────────────────────
 # TAGS
 # ─────────────────────────────────────────────
@@ -2097,6 +2171,10 @@ tags:
       Partner phải expose endpoint `/partner-update-status` và trả về `{"success":true,"code":1,"message":"Thành công"}`.
 
       **Xác thực ngược:** Cake ký bằng private key → Partner verify bằng `CAKE_PUBLIC_KEY`.
+  - name: Legacy Support
+    description: |
+      Hỗ trợ các khoản vay cũ (mô hình DOP, định danh bằng `loan_id`) chuyển sang dùng
+      `loan_code` theo mô hình Native.
 
 # ─────────────────────────────────────────────
 # SEQUENCE DIAGRAMS

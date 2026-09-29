@@ -10,3 +10,6 @@ yarn-error.log*
 .vscode/
 .idea/
 .env.*.local
+
+# CA nội bộ cho Node (Cloudflare WARP TLS inspection)
+certs/

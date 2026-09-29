@@ -18,26 +18,21 @@ const NOTIFY_WHEN_EMPTY = process.env.SVK_NOTIFY_WHEN_EMPTY === 'true';
 const vnTime = (d: Date) =>
   d.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
 
-/** Ngày tuổi tính theo ngày làm việc, khớp với cột trên trang Support. */
-function workingDaysSince(createdIso: string): number {
-  if (!createdIso) return 0;
-  const start = new Date(new Date(createdIso).getTime() + 7 * 60 * 60 * 1000);
-  const today = new Date(Date.now() + 7 * 60 * 60 * 1000);
-  start.setUTCHours(0, 0, 0, 0);
-  today.setUTCHours(0, 0, 0, 0);
-  if (start > today) return 0;
+const SVK_PORTAL_BASE = 'https://internal.support.cake.vn/servicedesk/customer/portal/1';
+const JIRA_BASE = process.env.JIRA_HOST || 'https://cakedigitalbank.atlassian.net';
 
-  let count = 0;
-  const cursor = new Date(start);
-  while (cursor <= today) {
-    const day = cursor.getUTCDay();
-    if (day !== 0 && day !== 6) count++;
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-  return count;
-}
+/**
+ * Link chỉ nằm ở phần chữ của key ("SVK", "PL"), phần số để trần cho dễ đọc/copy.
+ * Telegram HTML mode chỉ cho phép vài thẻ, <a href> nằm trong số đó.
+ */
+export const linkIssueKey = (key: string): string => {
+  const [prefix, ...rest] = key.split('-');
+  if (!rest.length) return escapeHtml(key);
+  const url = prefix.toUpperCase() === 'SVK' ? `${SVK_PORTAL_BASE}/${key}` : `${JIRA_BASE}/browse/${key}`;
+  return `<a href="${url}">${escapeHtml(prefix)}</a>-${escapeHtml(rest.join('-'))}`;
+};
 
-async function buildReport(
+export async function buildReport(
   trigger: string,
   total: number,
   changedKeys: string[],
@@ -45,38 +40,38 @@ async function buildReport(
   aiDrained: boolean,
   aiUnavailableReason: string
 ): Promise<string> {
-  const ai = getAiJobState();
-  const aiLine = aiUnavailableReason
-    ? `🚫 AI bỏ qua — ${escapeHtml(aiUnavailableReason)}`
-    : `AI: ${ai.done} xong, ${ai.failed} lỗi${ai.skipped ? `, ${ai.skipped} bỏ qua` : ''}${
-        aiDrained ? '' : ', <i>còn đang chạy (timeout chờ)</i>'
-      }`;
-  const head = [
-    `🔍 <b>SVK scan</b> — ${escapeHtml(vnTime(new Date()))} (${escapeHtml(trigger)})`,
-    `Tổng ticket đang mở: <b>${total}</b> | Mới/đổi nội dung: <b>${changedKeys.length}</b> | ${seconds}s`,
-    aiLine,
-  ].join('\n');
-
-  if (!changedKeys.length) return head;
-
-  const docs = await SvkTicket.find({ key: { $in: changedKeys } })
+  // Báo cáo liệt kê TOÀN BỘ ticket đang mở — đọc một lần là biết hiện trạng,
+  // khỏi phải ghép với các tin scan trước.
+  const docs = await SvkTicket.find({})
     .select('key created linkedPlKeys')
     .sort({ created: 1 })
     .lean();
 
-  const noteDocs = await SvkNote.find({ key: { $in: changedKeys } }).select('key note').lean();
+  const noteDocs = await SvkNote.find({}).select('key note').lean();
   const notes = new Map(noteDocs.map((n) => [n.key, (n.note || '').replace(/\s+/g, ' ').trim()]));
 
-  // một dòng mỗi ticket: SVK x PL · ngày tuổi · note (lỗi AI đã có ở dòng tổng, không lặp lại)
   const lines = docs.map((d) => {
-    const pl = (d.linkedPlKeys || []).join(', ') || 'chưa có PL';
-    const parts = [`${d.key} x ${pl}`, `${workingDaysSince(d.created)}d`];
+    const pl = (d.linkedPlKeys || []).map(linkIssueKey).join(', ') || 'chưa có PL';
     const note = notes.get(d.key);
-    if (note) parts.push(note);
-    return escapeHtml(parts.join(' · '));
+    return `${linkIssueKey(d.key)} x ${pl}${note ? ` · ${escapeHtml(note)}` : ''}`;
   });
 
-  return `${head}\n\n${lines.join('\n')}`;
+  const ai = getAiJobState();
+  // chỉ nhắc AI khi có chuyện — chạy trơn thì không cần chiếm dòng
+  const aiWarning = aiUnavailableReason
+    ? `🚫 AI bỏ qua — ${escapeHtml(aiUnavailableReason)}`
+    : ai.failed > 0
+      ? `⚠️ AI lỗi ${ai.failed} ticket`
+      : aiDrained
+        ? ''
+        : '⏳ AI còn đang chạy';
+
+  return [
+    `🔍 <b>SVK scan</b> — ${escapeHtml(vnTime(new Date()))} (${escapeHtml(trigger)})`,
+    `${docs.length} ticket SVK đang mở`,
+    ...lines,
+    ...(aiWarning ? ['', aiWarning] : []),
+  ].join('\n');
 }
 
 /**

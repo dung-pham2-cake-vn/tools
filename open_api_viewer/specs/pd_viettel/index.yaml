@@ -13,14 +13,27 @@ info:
     | 2026-08-19 | [VDS-CAKE] API SPEC SẢN PHẨM PAYDAY NATIVE | Bổ sung 3 API disburse |
     | 2026-09-16 | [VDS-CAKE] API SPEC SẢN PHẨM PAYDAY NATIVE | Bổ sung API `/get-onboarding-status`; `client-update` đổi 3 ảnh base64 sang `*_image_url` (đối tác host ảnh, Cake tải về); `check-profile` bổ sung input `metadata.non_viettel` và output `is_repeated`; `nfc_data` chốt required cho toàn bộ field bên trong |
     | 2026-09-17 | [VDS-CAKE] API SPEC SẢN PHẨM PAYDAY NATIVE | Bỏ API `/get-loan-code-from-loan-id` (tag `Legacy Support`); đổi cơ chế ký từ RSA 1024 bit sang **RSA 2048 bit**; `/partner-disburse-request` bỏ field `partner_disburse_status` |
+    | 2026-09-18 | [VDS-CAKE] API SPEC SẢN PHẨM PAYDAY NATIVE | Đồng bộ nhóm API Cake → VDS theo tài liệu VDS-LP-PAYDAY-CAKE-001 v1.0: body bọc `timestamp` + `requestId` + `data{}` camelCase, response `code` dạng chuỗi (`000` = thành công), cơ chế ký riêng (sort key alphabet đệ quy, không nối `partner_key`), header `apikey`; `partner-disburse-request` bỏ `partner_reference_id`/`loan_insurance`, bổ sung `identityNumber`; `partner-disburse-status` bổ sung `PROCESSING`/`TIMEOUT` + `subStatus`; bổ sung API `/applications/status`, bảng mã lỗi VDS và sub-status `DIS00xx` |
 
     ## Cơ chế xác thực (Signature)
+
+    Hai chiều dùng **hai cơ chế khác nhau** — không dùng lẫn.
+
+    ### Partner → Cake (toàn bộ API Phase 1–4)
     ```
     rawBody  = {{body}} + {{partner_key}}
     hash     = sha256(rawBody)
     signature = base64_encode(rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA256, hash))
     ```
     Partner tạo cặp khóa RSA 2048 bit: private key (PKCS#8) và public key (X.509), gửi public key cho Cake.
+
+    ### Cake → VDS (nhóm `Cake → VDS` bên dưới)
+    ```
+    body      = JSON body, sắp xếp key theo alphabet (đệ quy, áp dụng cả object lồng nhau)
+    signature = base64(SHA256withRSA(body, cakePrivateKey))
+    ```
+    **Không** nối `partner_key` vào body. Khóa RSA 2048 bit trở lên, private key PKCS#8 / public key X.509.
+    VDS verify bằng `CAKE_PUBLIC_KEY`.
 
     ## Môi trường
 
@@ -33,7 +46,8 @@ info:
     | CAKE_PUBLIC_KEY | *(Cake cấp, file riêng)* | Partner dùng để verify Cake-signed payloads |
     | CAKE_IP_ADDRESS | `35.197.157.155/32` `34.87.136.147/32` `35.240.241.82/32` `34.142.212.108/32` `35.198.211.12/32` `34.143.164.202/32` `34.124.200.2/32` | Partner whitelist |
     | PARTNER_PUBLIC_KEY | *(Partner cấp, file riêng)* | Cake dùng để verify Partner-signed payloads |
-    | PARTNER_API_URL | *(Partner cấp)* | Endpoint callback |
+    | PARTNER_API_URL | `https://staging1.viettelmoney.vn/lending/lender/public/v1/CAKE_PAYDAY/` | Base URL Cake gọi sang VDS (callback + truy vấn) |
+    | VDS_API_KEY | *(VDS cấp)* | Header `apikey` khi Cake gọi VDS. Môi trường SIT không yêu cầu |
     | PARTNER_IP_ADDRESS | `34.87.136.147` *(Cake auto)* | Cake whitelist |
 
     ### PROD
@@ -45,7 +59,8 @@ info:
     | CAKE_PUBLIC_KEY | *(Cake cấp, file riêng)* | Partner dùng để verify Cake-signed payloads |
     | CAKE_IP_ADDRESS | `34.87.56.148/32` `35.240.146.157/32` `34.87.175.195/32` `34.142.177.122/32` `34.87.39.41/32` `34.143.164.31/32` `34.143.174.79/32` | Partner whitelist |
     | PARTNER_PUBLIC_KEY | *(Partner cấp, file riêng)* | Cake dùng để verify Partner-signed payloads |
-    | PARTNER_API_URL | *(Partner cấp)* | Endpoint callback |
+    | PARTNER_API_URL | *(VDS cấp sau)* | Base URL Cake gọi sang VDS (callback + truy vấn) |
+    | VDS_API_KEY | *(VDS cấp)* | Header `apikey` khi Cake gọi VDS |
     | PARTNER_IP_ADDRESS | *(Partner cấp)* | Cake whitelist |
 
     ## Error Codes
@@ -120,6 +135,48 @@ info:
     | `400001` | Không có thông tin khoản vay | loan_code không tìm thấy hoặc phone không khớp |
     | `600000` | Thông tin thanh toán không hợp lệ | loan_code và order_id không khớp, hoặc payment_amount = 0 |
 
+    ### VDS (nhóm API Cake → VDS)
+    Mã do hệ thống VDS trả về. HTTP status luôn là `200`.
+
+    | Code | Mô tả | Xử lý |
+    |------|-------|-------|
+    | `000` | Thành công | — |
+    | `403` | Xác thực chữ ký số thất bại | Kiểm tra lại request body |
+    | `407` | Chữ ký số không hợp lệ | Kiểm tra lại chữ ký số và header chuẩn |
+    | `404` | Không tìm thấy hồ sơ trên hệ thống | Kiểm tra lại thông tin khoản vay |
+    | `406` | Dữ liệu không hợp lệ | Kiểm tra lại request body |
+    | `413` | Dữ liệu không hợp lệ | Kiểm tra lại request body |
+    | `411` | Giao dịch bị trùng lặp | VDS đã ghi nhận yêu cầu giải ngân, chờ kết quả cuối |
+    | `416` | Timestamp không hợp lệ hoặc lệch quá 5 phút so với giờ VDS | Khởi tạo request với timestamp mới |
+
+    ### VDS — sub-status giao dịch giải ngân thất bại/timeout
+    Trả ở `data.subStatus` khi `data.status = FAILED`.
+    Trạng thái phát sinh **không** nằm trong danh sách này: không gọi lại API giải ngân.
+
+    | Code | Nội dung | Hành động |
+    |------|----------|-----------|
+    | `DIS0002` | Số tiền giải ngân không trùng khớp | Kiểm tra request, tạo yêu cầu giải ngân mới |
+    | `DIS0003` | Họ tên KH nhận giải ngân không trùng khớp | Kiểm tra request, tạo yêu cầu giải ngân mới |
+    | `DIS0004` | Số tài khoản nhận giải ngân không trùng khớp | Kiểm tra request, tạo yêu cầu giải ngân mới |
+    | `DIS0005` | Thông tin ngân hàng nhận giải ngân không trùng khớp | Kiểm tra request, tạo yêu cầu giải ngân mới |
+    | `DIS0006` | Thiếu thông tin bắt buộc | Kiểm tra request, tạo yêu cầu giải ngân mới |
+    | `DIS0007` | Định dạng không hợp lệ | Kiểm tra request, tạo yêu cầu giải ngân mới |
+    | `DIS0008` | Tài khoản nhận không ở trạng thái hoạt động | Cancel khoản vay |
+    | `DIS0009` | Tài khoản nhận không cho phép nhận tiền | Cancel khoản vay |
+    | `DIS0010` | Lỗi hệ thống | Tạo yêu cầu giải ngân mới |
+    | `DIS0011` | Trạng thái khoản vay không hợp lệ | Phối hợp với VDS kiểm tra |
+    | `DIS0012` | Chữ ký không hợp lệ | Phối hợp với VDS kiểm tra |
+    | `DIS0013` | Ngân hàng nhận đang bảo trì | Liên hệ VDS, tạo yêu cầu mới khi đảm bảo |
+    | `DIS0014` | Lỗi tại hệ thống ngân hàng nhận | Liên hệ VDS, tạo yêu cầu mới khi đảm bảo |
+    | `DIS0015` | Tài khoản nhận giải ngân đã hủy | Cancel khoản vay |
+    | `DIS0016` | Tài khoản người gửi không thực hiện được giao dịch | Kiểm tra lại thông tin TK, tạo yêu cầu mới |
+    | `DIS0018` | Số dư tài khoản người gửi không đủ | Nạp tiền vào TK, tạo yêu cầu mới |
+    | `DIS0019` | Trùng lặp giao dịch | Phối hợp với VDS kiểm tra |
+    | `DIS0020` | Giao dịch thất bại sau đối soát | Cancel khoản vay |
+    | `DIS0021` | Không tìm thấy giao dịch cần vấn tin | Phối hợp với VDS kiểm tra |
+    | `DIS0024` | Hệ thống đang bảo trì | Liên hệ VDS, tạo yêu cầu mới khi đảm bảo |
+    | `DIS1001` | Hệ thống chưa ghi nhận yêu cầu giải ngân | Tạo yêu cầu giải ngân mới |
+
   version: "1.0.0"
   contact:
     name: Cake Digital Bank
@@ -169,6 +226,27 @@ components:
       schema:
         type: string
 
+    VdsSignatureHeader:
+      name: Signature
+      in: header
+      required: true
+      description: |
+        Chữ ký cho request **Cake → VDS** (khác cơ chế chiều Partner → Cake):
+        sắp xếp key JSON body theo alphabet (đệ quy) → SHA256withRSA bằng private key của Cake → base64.
+        Không nối `partner_key` vào body. VDS verify bằng `CAKE_PUBLIC_KEY`.
+      schema:
+        type: string
+
+    ApiKeyHeader:
+      name: apikey
+      in: header
+      required: false
+      description: |
+        `VDS_API_KEY` do VDS cấp, định danh hệ thống Cake.
+        Bắt buộc ở PreProduction/Production; môi trường SIT không yêu cầu.
+      schema:
+        type: string
+
     ContentTypeHeader:
       name: Content-Type
       in: header
@@ -205,25 +283,25 @@ components:
           description: Thời gian phản hồi (ISO 8601)
           example: "2025-12-11T09:45:00+07:00"
 
-    PartnerCallbackResponse:
+    # ── Wrapper response của VDS (nhóm API Cake → VDS) ──
+    VdsBaseResponse:
       type: object
       required:
-        - success
         - code
         - message
       properties:
-        success:
-          type: boolean
-          description: Kết quả xử lý yêu cầu (true/false)
-          example: true
         code:
-          type: integer
-          description: "Mã trạng thái (1 = Thành công; khác 1 = lỗi)"
-          example: 1
+          type: string
+          description: "Mã kết quả phía VDS. `000` = thành công (xem bảng Error Codes → VDS)"
+          example: "000"
         message:
           type: string
-          description: Thông báo phản hồi
+          description: Mô tả kết quả
           example: "Thành công"
+        data:
+          type: object
+          nullable: true
+          description: Dữ liệu chi tiết, `null` khi lỗi
 
     # ── Onboarding ──
     DataConfigResponse:
@@ -1270,147 +1348,268 @@ components:
           enum: [ 1, 2 ]
           example: 1
 
-    PartnerDisburseRequest:
+    # ── Cake → VDS: request ──
+    VdsRequestEnvelope:
       type: object
+      description: Phần bao chung của mọi request Cake gửi sang VDS
       required:
-        - request_id
-        - partner_reference_id
-        - loan_code
-        - phone_number
-        - approved_amount
-        - disburse_amount
+        - timestamp
+        - requestId
+        - data
       properties:
-        request_id:
+        timestamp:
           type: string
-          description: request_id được sinh ra ở API client-create
-          example: "req-abc123"
-        partner_reference_id:
+          description: |
+            Thời điểm khởi tạo request, ISO-8601 `yyyy-MM-dd'T'HH:mm:ssXXX`, timezone +07:00.
+            Hiệu lực 5 phút — lệch quá sẽ bị VDS từ chối với mã `416`.
+          example: "2026-09-14T10:15:00+07:00"
+        requestId:
           type: string
-          description: partner_reference_id của đối tác truyền ở API client-create
-          example: "bf133c7c-8e10-45a2-b9d2-4d04a352917a"
-        loan_code:
-          type: string
-          description: Mã khoản vay, chỉ truyền từ khi loan approve
-          example: "u8123123Sjsdb"
-        phone_number:
-          type: string
-          description: SĐT của KH (định dạng bắt đầu bằng số 0)
-          example: "034xxxxx00"
-        approved_amount:
-          type: string
-          description: Số tiền được phê duyệt
-          example: "12000000"
-        loan_insurance:
-          type: string
-          description: Số tiền bảo hiểm khoản vay
-          example: "840000"
-        disburse_amount:
-          type: string
-          description: Số tiền giải ngân có bảo hiểm
-          example: "12840000"
+          description: UUID duy nhất cho mỗi request, VDS dùng để idempotency. Retry giữ nguyên giá trị cũ.
+          example: "7b2e9a1f8c3d4b5a6e7f8d9c0b1a2e3f"
+
+    PartnerDisburseRequest:
+      allOf:
+        - $ref: "#/components/schemas/VdsRequestEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - loanCode
+                - identityNumber
+                - disburseAmount
+              properties:
+                loanCode:
+                  type: string
+                  description: Mã khoản vay phía Cake, sinh từ API loan-register
+                  example: "u8123123Sjsdb"
+                fullName:
+                  type: string
+                  description: Họ tên khách hàng
+                  example: "NGUYEN VAN A"
+                identityNumber:
+                  type: string
+                  description: Số giấy tờ tùy thân
+                  example: "001090012345"
+                disburseAmount:
+                  type: integer
+                  description: Số tiền giải ngân thực tế (VND)
+                  example: 9500000
+                loanAmount:
+                  type: integer
+                  description: Số tiền được phê duyệt trên hợp đồng (VND)
+                  example: 10000000
+                bankCode:
+                  type: string
+                  description: Mã ngân hàng (Napas)
+                  example: "970415"
+                accountNumber:
+                  type: string
+                  description: Số tài khoản nhận tiền
+                  example: "19034567890012"
+                tenor:
+                  type: integer
+                  description: Kỳ hạn vay
+                  example: 12
+
+    PartnerDisburseRequestResponse:
+      allOf:
+        - $ref: "#/components/schemas/VdsBaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                transactionId:
+                  type: string
+                  description: ID giao dịch giải ngân trên hệ thống VDS
+                  example: "0d68bc41-fa57-4d62-946e-1473fba6728c"
+                vdsLoanId:
+                  type: string
+                  description: ID khoản vay trên hệ thống VDS
+                  example: "01GXBSD72R12GF113GX8JS81D5"
 
     PartnerDisburseStatusRequest:
-      type: object
-      required:
-        - request_id
-        - partner_reference_id
-        - loan_code
-        - phone_number
-      properties:
-        request_id:
-          type: string
-          description: request_id được sinh ra ở API client-create
-          example: "req-abc123"
-        partner_reference_id:
-          type: string
-          description: partner_reference_id của đối tác truyền ở API client-create
-          example: "bf133c7c-8e10-45a2-b9d2-4d04a352917a"
-        loan_code:
-          type: string
-          description: Mã khoản vay, chỉ truyền từ khi loan approve
-          example: "u8123123Sjsdb"
-        phone_number:
-          type: string
-          description: SĐT của KH (định dạng bắt đầu bằng số 0)
-          example: "034xxxxx00"
+      allOf:
+        - $ref: "#/components/schemas/VdsRequestEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - loanCode
+              properties:
+                loanCode:
+                  type: string
+                  description: Mã khoản vay phía Cake, sinh từ API loan-register
+                  example: "u8123123Sjsdb"
 
     PartnerDisburseStatusResponse:
-      type: object
-      required:
-        - success
-        - code
-        - message
-      properties:
-        success:
-          type: boolean
-          description: Kết quả xử lý yêu cầu (true/false)
-          example: true
-        code:
-          type: integer
-          description: "Mã trạng thái, tuân theo định nghĩa của hệ thống (1 = Thành công)"
-          example: 1
-        message:
-          type: string
-          description: Thông báo phản hồi từ hệ thống
-          example: "Thành công"
-        data:
-          type: object
+      allOf:
+        - $ref: "#/components/schemas/VdsBaseResponse"
+        - type: object
           properties:
-            partner_disburse_status:
-              type: string
-              description: |
-                SUCCESS: CAKE thực hiện giải ngân
-                FAILURE: CAKE thực hiện hủy khoản vay do giải ngân thất bại đầu đối tác
-              enum:
-                - SUCCESS
-                - FAILURE
-              example: "SUCCESS"
+            data:
+              type: object
+              properties:
+                transactionId:
+                  type: string
+                  description: ID giao dịch giải ngân trên hệ thống VDS
+                  example: "1234567890"
+                vdsLoanId:
+                  type: string
+                  description: ID khoản vay trên hệ thống VDS
+                  example: "01GXBSD72R12GF113GX8JS81D5"
+                partnerTransactionId:
+                  type: string
+                  description: ID giao dịch giải ngân do hệ thống đối tác request
+                status:
+                  type: string
+                  description: |
+                    - `SUCCESS`: Đã giải ngân thành công
+                    - `FAILED`: Giải ngân thất bại — xem `subStatus`
+                    - `PROCESSING`: Đang xử lý, truy vấn lại sau 15 phút nếu chưa được thông báo kết quả
+                    - `TIMEOUT`: Quá thời gian xử lý, chờ đối soát. VDS chủ động báo khi có kết quả cuối
+                  enum:
+                    - SUCCESS
+                    - FAILED
+                    - PROCESSING
+                    - TIMEOUT
+                  example: "SUCCESS"
+                subStatus:
+                  type: string
+                  description: "Trạng thái chi tiết, chỉ trả khi `status = FAILED` (xem bảng sub-status `DIS00xx`)"
+                  example: "DIS0004"
+                disbursementAmount:
+                  type: integer
+                  description: Số tiền giải ngân
+                  example: 5000000
+                bankCode:
+                  type: string
+                  description: Mã ngân hàng
+                  example: "MB"
+                accountNumber:
+                  type: string
+                  description: Số tài khoản
+                  example: "1234567890"
+                accountName:
+                  type: string
+                  description: Tên tài khoản
+                  example: "NGUYEN VAN A"
+
+    ApplicationStatusRequest:
+      allOf:
+        - $ref: "#/components/schemas/VdsRequestEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - loanCode
+                - identityNumber
+              properties:
+                loanCode:
+                  type: string
+                  description: Mã khoản vay phía Cake, sinh từ API loan-register
+                  example: "LOAN_123456789"
+                identityNumber:
+                  type: string
+                  description: Số GTTT
+                  example: "001090012345"
+
+    ApplicationStatusResponse:
+      allOf:
+        - $ref: "#/components/schemas/VdsBaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                vdsLoanId:
+                  type: string
+                  description: ID khoản vay trên hệ thống VDS
+                  example: "VDS-99887766"
+                status:
+                  type: string
+                  description: |
+                    Trạng thái khoản vay trên hệ thống VDS (không map sang `LOAN_*` của Cake):
+                    `INIT`, `SUBMIT`, `PENDING_UNDERWRITING`, `APPROVAL`, `REJECTED`, `PENDING_ESIGNING`,
+                    `PENDING_DISBURSEMENT`, `DISBURSED`, `DISBURSE_FAIL`, `DISBURSE_TIMEOUT`,
+                    `OVER_DUE`, `CLOSED`, `CANCELLED`
+                  example: "APPROVAL"
+                loanAmount:
+                  type: integer
+                  description: Số tiền vay (VND)
+                  example: 20000000
+                tenor:
+                  type: integer
+                  description: Kỳ hạn vay
+                  example: 12
 
     # ── Callback ──
     PartnerUpdateStatusRequest:
-      type: object
-      description: "Cake gọi endpoint này khi có thay đổi trạng thái khoản vay. Partner phải trả về {\"code\":1,\"message\":\"Success\"} và dedupe bằng request_id"
-      required:
-        - request_id
-        - partner_reference_id
-        - phone_number
-        - status
-      properties:
-        request_id:
-          type: string
-          description: ID được Cake tạo cho mỗi request
-          example: "cake-req-xyz"
-        partner_reference_id:
-          type: string
-          description: ID đối tác từ API check-profile
-          example: "bf133c7c-8e10-45a2-b9d2-4d04a352917a"
-        loan_code:
-          type: string
-          nullable: true
-          description: Mã khoản vay. Không truyền (null) khi status=LOAN_REJECT
-          example: "u8123123Sjsdb"
-        phone_number:
-          type: string
-          description: Số điện thoại KH (bắt đầu bằng số 0)
-          example: "0xxxxxxxxx"
-        status:
-          type: string
-          description: |
-            - LOAN_APPROVE: Đã phê duyệt
-            - LOAN_REJECT: Bị từ chối (đăng ký lại sau 7 ngày)
-            - LOAN_CANCEL: Bị hủy (đăng ký lại ngay)
-            - LOAN_EXPIRED: Hết hạn sau 7 ngày chưa ký
-            - LOAN_SIGNED: KH đã ký hợp đồng
-            - LOAN_ACTIVE: Giải ngân thành công
-            - LOAN_CLOSE: Khoản vay đã tất toán
-          enum:
-            - LOAN_APPROVE
-            - LOAN_REJECT
-            - LOAN_CANCEL
-            - LOAN_EXPIRED
-            - LOAN_SIGNED
-            - LOAN_ACTIVE
-            - LOAN_CLOSE
+      allOf:
+        - $ref: "#/components/schemas/VdsRequestEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - partnerReferenceId
+                - loanCode
+                - status
+              properties:
+                partnerReferenceId:
+                  type: string
+                  description: Reference ID VDS sinh, Cake nhận từ API check-profile
+                  example: "01JAQ7Z8M4K2N5P6R7S8T9V0W1"
+                loanCode:
+                  type: string
+                  description: Mã khoản vay phía Cake, sinh từ API loan-register
+                  example: "u8123123Sjsdb"
+                phoneNumber:
+                  type: string
+                  description: Số điện thoại KH, đầu số 0
+                  example: "0987654321"
+                status:
+                  type: string
+                  description: |
+                    - `LOAN_APPROVE`: Đã phê duyệt
+                    - `LOAN_REJECT`: Bị từ chối (đăng ký lại sau 7 ngày)
+                    - `LOAN_CANCEL`: Bị hủy (đăng ký lại ngay)
+                    - `LOAN_EXPIRED`: Hết hạn sau 7 ngày chưa ký
+                    - `LOAN_SIGNED`: KH đã ký hợp đồng
+                    - `LOAN_ACTIVE`: Giải ngân thành công
+                    - `LOAN_CLOSE`: Khoản vay đã tất toán
+                  enum:
+                    - LOAN_APPROVE
+                    - LOAN_REJECT
+                    - LOAN_CANCEL
+                    - LOAN_EXPIRED
+                    - LOAN_SIGNED
+                    - LOAN_ACTIVE
+                    - LOAN_CLOSE
+                statusReasonCode:
+                  type: string
+                  description: "Lý do thay đổi trạng thái. **Bắt buộc** khi `status = LOAN_REJECT`"
+
+    PartnerUpdateStatusResponse:
+      allOf:
+        - $ref: "#/components/schemas/VdsBaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                appId:
+                  type: string
+                  description: ID khoản vay trên hệ thống VDS
+                  example: "xxxxxxx"
+                status:
+                  type: string
+                  description: Trạng thái khoản vay trên hệ thống VDS
+                  example: "REJECTED"
 
 # ─────────────────────────────────────────────
 # PATHS
@@ -1928,19 +2127,15 @@ paths:
   # ════════════════════════════════════
   /partner-update-status:
     post:
-      tags: [Callback - Cake → Partner]
+      tags: [ Cake → VDS ]
       summary: Cake thông báo thay đổi trạng thái khoản vay
       description: |
-        **Chiều: Cake → Partner**
+        **Chiều: Cake → VDS**
 
-        Cake gọi endpoint này trên hệ thống partner khi có thay đổi trạng thái.
-        Partner phải expose endpoint tại path `/partner-update-status`.
+        Cake gọi endpoint này trên hệ thống VDS khi trạng thái khoản vay thay đổi.
+        Full URL: `{PARTNER_API_URL}partner-update-status`
 
-        **Partner phải:**
-        1. Trả về `{"success":true,"code":1,"message":"Thành công"}` khi xử lý thành công
-        2. Dedupe bằng `request_id` (Cake retry khi nhận code != 1)
-
-        **Cake gọi callback khi:**
+        **Cake gọi khi:**
         | Sự kiện | Status |
         |---------|--------|
         | Sau loan-register | LOAN_APPROVE hoặc LOAN_REJECT |
@@ -1949,11 +2144,15 @@ paths:
         | KH tất toán | LOAN_CLOSE |
         | Sau 7 ngày chưa ký | LOAN_EXPIRED |
 
-        **Signature:** Cake ký bằng private key của mình → Partner verify bằng CAKE_PUBLIC_KEY
+        **Thành công:** VDS trả `code = "000"`. Mã khác → Cake retry (rule retry chốt sau).
+        Dedupe phía VDS theo `requestId`, nên Cake giữ nguyên `requestId` khi retry.
+
+        **Signature:** sort key alphabet đệ quy → SHA256withRSA bằng private key Cake → VDS verify bằng `CAKE_PUBLIC_KEY`.
       operationId: partnerUpdateStatus
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
-        - $ref: "#/components/parameters/SignatureHeader"
+        - $ref: "#/components/parameters/VdsSignatureHeader"
+        - $ref: "#/components/parameters/ApiKeyHeader"
       requestBody:
         required: true
         content:
@@ -1961,38 +2160,98 @@ paths:
             schema:
               $ref: "#/components/schemas/PartnerUpdateStatusRequest"
             example:
-              request_id: "cake-req-xyz"
-              partner_reference_id: "bf133c7c-8e10-45a2-b9d2-4d04a352917a"
-              loan_code: "u8123123Sjsdb"
-              phone_number: "0345678900"
-              status: "LOAN_APPROVE"
+              timestamp: "2026-09-14T10:15:00+07:00"
+              requestId: "7b2e9a1f8c3d4b5a6e7f8d9c0b1a2e3f"
+              data:
+                partnerReferenceId: "01JAQ7Z8M4K2N5P6R7S8T9V0W1"
+                loanCode: "u8123123Sjsdb"
+                phoneNumber: "0987654321"
+                status: "LOAN_ACTIVE"
       responses:
         "200":
-          description: Partner xác nhận nhận callback
+          description: VDS xác nhận đã nhận
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PartnerCallbackResponse"
+                $ref: "#/components/schemas/PartnerUpdateStatusResponse"
+              examples:
+                success:
+                  summary: Thành công
+                  value:
+                    code: "000"
+                    message: "Thành công"
+                    data:
+                      appId: "xxxxxxx"
+                      status: "REJECTED"
+                signature_failed:
+                  summary: Sai chữ ký
+                  value:
+                    code: "403"
+                    message: "Xác thực chữ ký số thất bại"
+                    data: null
+
+  /applications/status:
+    post:
+      tags: [ Cake → VDS ]
+      summary: Cake truy vấn trạng thái khoản vay trên hệ thống VDS
+      description: |
+        **Chiều: Cake → VDS**
+
+        Truy vấn trạng thái khoản vay phía VDS.
+        Full URL: `{PARTNER_API_URL}applications/status`
+
+        `data.status` trả về là trạng thái nội bộ của VDS, **chưa** map sang `LOAN_*` của Cake.
+      operationId: applicationsStatus
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/VdsSignatureHeader"
+        - $ref: "#/components/parameters/ApiKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplicationStatusRequest"
+            example:
+              timestamp: "2026-09-14T10:16:30+07:00"
+              requestId: "a8f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9"
+              data:
+                loanCode: "LOAN_123456789"
+                identityNumber: "001090012345"
+      responses:
+        "200":
+          description: Trạng thái khoản vay phía VDS
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApplicationStatusResponse"
               example:
-                success: true
-                code: 1
-                message: "Success"
+                code: "000"
+                message: "Thành công"
+                data:
+                  vdsLoanId: "VDS-99887766"
+                  status: "APPROVAL"
+                  loanAmount: 20000000
+                  tenor: 12
 
   /partner-disburse-request:
     post:
-      tags: [Callback - Cake → Partner]
-      summary: Cake gửi yêu cầu giải ngân sang đối tác
+      tags: [ Cake → VDS ]
+      summary: Cake gửi yêu cầu giải ngân sang VDS
       description: |
-        **Chiều: Cake → Partner**
+        **Chiều: Cake → VDS**
 
-        Cake gửi yêu cầu giải ngân khoản vay tới đối tác.
-        Partner thực hiện giải ngân và gọi lại API /disburse-update để xác nhận kết quả.
+        Cake yêu cầu VDS giải ngân cho khoản vay. VDS kiểm tra trạng thái khoản vay và
+        giao dịch giải ngân đã tồn tại trước khi ghi nhận yêu cầu.
+        Full URL: `{PARTNER_API_URL}partner-disburse-request`
 
-        **Response:** `success`, `code`, `message`. `code` = `1` là thành công.
+        VDS giải ngân xong gọi lại API `/disburse-update` của Cake để xác nhận kết quả.
+        Yêu cầu trùng lặp → VDS trả `411`, nghĩa là đã ghi nhận, chờ kết quả cuối.
       operationId: partnerDisburseRequest
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
-        - $ref: "#/components/parameters/SignatureHeader"
+        - $ref: "#/components/parameters/VdsSignatureHeader"
+        - $ref: "#/components/parameters/ApiKeyHeader"
       requestBody:
         required: true
         content:
@@ -2000,39 +2259,53 @@ paths:
             schema:
               $ref: "#/components/schemas/PartnerDisburseRequest"
             example:
-              request_id: "req-abc123"
-              partner_reference_id: "bf133c7c-8e10-45a2-b9d2-4d04a352917a"
-              loan_code: "u8123123Sjsdb"
-              phone_number: "034xxxxx00"
-              approved_amount: "12000000"
-              loan_insurance: "840000"
-              disburse_amount: "12840000"
+              timestamp: "2026-09-14T10:20:00+07:00"
+              requestId: "e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6"
+              data:
+                loanCode: "u8123123Sjsdb"
+                fullName: "NGUYEN VAN A"
+                identityNumber: "001090012345"
+                disburseAmount: 9500000
+                loanAmount: 10000000
+                bankCode: "970415"
+                accountNumber: "19034567890012"
+                tenor: 12
       responses:
         "200":
-          description: Partner xác nhận nhận callback
+          description: VDS ghi nhận yêu cầu giải ngân
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PartnerCallbackResponse"
+                $ref: "#/components/schemas/PartnerDisburseRequestResponse"
               example:
-                success: true
-                code: 1
+                code: "000"
                 message: "Thành công"
+                data:
+                  transactionId: "0d68bc41-fa57-4d62-946e-1473fba6728c"
+                  vdsLoanId: "01GXBSD72R12GF113GX8JS81D5"
 
   /partner-disburse-status:
     post:
-      tags: [Callback - Cake → Partner]
-      summary: Cake truy vấn trạng thái giải ngân từ đối tác
+      tags: [ Cake → VDS ]
+      summary: Cake truy vấn trạng thái giao dịch giải ngân
       description: |
-        **Chiều: Cake → Partner**
+        **Chiều: Cake → VDS**
 
-        Cake gọi API này (do đối tác expose) trong luồng giải ngân để lấy trạng thái giải ngân hiện tại từ phía đối tác.
+        Lấy trạng thái giao dịch giải ngân hiện tại phía VDS.
+        Full URL: `{PARTNER_API_URL}partner-disburse-status`
 
-        **Response:** `success`, `code`, `message`. `code` = `1` là thành công.
+        **Xử lý theo `data.status`:**
+        | Status | Ý nghĩa | Cake xử lý |
+        |--------|---------|-----------|
+        | `SUCCESS` | Đã giải ngân thành công | Chuyển khoản vay sang LOAN_ACTIVE |
+        | `FAILED` | Giải ngân thất bại | Xem `subStatus` để quyết định (bảng `DIS00xx`) |
+        | `PROCESSING` | Đang xử lý | Truy vấn lại sau 15 phút nếu chưa nhận kết quả |
+        | `TIMEOUT` | Quá thời gian, chờ đối soát | Không tạo yêu cầu mới, chờ VDS báo kết quả cuối |
       operationId: partnerDisburseStatus
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
-        - $ref: "#/components/parameters/SignatureHeader"
+        - $ref: "#/components/parameters/VdsSignatureHeader"
+        - $ref: "#/components/parameters/ApiKeyHeader"
       requestBody:
         required: true
         content:
@@ -2040,23 +2313,50 @@ paths:
             schema:
               $ref: "#/components/schemas/PartnerDisburseStatusRequest"
             example:
-              request_id: "req-abc123"
-              partner_reference_id: "bf133c7c-8e10-45a2-b9d2-4d04a352917a"
-              loan_code: "u8123123Sjsdb"
-              phone_number: "034xxxxx00"
+              timestamp: "2026-09-14T10:25:00+07:00"
+              requestId: "f1e2d3c4b5a67890abcdef1234567890"
+              data:
+                loanCode: "u8123123Sjsdb"
       responses:
         "200":
-          description: Partner trả về trạng thái giải ngân
+          description: Trạng thái giao dịch giải ngân
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/PartnerDisburseStatusResponse"
-              example:
-                success: true
-                code: 1
-                message: "Thành công"
-                data:
-                  partner_disburse_status: "SUCCESS"
+              examples:
+                success:
+                  summary: Giải ngân thành công
+                  value:
+                    code: "000"
+                    message: "Thành công"
+                    data:
+                      transactionId: "1234567890"
+                      vdsLoanId: "01GXBSD72R12GF113GX8JS81D5"
+                      status: "SUCCESS"
+                      disbursementAmount: 5000000
+                      bankCode: "MB"
+                      accountNumber: "1234567890"
+                      accountName: "NGUYEN VAN A"
+                failed:
+                  summary: Giải ngân thất bại
+                  value:
+                    code: "000"
+                    message: "Thành công"
+                    data:
+                      transactionId: "1234567890"
+                      vdsLoanId: "01GXBSD72R12GF113GX8JS81D5"
+                      status: "FAILED"
+                      subStatus: "DIS0004"
+                timeout:
+                  summary: Giải ngân timeout
+                  value:
+                    code: "000"
+                    message: "Thành công"
+                    data:
+                      transactionId: "1234567890"
+                      vdsLoanId: "01GXBSD72R12GF113GX8JS81D5"
+                      status: "TIMEOUT"
 
 # ─────────────────────────────────────────────
 # TAGS
@@ -2090,13 +2390,16 @@ tags:
       **Luồng:** `get-loan-detail` → `repayment-request` → `repayment-confirm`
 
       Callback khi tất toán: `LOAN_CLOSE`
-  - name: Callback - Cake → Partner
+  - name: Cake → VDS
     description: |
-      Cake gọi endpoint này trên hệ thống partner khi có thay đổi trạng thái.
+      Nhóm API do **VDS expose**, Cake là bên gọi. Base URL = `PARTNER_API_URL`.
 
-      Partner phải expose endpoint `/partner-update-status` và trả về `{"success":true,"code":1,"message":"Thành công"}`.
+      Khác nhóm Phase 1–4 ở ba điểm:
+      1. **Body** bọc `timestamp` + `requestId` + `data{}`, field đặt tên camelCase.
+      2. **Response** dùng mã của VDS: `code` là chuỗi, `"000"` = thành công (không có `success`, không có `response_id`).
+      3. **Signature** sort key alphabet đệ quy rồi SHA256withRSA, **không** nối `partner_key`. Thêm header `apikey` = `VDS_API_KEY` (SIT không yêu cầu).
 
-      **Xác thực ngược:** Cake ký bằng private key → Partner verify bằng `CAKE_PUBLIC_KEY`.
+      `timestamp` hiệu lực 5 phút; lệch quá VDS trả `416`. `requestId` là UUID, VDS dùng để idempotency.
 
 # ─────────────────────────────────────────────
 # SEQUENCE DIAGRAMS

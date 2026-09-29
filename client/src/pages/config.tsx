@@ -106,6 +106,95 @@ const TeamCapacityConfig: React.FC = () => {
   );
 };
 
+interface AiPrompt {
+  id: string;
+  name: string;
+  usedIn: string;
+  source: string;
+  content: string;
+}
+
+/** Xem prompt AI đang chạy — chỉ đọc, muốn sửa thì sửa file nguồn được ghi kèm. */
+const AiPromptsPanel: React.FC = () => {
+  const [prompts, setPrompts] = useState<AiPrompt[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [openId, setOpenId] = useState('');
+  const [copiedId, setCopiedId] = useState('');
+
+  useEffect(() => {
+    configAPI
+      .getAIPrompts()
+      .then((res) => setPrompts((res.data.data as AiPrompt[]) || []))
+      .catch((err: any) => setError(err?.response?.data?.error || err?.message || 'Không tải được prompt'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const copy = async (prompt: AiPrompt) => {
+    try {
+      await navigator.clipboard.writeText(prompt.content);
+      setCopiedId(prompt.id);
+      setTimeout(() => setCopiedId(''), 1500);
+    } catch {
+      setError('Trình duyệt chặn clipboard');
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6 space-y-4">
+      <div>
+        <h2 className="text-lg font-semibold text-gray-800 border-b pb-2">Prompt AI đang dùng</h2>
+        <p className="mt-2 text-xs text-gray-500">
+          Prompt nằm trong code nên chỉ xem ở đây; sửa thì sửa file nguồn ghi kèm rồi restart server.
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="h-20 animate-pulse rounded bg-gray-50" />
+      ) : error ? (
+        <p className="text-sm text-red-600">{error}</p>
+      ) : (
+        <div className="space-y-3">
+          {prompts.map((prompt) => {
+            const open = openId === prompt.id;
+            return (
+              <div key={prompt.id} className="rounded-md border border-gray-200">
+                <div className="flex items-start justify-between gap-3 px-3 py-2">
+                  <button
+                    type="button"
+                    onClick={() => setOpenId(open ? '' : prompt.id)}
+                    className="flex-1 text-left"
+                  >
+                    <span className="flex items-center gap-2 text-sm font-medium text-gray-800">
+                      <span className="text-gray-400">{open ? '▾' : '▸'}</span>
+                      {prompt.name}
+                    </span>
+                    <span className="mt-1 block pl-5 text-xs text-gray-500">Dùng ở: {prompt.usedIn}</span>
+                    <code className="mt-0.5 block pl-5 text-[11px] text-gray-400">{prompt.source}</code>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => copy(prompt)}
+                    className="shrink-0 rounded border border-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50"
+                  >
+                    {copiedId === prompt.id ? '✓ Đã copy' : 'Copy'}
+                  </button>
+                </div>
+
+                {open && (
+                  <pre className="max-h-96 overflow-auto border-t border-gray-100 bg-gray-50 px-3 py-2 text-[11px] leading-relaxed text-gray-700 whitespace-pre-wrap">
+                    {prompt.content}
+                  </pre>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Config: React.FC = () => {
   const [provider, setProvider] = useState('anthropic');
   const [apiKey, setApiKey] = useState('');
@@ -152,9 +241,11 @@ const Config: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-xl">
+    <div className="p-6 max-w-6xl">
       <h1 className="text-2xl font-bold mb-6">Settings</h1>
 
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+      <div className="space-y-6">
       <div className="bg-white rounded-lg shadow p-6 space-y-5">
         <h2 className="text-lg font-semibold text-gray-800 border-b pb-2">AI Configuration</h2>
 
@@ -285,6 +376,10 @@ const Config: React.FC = () => {
       </div>
 
       <TeamCapacityConfig />
+      </div>
+
+      <AiPromptsPanel />
+      </div>
     </div>
   );
 };

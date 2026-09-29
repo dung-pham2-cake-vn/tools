@@ -21,16 +21,37 @@ export const getAIConfig = async (): Promise<AIConfig | null> => {
   return getConfig('ai_config');
 };
 
-const callAnthropic = async (apiKey: string, model: string, prompt: string, baseUrl?: string): Promise<string> => {
+/** Ảnh gửi kèm prompt (đã đọc sẵn thành base64). */
+export interface PromptImage {
+  mediaType: string;
+  base64: string;
+}
+
+const callAnthropic = async (
+  apiKey: string,
+  model: string,
+  prompt: string,
+  baseUrl?: string,
+  images: PromptImage[] = []
+): Promise<string> => {
   const client = new Anthropic({ apiKey, baseURL: baseUrl?.trim() || undefined });
   const maxTokens = getMaxOutputTokens();
   let responseText = '';
+
+  // ảnh đứng trước text: model đọc hình rồi mới tới yêu cầu
+  const content: any[] = [
+    ...images.map((image) => ({
+      type: 'image',
+      source: { type: 'base64', media_type: image.mediaType, data: image.base64 },
+    })),
+    { type: 'text', text: prompt },
+  ];
 
   try {
     const stream = await client.messages.create({
       model: model || 'claude-sonnet-4-6',
       max_tokens: maxTokens,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: images.length ? content : prompt }],
       stream: true, // Enable streaming
     });
 
@@ -43,7 +64,9 @@ const callAnthropic = async (apiKey: string, model: string, prompt: string, base
     console.error('[AI] Anthropic API error:', error);
     // surface the provider's own message (expired key, rate limit, bad model...) to the UI
     const detail = error?.error?.error?.message || error?.message || String(error);
-    throw new Error(`Anthropic API: ${detail}`);
+    // "Connection error." của SDK giấu nguyên nhân thật (DNS, TLS, proxy) trong cause
+    const cause = error?.cause?.cause?.message || error?.cause?.message || error?.cause?.code;
+    throw new Error(`Anthropic API: ${detail}${cause ? ` (${cause})` : ''}`);
   }
 
   if (!responseText) {
@@ -53,7 +76,13 @@ const callAnthropic = async (apiKey: string, model: string, prompt: string, base
   return responseText;
 };
 
-const callOpenAI = async (apiKey: string, model: string, baseUrl: string, prompt: string): Promise<string> => {
+const callOpenAI = async (
+  apiKey: string,
+  model: string,
+  baseUrl: string,
+  prompt: string,
+  images: PromptImage[] = []
+): Promise<string> => {
   const url = `${baseUrl.replace(/\/$/, '')}/v1/chat/completions`;
   const maxTokens = getMaxOutputTokens();
   let response;
@@ -65,16 +94,34 @@ const callOpenAI = async (apiKey: string, model: string, baseUrl: string, prompt
         model: model || 'gpt-4o',
         messages: [
           { role: 'system', content: 'You are a helpful assistant. /no_think' },
-          { role: 'user', content: prompt },
+          {
+            role: 'user',
+            content: images.length
+              ? [
+                  ...images.map((image) => ({
+                    type: 'image_url',
+                    image_url: { url: `data:${image.mediaType};base64,${image.base64}` },
+                  })),
+                  { type: 'text', text: prompt },
+                ]
+              : prompt,
+          },
         ],
         max_tokens: maxTokens,
         chat_template_kwargs: { enable_thinking: false },
       },
       { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' } }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('[AI] OpenAI API error:', error);
-    throw new Error('Failed to call OpenAI API');
+    const detail =
+      error?.response?.data?.error?.message ||
+      error?.response?.data?.error ||
+      error?.message ||
+      String(error);
+    const cause = error?.cause?.cause?.message || error?.cause?.message || error?.cause?.code;
+    const status = error?.response?.status ? ` [HTTP ${error.response.status}]` : '';
+    throw new Error(`OpenAI API${status}: ${detail}${cause ? ` (${cause})` : ''}`);
   }
 
   const msg = response.data.choices?.[0]?.message;
@@ -117,7 +164,10 @@ export const testAIConfig = async (): Promise<{ ok: boolean; provider: string; m
   }
 };
 
-export const analyzeWithCustomPrompt = async (prompt: string): Promise<string> => {
+export const analyzeWithCustomPrompt = async (
+  prompt: string,
+  images: PromptImage[] = []
+): Promise<string> => {
   const config: AIConfig | null = await getAIConfig();
   if (!config?.apiKey) throw new Error('AI not configured. Go to Settings to configure.');
 
@@ -125,74 +175,14 @@ export const analyzeWithCustomPrompt = async (prompt: string): Promise<string> =
     if (config.provider === 'custom_claude' && !config.baseUrl?.trim()) {
       throw new Error('Base URL is required for Custom Claude-compatible provider');
     }
-    return callAnthropic(config.apiKey, config.model, prompt, config.provider === 'custom_claude' ? config.baseUrl : undefined);
+    return callAnthropic(
+      config.apiKey,
+      config.model,
+      prompt,
+      config.provider === 'custom_claude' ? config.baseUrl : undefined,
+      images
+    );
   }
-  return callOpenAI(config.apiKey, config.model, config.baseUrl || 'https://api.openai.com', prompt);
+  return callOpenAI(config.apiKey, config.model, config.baseUrl || 'https://api.openai.com', prompt, images);
 };
 
-export const analyzeTicketWithAI = async (ticketData: {
-  key: string;
-  title: string;
-  description: string;
-  status: string;
-  type: string;
-  assignee: string;
-  comments: { author: string; body: string; created: string }[];
-  linkedWorkItems: any[];
-}): Promise<string> => {
-  const config: AIConfig | null = await getAIConfig();
-  console.log('[AI] config loaded:', config ? `provider=${config.provider} model=${config.model} hasKey=${!!config.apiKey}` : 'NULL');
-  if (!config?.apiKey) throw new Error('AI not configured. Go to Settings to configure.');
-
-  const commentsText = ticketData.comments
-    .map((c) => `[${c.author} - ${new Date(c.created).toLocaleDateString()}]: ${c.body}`)
-    .join('\n\n');
-
-  const linkedText = ticketData.linkedWorkItems
-    .map((l) => {
-      const linked = l.inwardIssue || l.outwardIssue;
-      return linked ? `${l.type}: ${linked.key} - ${linked.summary || ''}` : '';
-    })
-    .filter(Boolean)
-    .join('\n');
-
-  const hasComments = ticketData.comments.length > 0;
-
-  const prompt = `You are analyzing a support ticket. Provide analysis in exactly this format. Keep the 4 label names in English, write content in Vietnamese.
-
-Rules:
-- Symptoms: derive from description (what users experienced/reported).
-- Root cause, Resolution, Prevention: derive PRIMARILY from comments. If comments exist but lack sufficient information to confirm these, write "Chưa xác định" for those fields. If there are NO comments at all, write "Chưa xác định" for all three fields.
-- Do not guess or infer Root cause / Resolution / Prevention from description alone.
-
-${hasComments ? '' : '⚠ No comments available — Root cause, Resolution, Prevention must be "Chưa xác định".'}
-
-Symptoms: <triệu chứng và vấn đề được báo cáo, dựa trên description>
-Root cause: <nguyên nhân gốc rễ từ comment, hoặc "Chưa xác định">
-Resolution: <cách đã xử lý từ comment, hoặc "Chưa xác định">
-Prevention: <cách phòng ngừa từ comment, hoặc "Chưa xác định">
-
-Ticket: ${ticketData.key} - ${ticketData.title}
-Status: ${ticketData.status}
-Type: ${ticketData.type}
-Assignee: ${ticketData.assignee || 'Unassigned'}
-
-Description:
-${ticketData.description || '(none)'}
-
-${linkedText ? `Linked items:\n${linkedText}\n` : ''}
-${commentsText ? `Comments:\n${commentsText}` : ''}
-
-Respond only with the 4-line analysis. Labels in English, content in Vietnamese, no extra text.`;
-
-  console.log('[AI] calling provider:', config.provider, 'model:', config.model);
-
-  if (config.provider === 'anthropic' || config.provider === 'custom_claude') {
-    if (config.provider === 'custom_claude' && !config.baseUrl?.trim()) {
-      throw new Error('Base URL is required for Custom Claude-compatible provider');
-    }
-    return callAnthropic(config.apiKey, config.model, prompt, config.provider === 'custom_claude' ? config.baseUrl : undefined);
-  }
-
-  return callOpenAI(config.apiKey, config.model, config.baseUrl || 'https://api.openai.com', prompt);
-};

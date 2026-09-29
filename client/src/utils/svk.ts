@@ -28,6 +28,13 @@ export interface SvkComment {
   updated: string;
 }
 
+export interface SvkAttachment {
+  id: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+}
+
 export interface LinkedPl {
   key: string;
   summary: string;
@@ -38,6 +45,7 @@ export interface LinkedPl {
   description: string;
   descriptionAdf?: any;
   comments: SvkComment[];
+  attachments?: SvkAttachment[];
 }
 
 export interface SvkTicketDoc {
@@ -52,6 +60,7 @@ export interface SvkTicketDoc {
   description: string;
   descriptionAdf?: any;
   comments: SvkComment[];
+  attachments?: SvkAttachment[];
   linkedPlKeys: string[];
   linkedPl: LinkedPl[];
   aiResult: string;

@@ -13,6 +13,9 @@ const projectRank = (key: string): number => (projectOf(key) === 'PLO' ? 0 : 1);
 const UNASSIGNED = '__unassigned__';
 // Bulk fix version: '' = không đổi, nên "xoá hết version" cần giá trị riêng.
 const CLEAR_VERSION = '__clear_version__';
+const IGNORE_MISMATCH = '__ignore_fix_mismatch__';
+/** Label Jira đánh dấu ticket được bỏ qua khi soát lệch fix version cha-con. */
+const IGNORE_MISMATCH_LABEL = 'ignore-fix-mismatch';
 
 // Rank là LexoRank (chuỗi) — so sánh chuỗi ra đúng thứ tự backlog Jira.
 // Item không có rank xếp cuối.
@@ -179,6 +182,8 @@ export default function BacklogPage() {
   const [collapsedSprints, setCollapsedSprints] = useState<Set<number>>(new Set());
   // Tree: track key node đang MỞ. Rỗng = tất cả thu gọn (mặc định).
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Khi đang filter, cây mở sẵn -> track ngược: key node người dùng chủ động thu gọn.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   // Checkbox chọn ticket để tính tổng point riêng.
   const [checked, setChecked] = useState<Set<string>>(new Set());
   // Ô tick gần nhất, làm mốc cho shift-tick. Chỉ có nghĩa trong cùng 1 sprint group.
@@ -329,13 +334,23 @@ export default function BacklogPage() {
   // Cha không có version mà con có (hoặc ngược lại) cũng tính là lệch.
   const versionKeyOf = (i?: JiraIssue): string =>
     [...(i?.fields.normalizedFixVersionNames || [])].sort().join(', ');
+  const isDoneIssue = (i?: JiraIssue): boolean =>
+    DONE_RE.test((i?.fields.normalizedStatusName || '').toLowerCase());
+  const isDefectIssue = (i?: JiraIssue): boolean =>
+    (i?.fields.issuetype?.name || '').toLowerCase().includes('defect');
+  const isMismatchIgnored = (i?: JiraIssue): boolean =>
+    (i?.fields.labels || []).includes(IGNORE_MISMATCH_LABEL);
   const versionMismatch = useMemo(() => {
     const byKey = new Map(issues.map((i) => [i.key, i]));
     const m = new Map<string, { own: string; parent: string; parentKey: string }>();
     for (const i of issues) {
       if (!i.fields.issuetype?.subtask) continue;
+      // ticket đã Done, thuộc loại Defect, hoặc được đánh dấu bỏ qua thì không soát lệch version
+      if (isDoneIssue(i) || isDefectIssue(i) || isMismatchIgnored(i)) continue;
       const pk = parentKeyOf(i);
       if (!pk) continue;
+      const parentIssue = byKey.get(pk);
+      if (isDoneIssue(parentIssue) || isDefectIssue(parentIssue) || isMismatchIgnored(parentIssue)) continue;
       const own = versionKeyOf(i);
       const parent = versionKeyOf(byKey.get(pk));
       if (own !== parent) m.set(i.key, { own, parent, parentKey: pk });
@@ -369,7 +384,9 @@ export default function BacklogPage() {
     if (q && !`${issue.key} ${f.summary || ''}`.toLowerCase().includes(q)) return false;
     if (typeFilter && f.issuetype?.name !== typeFilter) return false;
     if (labelFilter && !(f.labels || []).includes(labelFilter)) return false;
-    if (versionFilter && !(f.normalizedFixVersionNames || []).includes(versionFilter)) return false;
+    if (versionFilter === IGNORE_MISMATCH) {
+      if (!(f.labels || []).includes(IGNORE_MISMATCH_LABEL)) return false;
+    } else if (versionFilter && !(f.normalizedFixVersionNames || []).includes(versionFilter)) return false;
     if (assigneeFilter) {
       const name = f.normalizedAssigneeName || '';
       if (assigneeFilter === UNASSIGNED ? name !== '' : name !== assigneeFilter) return false;
@@ -379,8 +396,10 @@ export default function BacklogPage() {
     return true;
   };
   // Node hiển thị nếu chính nó match, hoặc có con/cháu match (giữ path tới kết quả).
-  const subtreeMatch = (issue: JiraIssue): boolean =>
-    matches(issue) || (childrenByParent.get(issue.key) || []).some(subtreeMatch);
+  // Phải duyệt đúng tập con HIỂN THỊ trong sprint s — nếu không, cha vẫn hiện trong nhóm
+  // sprint dù con khớp nằm ngoài sprint đó (dòng trơ, mở ra không có gì).
+  const subtreeMatch = (issue: JiraIssue, s: number): boolean =>
+    matches(issue) || visibleChildren(issue, s).some((kid) => subtreeMatch(kid, s));
 
   // Leaf (không con) mới mang point gốc; parent = tổng point con (rollup lên epic).
   // Có filter: chỉ leaf match filter mới đóng góp point.
@@ -520,15 +539,26 @@ export default function BacklogPage() {
       else next.add(id);
       return next;
     });
-  const toggleNode = (key: string) =>
-    setExpanded((prev) => {
+  // Khi có filter cây mở sẵn để thấy kết quả -> lúc đó theo dõi node bị NGƯỜI DÙNG đóng,
+  // ngược lại theo dõi node được mở. Nhờ vậy vẫn thu gọn được trong lúc đang filter.
+  const isExpanded = (key: string) => (filterActive ? !collapsed.has(key) : expanded.has(key));
+  const toggleNode = (key: string) => {
+    const setter = filterActive ? setCollapsed : setExpanded;
+    setter((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
       return next;
     });
-  const expandAll = () => setExpanded(new Set(issues.map((i) => i.key)));
-  const collapseAll = () => setExpanded(new Set());
+  };
+  const expandAll = () => {
+    setExpanded(new Set(issues.map((i) => i.key)));
+    setCollapsed(new Set());
+  };
+  const collapseAll = () => {
+    setExpanded(new Set());
+    setCollapsed(new Set(issues.map((i) => i.key)));
+  };
   const toggleChecked = (key: string) =>
     setChecked((prev) => {
       const next = new Set(prev);
@@ -577,8 +607,8 @@ export default function BacklogPage() {
   // Thứ tự key của các dòng THỰC SỰ render trong 1 group — phải khớp y hệt renderNode.
   const visibleRowKeys = (issue: JiraIssue, s: number, flat = false): string[] => {
     if (flat) return [issue.key];
-    const kids = visibleChildren(issue, s).filter(subtreeMatch);
-    const isExp = filterActive || expanded.has(issue.key);
+    const kids = visibleChildren(issue, s).filter((kid) => subtreeMatch(kid, s));
+    const isExp = isExpanded(issue.key);
     const out = [issue.key];
     if (isExp) for (const k of kids) out.push(...visibleRowKeys(k, s));
     return out;
@@ -723,12 +753,12 @@ export default function BacklogPage() {
 
   const transCapExceeded = checkedKeys.length > TRANS_FETCH_CAP;
 
-  // Gộp version của mọi project, gắn nhãn project. Bỏ version đã archive.
+  // Gộp version của mọi project, gắn nhãn project. Bỏ version đã archive hoặc đã release.
   const bulkVersionOptions = useMemo((): VersionOption[] => {
     const out: VersionOption[] = [];
     for (const project of ISSUE_PROJECT_LIST) {
       for (const v of projectVersions[project] || []) {
-        if (v.archived) continue;
+        if (v.archived || v.released) continue;
         out.push({
           value: `${project}::${v.id}`,
           project,
@@ -820,8 +850,12 @@ export default function BacklogPage() {
       const wantStatus = bulkStatus && bulkStatus !== statusFrom;
       const canStatus = wantStatus && targetsOf(key).includes(bulkStatus);
       const versionFrom = (f.normalizedFixVersionNames || []).join(', ');
+      // "Bỏ qua fix lệch" không đổi version, chỉ gắn thêm label đánh dấu.
+      const ignoreMismatch = bulkVersion === IGNORE_MISMATCH;
       // Set = ghi đè, ticket chỉ còn đúng version được chọn.
-      const versionTo = bulkVersion === '' ? null : bulkVersion === CLEAR_VERSION ? '' : pickedVersion?.name ?? null;
+      const versionTo =
+        bulkVersion === '' || ignoreMismatch ? null : bulkVersion === CLEAR_VERSION ? '' : pickedVersion?.name ?? null;
+      const wantLabelsAdd = ignoreMismatch ? [...bulkLabelsAdd, IGNORE_MISMATCH_LABEL] : bulkLabelsAdd;
       return {
         key,
         statusFrom,
@@ -833,7 +867,7 @@ export default function BacklogPage() {
         versionTo,
         versionSkip: Boolean(pickedVersion) && projectOf(key) !== pickedVersion!.project,
         labelsFrom,
-        labelsAdd: bulkLabelsAdd.filter((l) => !labelsFrom.includes(l)),
+        labelsAdd: wantLabelsAdd.filter((l) => !labelsFrom.includes(l)),
         labelsRemove: bulkLabelsRemove.filter((l) => labelsFrom.includes(l)),
       };
     });
@@ -993,9 +1027,9 @@ export default function BacklogPage() {
     const f = issue.fields;
     const status = f.normalizedStatusName || 'Unknown';
     const isDone = DONE_RE.test(status.toLowerCase());
-    const kids = flat ? [] : visibleChildren(issue, s).filter(subtreeMatch);
+    const kids = flat ? [] : visibleChildren(issue, s).filter((kid) => subtreeMatch(kid, s));
     const hasKids = kids.length > 0;
-    const isExp = filterActive || expanded.has(issue.key);
+    const isExp = isExpanded(issue.key);
     const menuTransitions = transitions[issue.key] || [];
     const assignee = f.normalizedAssigneeName || '';
     const epic = f.labels?.[0];
@@ -1159,7 +1193,7 @@ export default function BacklogPage() {
     const allRoots = rootsBySprint.get(sprint.id) || [];
     const roots = flatMode
       ? allRoots.flatMap((r) => flattenVisible(r, sprint.id)).filter(matches)
-      : allRoots.filter(subtreeMatch);
+      : allRoots.filter((root) => subtreeMatch(root, sprint.id));
     const stats = sprintStats(allRoots, sprint.id);
     const rowOrder = roots.flatMap((r) => visibleRowKeys(r, sprint.id, flatMode));
     const isCollapsed = collapsedSprints.has(sprint.id);
@@ -1222,7 +1256,7 @@ export default function BacklogPage() {
   const noSprintAllRoots = rootsBySprint.get(NO_SPRINT) || [];
   const noSprintRoots = flatMode
     ? noSprintAllRoots.flatMap((r) => flattenVisible(r, NO_SPRINT)).filter(matches)
-    : noSprintAllRoots.filter(subtreeMatch);
+    : noSprintAllRoots.filter((root) => subtreeMatch(root, NO_SPRINT));
   const noSprintRowOrder = noSprintRoots.flatMap((r) => visibleRowKeys(r, NO_SPRINT, flatMode));
 
   const selectClass =
@@ -1282,6 +1316,7 @@ export default function BacklogPage() {
         />
         <select className={selectClass} value={versionFilter} onChange={(e) => setVersionFilter(e.target.value)}>
           <option value="">Version</option>
+          <option value={IGNORE_MISMATCH}>— Bỏ qua fix lệch —</option>
           {versionOptions.map((v) => (
             <option key={v} value={v}>{v}</option>
           ))}
@@ -1416,13 +1451,18 @@ export default function BacklogPage() {
                 {versionsState === 'loading' ? 'Đang tải version...' : 'Đổi fix version...'}
               </option>
               <option value={CLEAR_VERSION}>— Xoá fix version —</option>
+              <option value={IGNORE_MISMATCH}>— Bỏ qua fix lệch (gắn label) —</option>
               {bulkVersionOptions.map((v) => (
                 <option key={v.value} value={v.value}>
                   {v.project} · {v.name}
-                  {v.released ? ' (released)' : ''}
                 </option>
               ))}
             </select>
+            {bulkVersion === IGNORE_MISMATCH && (
+              <span className="text-xs text-blue-100" title={`Gắn label ${IGNORE_MISMATCH_LABEL}`}>
+                gắn label {IGNORE_MISMATCH_LABEL}
+              </span>
+            )}
             {pickedVersion && (
               <span
                 className="text-xs text-blue-100"

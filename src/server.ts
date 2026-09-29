@@ -12,6 +12,7 @@ import supportRoutes from './routes/supportRoutes';
 import configRoutes from './routes/configRoutes';
 import sprintManagementRoutes from './routes/sprintManagementRoutes';
 import { startSvkAutoScan } from './services/svkAutoScan';
+import { startTelegramBot } from './services/telegramBot';
 
 dotenv.config();
 
@@ -61,10 +62,23 @@ app.use(errorHandler);
 const startServer = async (): Promise<void> => {
   try {
     await connectDatabase();
-    app.listen(PORT, () => {
+
+    // app.listen báo lỗi qua event, không throw — nếu start job ngoài callback thì một
+    // instance trùng port vẫn kịp mở Telegram long polling rồi chết, gây 409 Conflict.
+    const server = app.listen(PORT, () => {
       console.log(`🚀 Server is running at http://localhost:${PORT}`);
+      startSvkAutoScan();
+      startTelegramBot();
     });
-    startSvkAutoScan();
+
+    server.on('error', (error: NodeJS.ErrnoException) => {
+      if (error.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${PORT} đang bị chiếm — có server khác đang chạy. Dừng tiến trình này.`);
+      } else {
+        console.error('Server error:', error);
+      }
+      process.exit(1);
+    });
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);

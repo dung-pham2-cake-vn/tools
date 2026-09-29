@@ -9,6 +9,13 @@ export interface ISvkComment {
   updated: string;
 }
 
+export interface IAttachment {
+  id: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+}
+
 export interface ILinkedPl {
   key: string;
   summary: string;
@@ -19,6 +26,7 @@ export interface ILinkedPl {
   description: string;
   descriptionAdf: any;
   comments: ISvkComment[];
+  attachments: IAttachment[];
 }
 
 export interface ISvkTicket extends Document {
@@ -35,11 +43,14 @@ export interface ISvkTicket extends Document {
   comments: ISvkComment[];
   linkedPlKeys: string[];
   linkedPl: ILinkedPl[];
+  attachments: IAttachment[];
   /** hash of SVK + PL content/comments — AI re-runs only when this changes */
   aiInputHash: string;
   aiResult: string;
   aiError: string;
   aiRunAt?: Date;
+  /** id comment AI đã đăng lên ticket — lần chạy sau sửa lại chính comment này */
+  aiCommentId?: string;
   lastScanAt?: Date;
 }
 
@@ -55,6 +66,16 @@ export const CommentSchema = new Schema<ISvkComment>(
   { _id: false }
 );
 
+export const AttachmentSchema = new Schema<IAttachment>(
+  {
+    id: { type: String, default: '' },
+    filename: { type: String, default: '' },
+    mimeType: { type: String, default: '' },
+    size: { type: Number, default: 0 },
+  },
+  { _id: false }
+);
+
 export const LinkedPlSchema = new Schema<ILinkedPl>(
   {
     key: { type: String, required: true },
@@ -66,6 +87,7 @@ export const LinkedPlSchema = new Schema<ILinkedPl>(
     description: { type: String, default: '' },
     descriptionAdf: { type: Schema.Types.Mixed },
     comments: { type: [CommentSchema], default: [] },
+    attachments: { type: [AttachmentSchema], default: [] },
   },
   { _id: false }
 );
@@ -83,12 +105,14 @@ const SvkTicketSchema = new Schema<ISvkTicket>(
     description: { type: String, default: '' },
     descriptionAdf: { type: Schema.Types.Mixed },
     comments: { type: [CommentSchema], default: [] },
+    attachments: { type: [AttachmentSchema], default: [] },
     linkedPlKeys: { type: [String], default: [] },
     linkedPl: { type: [LinkedPlSchema], default: [] },
     aiInputHash: { type: String, default: '' },
     aiResult: { type: String, default: '' },
     aiError: { type: String, default: '' },
     aiRunAt: { type: Date },
+    aiCommentId: { type: String, default: '' },
     lastScanAt: { type: Date },
   },
   { timestamps: true }

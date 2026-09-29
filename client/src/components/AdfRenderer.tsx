@@ -110,15 +110,25 @@ function renderNode(node: any, idx: number): React.ReactNode {
         );
       }
       if (id) {
+        // id ở đây là UUID của Media Services, không phải attachment id numeric nên
+        // không tải trực tiếp được — trỏ người đọc sang mục "File đính kèm".
+        const numeric = /^\d+$/.test(String(id));
+        if (numeric) {
+          return (
+            <img
+              key={idx}
+              src={`${API_BASE}/support/attachment/${id}`}
+              alt={alt || 'attachment'}
+              className="max-w-full rounded border border-gray-200 my-1"
+              loading="lazy"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+          );
+        }
         return (
-          <img
-            key={idx}
-            src={`${API_BASE}/support/attachment/${id}`}
-            alt={alt || 'attachment'}
-            className="max-w-full rounded border border-gray-200 my-1"
-            loading="lazy"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-          />
+          <span key={idx} className="my-1 inline-block rounded bg-gray-100 px-2 py-0.5 text-[11px] text-gray-500">
+            📎 file đính kèm — xem ở mục &quot;File đính kèm&quot;
+          </span>
         );
       }
       return null;

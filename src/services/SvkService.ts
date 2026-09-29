@@ -1,17 +1,17 @@
 import crypto from 'crypto';
 import { jiraService } from './JiraService';
-import { SvkTicket, ISvkTicket, ISvkComment } from '../models/SvkTicket';
+import { SvkTicket, ISvkTicket, ISvkComment, IAttachment } from '../models/SvkTicket';
 import { SvkHistory } from '../models/SvkHistory';
 import { SupportTicket } from '../models/SupportTicket';
-import { analyzeWithCustomPrompt, testAIConfig } from './AIService';
+import { analyzeWithCustomPrompt, testAIConfig, PromptImage } from './AIService';
 import { SVK_REVIEW_PROMPT } from './svkReviewPrompt';
 
 const SVK_JQL = `project = SVK AND "Request Type" IN ("Lending Onboarding DOP","Lending Onboarding API","Lending Onboarding Appcake","Lending Disburse","Lending Payment Installment","Lending Repayment","Lending Get Detail","Lending Termination","Lending Core","Lending Portal Support","Lending Risk Support","Lending Others") AND status NOT IN (Done,Cancelled,Ready4Test,"Waiting for customer") ORDER BY created DESC`;
 
 const PL_BROAD_JQL = `project in (PL,PLO,DOP) AND created >= -30d AND issueLinkType = "causes" AND status NOT IN (Invalid,"Test Passed")`;
 
-const SVK_FIELDS = ['summary', 'status', 'priority', 'created', 'updated', 'description', 'issuelinks', 'comment'];
-const PL_FIELDS = ['summary', 'status', 'comment', 'description', 'assignee', 'issuelinks', 'customfield_10020', 'created'];
+const SVK_FIELDS = ['summary', 'status', 'priority', 'created', 'updated', 'description', 'issuelinks', 'comment', 'attachment'];
+const PL_FIELDS = ['summary', 'status', 'comment', 'description', 'assignee', 'issuelinks', 'customfield_10020', 'created', 'attachment'];
 
 const SVK_PORTAL_BASE = 'https://internal.support.cake.vn/servicedesk/customer/portal/1';
 
@@ -117,6 +117,16 @@ async function recordHistory(snapshot: Record<string, any>, keepAi: { aiResult: 
   );
 }
 
+/** Jira attachment -> metadata gọn để lưu DB; file tải qua proxy /api/support/attachment/:id. */
+function mapAttachments(raw: any): IAttachment[] {
+  return ((raw || []) as Array<Record<string, any>>).map((a) => ({
+    id: String(a.id || ''),
+    filename: String(a.filename || ''),
+    mimeType: String(a.mimeType || ''),
+    size: Number(a.size || 0),
+  }));
+}
+
 export interface ScanResult {
   total: number;
   pendingAi: number;
@@ -207,6 +217,7 @@ const runScan = async (): Promise<ScanResult> => {
           description: adfToText(pf.description),
           descriptionAdf: pf.description ?? null,
           comments: plCommentsMap.get(k) || [],
+          attachments: mapAttachments(pf.attachment),
         };
       });
 
@@ -231,6 +242,7 @@ const runScan = async (): Promise<ScanResult> => {
         description,
         descriptionAdf: f.description ?? null,
         comments,
+        attachments: mapAttachments(f.attachment),
         linkedPlKeys: plKeys,
         linkedPl,
         aiInputHash,
@@ -256,6 +268,7 @@ const runScan = async (): Promise<ScanResult> => {
         description,
         descriptionAdf: f.description ?? null,
         comments,
+        attachments: mapAttachments(f.attachment),
         linkedPlKeys: plKeys,
         linkedPl,
       },
@@ -353,11 +366,25 @@ ${formatComments(pl.comments)}`
         .join('\n')
     : '(không tìm thấy ticket tương tự trong dữ liệu đã lưu)';
 
+  // Dòng key dựng sẵn để AI copy nguyên văn — tránh việc nó tự bịa URL.
+  const jiraHost = process.env.JIRA_HOST || 'https://cakedigitalbank.atlassian.net';
+  const mdKey = (key: string, url: string) => {
+    const [prefix, ...rest] = key.split('-');
+    return rest.length ? `[${prefix}](${url})-${rest.join('-')}` : `[${key}](${url})`;
+  };
+  const plKeyLinks = (doc.linkedPlKeys || [])
+    .map((key) => mdKey(key, `${jiraHost}/browse/${key}`))
+    .join(', ');
+  const keyLine = `${plKeyLinks || 'PL: chưa có'} x ${mdKey(doc.key, doc.hyperlink)}`;
+
   return `${SVK_REVIEW_PROMPT}
 
 ---
 
 # DỮ LIỆU TICKET CẦN ĐÁNH GIÁ
+
+DÒNG KEY (copy nguyên văn vào dòng đầu phần Tổng quan):
+${keyLine}
 
 ## SVK ticket: ${doc.key} — ${doc.summary}
 Link: ${doc.hyperlink}
@@ -378,8 +405,75 @@ ${similarBlock}
 
 ---
 
-Đánh giá ticket trên theo đúng 3 phần đã quy định. Trả lời bằng tiếng Việt, dùng Markdown.`;
+Đánh giá ticket trên theo đúng 4 phần đã quy định (Tổng quan → Kết luận → Thiếu/Chưa rõ → Đề xuất). Trả lời bằng tiếng Việt, dùng Markdown.`;
 };
+
+/** Bật/tắt việc đẩy kết quả AI lên chính ticket SVK. */
+const AI_COMMENT_ENABLED = process.env.SVK_AI_COMMENT !== 'false';
+/** Comment nội bộ (chỉ agent thấy); đặt false nếu muốn khách hàng đọc được. */
+const AI_COMMENT_INTERNAL = process.env.SVK_AI_COMMENT_INTERNAL !== 'false';
+const AI_COMMENT_HEADER = '🤖 AI review (tự động từ tool Support)';
+
+/**
+ * Đẩy kết quả AI lên ticket: lần đầu tạo comment, các lần sau sửa lại đúng comment đó
+ * nên ticket không bị ngập comment mỗi lần chạy lại AI.
+ */
+async function syncAiComment(doc: any, result: string): Promise<void> {
+  if (!AI_COMMENT_ENABLED) return;
+
+  const body = `${AI_COMMENT_HEADER}\n\n${result}`;
+  try {
+    if (doc.aiCommentId) {
+      await jiraService.updateComment(doc.key, doc.aiCommentId, body);
+      return;
+    }
+    const commentId = await jiraService.addComment(doc.key, body, AI_COMMENT_INTERNAL);
+    doc.aiCommentId = commentId;
+    await SvkTicket.updateOne({ key: doc.key }, { $set: { aiCommentId: commentId } });
+  } catch (error: any) {
+    const message = error?.message || String(error);
+    // comment bị xoá thủ công -> tạo lại thay vì chịu lỗi mãi
+    if (doc.aiCommentId && /404|does not exist|not found/i.test(message)) {
+      try {
+        const commentId = await jiraService.addComment(doc.key, body, AI_COMMENT_INTERNAL);
+        doc.aiCommentId = commentId;
+        await SvkTicket.updateOne({ key: doc.key }, { $set: { aiCommentId: commentId } });
+        return;
+      } catch (retryError: any) {
+        console.error(`[SVK AI] ${doc.key} tạo lại comment lỗi:`, retryError?.message || retryError);
+        return;
+      }
+    }
+    // comment hỏng không được làm hỏng kết quả AI đã lưu
+    console.error(`[SVK AI] ${doc.key} comment lên Jira lỗi:`, message);
+  }
+}
+
+/** Tối đa bao nhiêu ảnh đính kèm được nạp vào một lần gọi AI, và giới hạn dung lượng mỗi ảnh. */
+const AI_IMAGE_LIMIT = Number(process.env.SVK_AI_IMAGE_LIMIT ?? 4);
+const AI_IMAGE_MAX_BYTES = Number(process.env.SVK_AI_IMAGE_MAX_MB ?? 4) * 1024 * 1024;
+const AI_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+
+/** Tải ảnh đính kèm của SVK + các PL liên quan để gửi kèm prompt (chỉ ảnh, bỏ video/file khác). */
+async function loadTicketImages(doc: ISvkTicket): Promise<PromptImage[]> {
+  if (AI_IMAGE_LIMIT <= 0) return [];
+
+  const candidates = [
+    ...(doc.attachments || []),
+    ...(doc.linkedPl || []).flatMap((pl) => pl.attachments || []),
+  ].filter((a) => AI_IMAGE_TYPES.includes((a.mimeType || '').toLowerCase()) && a.size <= AI_IMAGE_MAX_BYTES);
+
+  const images: PromptImage[] = [];
+  for (const attachment of candidates.slice(0, AI_IMAGE_LIMIT)) {
+    try {
+      const base64 = await jiraService.getAttachmentBase64(attachment.id);
+      images.push({ mediaType: attachment.mimeType, base64 });
+    } catch (error: any) {
+      console.warn(`[SVK AI] ${doc.key} không tải được ảnh ${attachment.filename}:`, error?.message || error);
+    }
+  }
+  return images;
+}
 
 export const runAiForTicket = async (key: string): Promise<string> => {
   const doc = await SvkTicket.findOne({ key });
@@ -387,7 +481,9 @@ export const runAiForTicket = async (key: string): Promise<string> => {
 
   const similar = await findSimilarTickets(doc);
   const prompt = buildSvkReviewPrompt(doc, similar as any);
-  const result = await analyzeWithCustomPrompt(prompt);
+  const images = await loadTicketImages(doc);
+  if (images.length) console.log(`[SVK AI] ${key}: gửi kèm ${images.length} ảnh đính kèm`);
+  const result = await analyzeWithCustomPrompt(prompt, images);
 
   aiUnavailableReason = '';
   consecutiveFailures = 0;
@@ -399,6 +495,8 @@ export const runAiForTicket = async (key: string): Promise<string> => {
     { key },
     { $set: { aiResult: result, aiError: '', aiRunAt: doc.aiRunAt } }
   ).catch(() => {});
+
+  await syncAiComment(doc, result);
   return result;
 };
 
@@ -421,7 +519,8 @@ export interface AiJobState {
   aiUnavailableReason: string;
 }
 
-const AI_CONCURRENCY = 3;
+/** Tickets reviewed at once. 1 = strictly sequential — the proxy caps concurrent requests. */
+const AI_CONCURRENCY = Math.max(1, Number(process.env.SVK_AI_CONCURRENCY ?? 1));
 /** Consecutive failures that mean the provider itself is down, not one bad ticket. */
 const AI_FAIL_LIMIT = Number(process.env.SVK_AI_FAIL_LIMIT ?? 3);
 

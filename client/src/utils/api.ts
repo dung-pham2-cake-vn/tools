@@ -46,12 +46,6 @@ export const roadmapAPI = {
 
 // Support API
 export const supportAPI = {
-  scan: (mode: 'Scan Un-closed' | 'Scan All') => apiClient.post('/support/scan', { mode }),
-  getTickets: () => apiClient.get('/support/tickets'),
-  saveAnalyzeNote: (id: string, analyzeNote: string) =>
-    apiClient.patch(`/support/tickets/${id}/analyze`, { analyzeNote }),
-  reloadTicket: (id: string) => apiClient.post(`/support/tickets/${id}/reload`),
-  aiAnalyze: (id: string) => apiClient.post(`/support/tickets/${id}/ai-analyze`),
   getSvkNotes: () => apiClient.get('/support/svk-notes'),
   saveSvkNote: (key: string, note: string) =>
     apiClient.put(`/support/svk-notes/${key}`, { note }),
@@ -69,6 +63,7 @@ export const configAPI = {
   saveAI: (data: { provider: string; apiKey: string; model: string; baseUrl?: string }) =>
     apiClient.put('/config/ai', data),
   testAI: () => apiClient.post('/config/ai/test'),
+  getAIPrompts: () => apiClient.get('/config/ai/prompts'),
   getTeamCapacity: () => apiClient.get('/config/team-capacity'),
   saveTeamCapacity: (data: { qa: number; backend: number; web: number; mobile: number }) =>
     apiClient.put('/config/team-capacity', data),
@@ -264,4 +259,8 @@ export const jiraAPI = {
     apiClient.put(`/jira/issue/${issueKey}/fix-versions`, { versionIds }),
   updateIssueLabels: (issueKey: string, add: string[], remove: string[]) =>
     apiClient.put(`/jira/issue/${issueKey}/labels`, { add, remove }),
+  getProjectIssueTypes: (projectKeyOrId: string) =>
+    apiClient.get(`/jira/projects/${projectKeyOrId}/issue-types`),
+  setIssueType: (issueKey: string, issueTypeId: string) =>
+    apiClient.put(`/jira/issue/${issueKey}/issue-type`, { issueTypeId }),
 };

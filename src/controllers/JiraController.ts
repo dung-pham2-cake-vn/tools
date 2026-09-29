@@ -82,6 +82,32 @@ export class JiraController {
     }
   }
 
+  /** Danh sách issue type dùng được của project — nguồn cho dropdown đổi loại ticket. */
+  async getProjectIssueTypes(req: Request, res: Response): Promise<void> {
+    try {
+      const { projectKeyOrId } = req.params;
+      const types = await jiraService.getProjectIssueTypes(projectKeyOrId);
+      res.status(200).json({ success: true, data: types });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async setIssueType(req: Request, res: Response): Promise<void> {
+    try {
+      const { issueKey } = req.params;
+      const { issueTypeId } = req.body as { issueTypeId?: unknown };
+      if (typeof issueTypeId !== 'string' || !issueTypeId.trim()) {
+        res.status(400).json({ success: false, error: 'issueTypeId must be a non-empty string' });
+        return;
+      }
+      await jiraService.setIssueType(issueKey, issueTypeId.trim());
+      res.status(200).json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
   async updateIssueLabels(req: Request, res: Response): Promise<void> {
     try {
       const { issueKey } = req.params;

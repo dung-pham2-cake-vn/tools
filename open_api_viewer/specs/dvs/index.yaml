@@ -152,6 +152,14 @@ components:
             Số CCCD của KH, dùng cùng `loan_code` để định danh khoản vay.
             **Bắt buộc** với nghiệp vụ thanh toán khoản vay (khi không truyền `order_id`).
           example: "xxxxxxxxxxxx"
+        service:
+          type: string
+          enum:
+            - CASH_COLLECTION_SERVICE_LOAN
+            - CASH_COLLECTION_SERVICE_OPEN_TD
+            - CASH_COLLECTION_SERVICE_WITHDRAW
+          description: Với lending là `CASH_COLLECTION_SERVICE_LOAN`
+          example: "CASH_COLLECTION_SERVICE_LOAN"
 
     OrderInquiryResponse:
       allOf:

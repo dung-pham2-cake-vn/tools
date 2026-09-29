@@ -3,7 +3,6 @@ import axios from 'axios';
 import { scanUnclosed, scanAll, executeJQLQuery, saveTicketsToDatabase } from '../services/SupportService';
 import { SupportTicket } from '../models/SupportTicket';
 import { SvkNote } from '../models/SvkNote';
-import { analyzeTicketWithAI } from '../services/AIService';
 import { reportScan } from '../services/svkAutoScan';
 import {
   scanSvkTickets,
@@ -145,30 +144,6 @@ export const reloadTicket = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error reloading ticket:', error);
     res.status(500).json({ message: 'Reload failed', error: error?.message });
-  }
-};
-
-export const aiAnalyzeTicket = async (req: Request, res: Response) => {
-  const { id } = req.params;
-  try {
-    const ticket = await SupportTicket.findById(id).lean();
-    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
-
-    const analysis = await analyzeTicketWithAI({
-      key: ticket.key,
-      title: ticket.title,
-      description: ticket.description,
-      status: ticket.status,
-      type: ticket.type,
-      assignee: ticket.assignee,
-      comments: ticket.comments as any[],
-      linkedWorkItems: ticket.linkedWorkItems as any[],
-    });
-
-    res.status(200).json({ analysis });
-  } catch (error: any) {
-    console.error('Error in AI analysis:', error);
-    res.status(500).json({ message: error?.message || 'AI analysis failed' });
   }
 };
 

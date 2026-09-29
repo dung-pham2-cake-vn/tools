@@ -4,7 +4,6 @@ import {
   getTickets,
   saveAnalyzeNote,
   reloadTicket,
-  aiAnalyzeTicket,
   proxyAttachment,
   getSvkNotes,
   saveSvkNote,
@@ -30,7 +29,6 @@ router.post('/svk/ai-run', svkAiRunAll);
 router.post('/svk/tickets/:key/ai', svkAiRunOne);
 router.patch('/tickets/:id/analyze', saveAnalyzeNote);
 router.post('/tickets/:id/reload', reloadTicket);
-router.post('/tickets/:id/ai-analyze', aiAnalyzeTicket);
 router.get('/attachment/:attachmentId', proxyAttachment);
 
 export default router;

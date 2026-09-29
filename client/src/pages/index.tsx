@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import NotesPanel from '@/components/NotesPanel';
 import toast, { Toaster } from 'react-hot-toast';
 import { jiraAPI, sprintManagementAPI, supportAPI } from '@/utils/api';
 import { buildRows, type SvkTicketDoc, type Urgency } from '@/utils/svk';
@@ -118,6 +119,7 @@ interface ProjectReport {
 // DOP tạm bỏ khỏi monitor sprint/fix-version (chưa cần theo dõi).
 const PROJECT_KEYS: ProjectKey[] = ['PL', 'PLO'];
 const UTC7_OFFSET_MS = 7 * 60 * 60 * 1000;
+const JIRA_BASE = 'https://cakedigitalbank.atlassian.net';
 
 const isDateOnly = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
 
@@ -419,28 +421,6 @@ function JiraTypeTag({ name }: { name: string }) {
   );
 }
 
-// ─── Dev ticket helpers ───────────────────────────────────────────────────────
-
-function isSoftwareEngineer(rawAssignee: string, contributors: Record<string, string>): boolean {
-  if (!rawAssignee || rawAssignee === 'Unassigned') return false;
-  const inlineMatch = rawAssignee.match(/\(([^)]+)\)/);
-  if (inlineMatch) return inlineMatch[1].toLowerCase().includes('software engineer');
-  const cleanName = rawAssignee.replace(/\s*\(.*?\)\s*/g, '').trim();
-  return (contributors[cleanName] || '').toLowerCase().includes('software engineer');
-}
-
-function smShortName(fullName: string): string {
-  if (!fullName || fullName === 'Unassigned') return fullName || 'Unassigned';
-  const clean = fullName.replace(/\s*\(.*?\)\s*/g, '').trim();
-  const parts = clean.split(/\s+/);
-  return parts.length <= 2 ? clean : `${parts[parts.length - 1]} ${parts[0]}`;
-}
-
-function smFormatDate(iso: string): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
-}
-
 async function loadSprintAlignmentReports(): Promise<ProjectReport[]> {
   const today = getTodayUtc7();
 
@@ -591,40 +571,15 @@ function SprintOverviewCard({
   smStats: SmStats | null;
   smLoading: boolean;
 }) {
-  const plReport = sprintReports.find((r) => r.projectKey === 'PL') ?? sprintReports[0];
-  const rawSprintName = plReport?.sprintLine.name ?? '';
-  const sprintLabel = rawSprintName ? sprintPageLabel(rawSprintName) : '—';
-  const { startDate, endDate, dayNumber, totalDays } = getSprintDayInfo(sprintReports);
-
+  const { dayNumber, totalDays } = getSprintDayInfo(sprintReports);
   const progress = dayNumber && totalDays ? (dayNumber / totalDays) * 100 : 0;
 
-  const fmtDate = (d: string | null) => {
-    if (!d) return '?';
-    const [y, m, day] = d.split('-');
-    return `${day}/${m}/${y}`;
-  };
-
   return (
-    <div className="px-6 py-5">
-      <h2 className="text-base font-semibold text-gray-900 mb-4">Sprint hiện tại</h2>
-
+    <div className="px-6 pt-5">
       {sprintLoading ? (
         <div className="h-8 w-64 animate-pulse rounded bg-gray-100" />
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 mb-3">
-            <span className="text-xl font-bold text-blue-700">{sprintLabel}</span>
-            <span className="text-sm text-gray-600">
-              {fmtDate(startDate)} → {fmtDate(endDate)}
-            </span>
-            {dayNumber && totalDays && (
-              <span className="text-sm text-gray-700">
-                Ngày thứ <span className="font-bold text-blue-600">{dayNumber}</span>
-                <span className="text-gray-400"> / {totalDays} ngày</span>
-              </span>
-            )}
-          </div>
-
           {dayNumber && totalDays && (
             <div className="flex items-center gap-3 mb-5">
               <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
@@ -660,7 +615,12 @@ function SprintOverviewCard({
               ))}
             </div>
           ) : (
-            <p className="text-sm italic text-gray-400">Chưa có dữ liệu Sprint Management</p>
+            <p className="text-sm text-gray-400">
+              Chưa nạp page Sprint Management của sprint này nên không có thống kê subtask/story.{' '}
+              <Link href="/sprints/management" className="text-blue-600 hover:underline">
+                Mở Sprint Management →
+              </Link>
+            </p>
           )}
         </>
       )}
@@ -683,9 +643,15 @@ interface SprintHealthResult {
   unassignedStories: SprintHealthIssue[];
 }
 
+const SPRINT_HEALTH_JQL =
+  'project IN (PL, PLO, DOP) AND Sprint IN openSprints() AND issuetype = Story ORDER BY project';
+
 async function loadSprintTicketHealth(): Promise<SprintHealthResult> {
-  const jql = 'project IN (PL, PLO, DOP) AND Sprint IN openSprints() AND issuetype = Story ORDER BY project';
-  const res = await jiraAPI.searchIssues({ jql, maxResults: 200, fields: ['summary', 'status', 'assignee'] });
+  const res = await jiraAPI.searchIssues({
+    jql: SPRINT_HEALTH_JQL,
+    maxResults: 200,
+    fields: ['summary', 'status', 'assignee'],
+  });
   const issues: any[] = ((res.data.data as { issues?: any[] })?.issues) || [];
   const mapped: SprintHealthIssue[] = issues.map((issue: any) => ({
     key: issue.key as string,
@@ -1104,6 +1070,199 @@ function SprintClosePanel({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ─── Lệch fix version cha - con ──────────────────────────────────────────────
+
+interface VersionMismatchIssue {
+  key: string;
+  summary: string;
+  statusName: string;
+  statusCategoryKey?: string;
+  assigneeName: string;
+  ownVersions: string;
+  parentKey: string;
+  parentSummary: string;
+  parentVersions: string;
+}
+
+// Giống rule ở /jira/backlog: chỉ soát subtask, bỏ ticket Done / Defect / đã gắn label bỏ qua.
+const VERSION_MISMATCH_JQL = 'project IN (PL, PLO) AND sprint IN openSprints() ORDER BY key ASC';
+const IGNORE_MISMATCH_LABEL = 'ignore-fix-mismatch';
+const MISMATCH_DONE_RE =
+  /(done|passed|released|ready4release|closed|resolved|will not|reject|invalid|cancel|bot to delete)/;
+
+const versionSetKey = (names: string[]) => [...names].sort().join(', ');
+
+async function searchAllPages(jql: string, fields: string[], maxPages = 8): Promise<any[]> {
+  const out: any[] = [];
+  let nextPageToken: string | undefined;
+  for (let page = 0; page < maxPages; page++) {
+    const res = await jiraAPI.searchIssues({ jql, maxResults: 100, fields, nextPageToken });
+    const payload = res.data.data as { issues?: any[]; nextPageToken?: string } | undefined;
+    out.push(...(payload?.issues || []));
+    nextPageToken = payload?.nextPageToken;
+    if (!nextPageToken) break;
+  }
+  return out;
+}
+
+async function loadVersionMismatch(): Promise<VersionMismatchIssue[]> {
+  const fields = ['summary', 'status', 'assignee', 'issuetype', 'fixVersions', 'parent', 'labels'];
+  const byKey = new Map<string, any>();
+  for (const issue of await searchAllPages(VERSION_MISMATCH_JQL, fields)) byKey.set(issue.key, issue);
+
+  // subtask thường không dính JQL sprint -> lấy thêm con/cháu qua field parent
+  let frontier = Array.from(byKey.keys());
+  for (let depth = 0; depth < 4 && frontier.length > 0; depth++) {
+    const next: string[] = [];
+    for (let i = 0; i < frontier.length; i += 50) {
+      const batch = frontier.slice(i, i + 50);
+      const kids = await searchAllPages(
+        `project IN (PL, PLO) AND parent IN (${batch.join(',')})`,
+        fields,
+        4
+      );
+      for (const kid of kids) {
+        if (byKey.has(kid.key)) continue;
+        byKey.set(kid.key, kid);
+        next.push(kid.key);
+      }
+    }
+    frontier = next;
+  }
+
+  const isDone = (issue: any) => MISMATCH_DONE_RE.test((issue?.fields?.normalizedStatusName || '').toLowerCase());
+  const isDefect = (issue: any) => (issue?.fields?.issuetype?.name || '').toLowerCase().includes('defect');
+  const isIgnored = (issue: any) => (issue?.fields?.labels || []).includes(IGNORE_MISMATCH_LABEL);
+
+  const result: VersionMismatchIssue[] = [];
+  for (const issue of byKey.values()) {
+    if (!issue.fields?.issuetype?.subtask) continue;
+    if (isDone(issue) || isDefect(issue) || isIgnored(issue)) continue;
+    const parentKey = issue.fields?.parent?.key;
+    const parent = parentKey ? byKey.get(parentKey) : undefined;
+    if (!parent) continue;
+    if (isDone(parent) || isDefect(parent) || isIgnored(parent)) continue;
+
+    const own = versionSetKey(issue.fields?.normalizedFixVersionNames || []);
+    const parentVersions = versionSetKey(parent.fields?.normalizedFixVersionNames || []);
+    if (own === parentVersions) continue;
+
+    result.push({
+      key: issue.key,
+      summary: issue.fields?.summary || '',
+      statusName: issue.fields?.normalizedStatusName || '',
+      statusCategoryKey: issue.fields?.status?.statusCategory?.key || '',
+      assigneeName: issue.fields?.normalizedAssigneeName || '',
+      ownVersions: own,
+      parentKey,
+      parentSummary: parent.fields?.summary || '',
+      parentVersions,
+    });
+  }
+
+  return result.sort(
+    (a, b) => a.parentVersions.localeCompare(b.parentVersions) || a.key.localeCompare(b.key)
+  );
+}
+
+function VersionMismatchPanel({
+  issues,
+  loading,
+  onReload,
+}: {
+  issues: VersionMismatchIssue[];
+  loading: boolean;
+  onReload: () => void;
+}) {
+  if (loading) return <div className="py-6 text-center text-sm text-gray-500">Đang tải...</div>;
+  if (issues.length === 0) {
+    return <p className="pt-4 text-sm font-medium text-green-600">✅ Subtask và ticket cha khớp fix version</p>;
+  }
+
+  return (
+    <div className="space-y-3 pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-gray-400">{issues.length} subtask lệch fix version so với cha</p>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/jira/backlog"
+            className="rounded border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
+          >
+            Mở backlog để sửa →
+          </Link>
+          <button
+            type="button"
+            onClick={onReload}
+            className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+          >
+            Tải lại
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-gray-200">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="bg-gray-100 text-xs uppercase tracking-wide text-gray-500">
+              <th className="w-[110px] px-3 py-2 text-left font-semibold">Subtask</th>
+              <th className="px-3 py-2 text-left font-semibold">Tên</th>
+              <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">Fix version con</th>
+              <th className="w-[110px] px-3 py-2 text-left font-semibold">Cha</th>
+              <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">Fix version cha</th>
+              <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">Status</th>
+              <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">Assignee</th>
+            </tr>
+          </thead>
+          <tbody>
+            {issues.map((issue) => (
+              <tr key={issue.key} className="border-t border-gray-100 transition-colors hover:bg-gray-50">
+                <td className="px-3 py-2">
+                  <a
+                    href={`${JIRA_BASE}/browse/${issue.key}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-xs font-semibold text-blue-600 hover:underline"
+                  >
+                    {issue.key}
+                  </a>
+                </td>
+                <td className="px-3 py-2 text-sm text-gray-700">{issue.summary || '—'}</td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <span className="rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[11px] font-medium text-red-700">
+                    {issue.ownVersions || '⚠ trống'}
+                  </span>
+                </td>
+                <td className="px-3 py-2">
+                  <a
+                    href={`${JIRA_BASE}/browse/${issue.parentKey}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={issue.parentSummary}
+                    className="font-mono text-xs font-semibold text-blue-600 hover:underline"
+                  >
+                    {issue.parentKey}
+                  </a>
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <span className="rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[11px] font-medium text-gray-600">
+                    {issue.parentVersions || 'không có'}
+                  </span>
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <JiraStatusPill name={issue.statusName} categoryKey={issue.statusCategoryKey} />
+                </td>
+                <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                  {issue.assigneeName || <span className="text-red-500">Chưa gán</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -1642,111 +1801,38 @@ function FixVersionReviewPanel({
   );
 }
 
-// ─── DevTicketTable ───────────────────────────────────────────────────────────
+// ─── Link sang trang đổi PO status ───────────────────────────────────────────
 
-const JIRA_BASE = 'https://cakedigitalbank.atlassian.net';
-
-function DevTicketTable({
-  tickets,
-  ticketCache,
-  reloadingAll,
-  onReloadAll,
-  loading,
-}: {
-  tickets: SmCachedTicket[];
-  ticketCache: Record<string, SmCachedTicket>;
-  reloadingAll: boolean;
-  onReloadAll: () => void;
-  loading: boolean;
-}) {
-  if (loading) {
-    return <div className="py-6 text-center text-gray-500 text-sm">Đang tải...</div>;
-  }
-
+function PoStatusLink({ pageId }: { pageId: string }) {
   return (
-    <div className="pt-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-gray-400">
-          Software Engineer · Todo &amp; In-progress ({tickets.length} tickets)
-        </p>
-        <button
-          onClick={onReloadAll}
-          disabled={reloadingAll}
-          className="ml-3 shrink-0 px-2.5 py-1 text-xs font-medium rounded border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50"
-        >
-          {reloadingAll ? 'Đang reload Jira...' : 'Reload Jira'}
-        </button>
-      </div>
+    <Link
+      href={pageId ? `/sprints/management/${pageId}` : '/sprints/management'}
+      className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
+    >
+      Đổi PO status →
+    </Link>
+  );
+}
 
-      {tickets.length === 0 ? (
-        <div className="py-4 text-center text-sm text-green-600 font-medium">
-          ✅ Tất cả subtask dev đã xong!
-        </div>
-      ) : (
-        <div className="rounded-lg border border-gray-200 overflow-hidden">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="bg-gray-100 text-xs text-gray-500 uppercase tracking-wide">
-                <th className="text-left px-3 py-2 font-semibold w-[110px]">Ticket ID</th>
-                <th className="text-left px-3 py-2 font-semibold">Tên Ticket</th>
-                <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Trạng thái</th>
-                <th className="text-left px-3 py-2 font-semibold whitespace-nowrap">Assignee</th>
-                <th className="text-center px-3 py-2 font-semibold w-[48px]">SP</th>
-                <th className="text-left px-3 py-2 font-semibold w-[100px]">Parent</th>
-                <th className="text-left px-3 py-2 font-semibold w-[130px]">Parent Fix Ver</th>
-                <th className="text-left px-3 py-2 font-semibold w-[160px]">Last update</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tickets.map((ticket) => {
-                return (
-                  <tr key={ticket.id} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
-                    <td className="px-3 py-2">
-                      <a
-                        href={`${JIRA_BASE}/browse/${ticket.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline font-mono text-xs font-semibold"
-                      >
-                        {ticket.id}
-                      </a>
-                    </td>
-                    <td className="px-3 py-2 text-sm text-gray-700">{ticket.name || '—'}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <JiraStatusPill name={ticket.status} />
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-700 whitespace-nowrap">
-                      {smShortName(ticket.assignee) || 'Unassigned'}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-500 font-mono text-center">
-                      {ticket.storyPoints || '—'}
-                    </td>
-                    <td className="px-3 py-2">
-                      {ticket.parentId ? (
-                        <a
-                          href={`${JIRA_BASE}/browse/${ticket.parentId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline font-mono text-xs font-semibold"
-                        >
-                          {ticket.parentId}
-                        </a>
-                      ) : <span className="text-xs text-gray-400">—</span>}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-600">
-                      {ticket.parentId && ticketCache[ticket.parentId]?.fixVersions?.length
-                        ? ticketCache[ticket.parentId].fixVersions!.join(', ')
-                        : <span className="text-gray-400">—</span>}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-gray-500">
-                      {ticket.lastUpdatedAt ? smFormatDate(ticket.lastUpdatedAt) : '—'}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+// ─── Mô tả filter của từng task ──────────────────────────────────────────────
+
+function TaskFilterNote({ jql, notes }: { jql?: string; notes?: string[] }) {
+  return (
+    <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Đang lọc</p>
+      {jql && (
+        <code className="block whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-slate-600">
+          {jql}
+        </code>
+      )}
+      {notes && notes.length > 0 && (
+        <ul className="mt-1 space-y-0.5">
+          {notes.map((note) => (
+            <li key={note} className="text-[11px] text-slate-500">
+              • {note}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
@@ -1754,16 +1840,24 @@ function DevTicketTable({
 
 // ─── TaskItem ─────────────────────────────────────────────────────────────────
 
-type TaskStatus = 'loading' | 'ok' | 'error';
+type TaskStatus = 'idle' | 'loading' | 'ok' | 'error';
 
 interface TaskItemProps {
   title: string;
   status: TaskStatus;
   defaultOpen?: boolean;
+  filter?: React.ReactNode;
   children: React.ReactNode;
 }
 
 function StatusBadge({ status }: { status: TaskStatus }) {
+  if (status === 'idle') {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
+        Chưa kiểm tra
+      </span>
+    );
+  }
   if (status === 'loading') {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
@@ -1786,11 +1880,13 @@ function StatusBadge({ status }: { status: TaskStatus }) {
   );
 }
 
-function TaskItem({ title, status, defaultOpen = false, children }: TaskItemProps) {
+function TaskItem({ title, status, defaultOpen = false, filter, children }: TaskItemProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [everOpened, setEverOpened] = useState(defaultOpen);
 
   const toggle = useCallback(() => {
+    // vừa bôi đen tiêu đề thì click thả chuột không được coi là mở/đóng
+    if ((window.getSelection()?.toString() || '').trim()) return;
     setOpen((prev) => {
       if (!prev) setEverOpened(true);
       return !prev;
@@ -1799,19 +1895,27 @@ function TaskItem({ title, status, defaultOpen = false, children }: TaskItemProp
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={toggle}
-        className="flex w-full items-center gap-3 px-5 py-4 text-left"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggle();
+          }
+        }}
+        className="flex w-full cursor-pointer items-center gap-3 px-5 py-4 text-left"
       >
         <span className="text-sm font-semibold text-gray-400 select-none">{open ? '▼' : '▶'}</span>
         <StatusBadge status={status} />
-        <span className="text-base font-semibold text-gray-900">{title}</span>
-      </button>
+        <span className="select-text text-base font-semibold text-gray-900">{title}</span>
+      </div>
 
       {open && everOpened && (
         <div className="border-t border-slate-100 px-5 pb-5">
           {children}
+          {filter}
         </div>
       )}
     </div>
@@ -1821,34 +1925,98 @@ function TaskItem({ title, status, defaultOpen = false, children }: TaskItemProp
 // ─── Sprint day timeline ──────────────────────────────────────────────────────
 
 const TIMELINE_DAYS = 14;
+const WORKING_DAYS_PER_SPRINT = 10;
 
 interface DayTask {
   day: number;
   title: string;
   status: TaskStatus;
   content: React.ReactNode;
+  /** mô tả bộ lọc đang dùng, hiện ngay trong task */
+  filter?: React.ReactNode;
 }
 
-type DayNodeState = 'pass' | 'fail' | 'loading' | 'empty' | 'future';
+type DayNodeState = 'pass' | 'fail' | 'loading' | 'empty' | 'future' | 'idle';
 
 interface DayMark {
+  /** ngày thứ N của sprint tính theo lịch (mốc cuối tuần bị bỏ khỏi timeline) */
   day: number;
+  date: string | null;
+  weekdayLabel: string;
   state: DayNodeState;
+  /** state lấy từ cache lần kiểm tra trước, chưa chạy lại trong phiên này */
+  fromCache: boolean;
   tasks: DayTask[];
 }
 
-function buildDayMarks(tasks: DayTask[], totalDays: number, currentDay: number | null): DayMark[] {
-  return Array.from({ length: totalDays }, (_, index) => {
-    const day = index + 1;
-    const dayTasks = tasks.filter((task) => task.day === day);
+const WEEKDAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+const addDays = (dateOnly: string, days: number) =>
+  new Date(new Date(`${dateOnly}T00:00:00Z`).getTime() + days * 86_400_000);
+
+const isWeekend = (date: Date) => date.getUTCDay() === 0 || date.getUTCDay() === 6;
+
+/** Sprint đếm theo ngày làm việc (T2–T6): 14 ngày lịch -> 10 mốc, đánh số liền mạch 1..10. */
+type CachedDayStatus = Record<number, 'pass' | 'fail'>;
+
+function buildDayMarks(
+  tasks: DayTask[],
+  totalCalendarDays: number,
+  currentDay: number | null,
+  startDate: string | null,
+  loadedDays: Set<number>,
+  loadingDays: Set<number>,
+  cachedStatus: CachedDayStatus
+): DayMark[] {
+  const skeleton: Array<{ day: number; date: string | null; weekdayLabel: string }> = [];
+  if (startDate) {
+    for (let calendarDay = 1; calendarDay <= totalCalendarDays; calendarDay++) {
+      const date = addDays(startDate, calendarDay - 1);
+      if (isWeekend(date)) continue;
+      skeleton.push({
+        day: skeleton.length + 1,
+        date: date.toISOString().slice(0, 10),
+        weekdayLabel: WEEKDAY_LABELS[date.getUTCDay()],
+      });
+    }
+  } else {
+    // chưa biết ngày bắt đầu sprint -> vẫn dựng 10 mốc, không có nhãn thứ
+    for (let day = 1; day <= WORKING_DAYS_PER_SPRINT; day++) {
+      skeleton.push({ day, date: null, weekdayLabel: '' });
+    }
+  }
+
+  const lastDay = skeleton[skeleton.length - 1]?.day ?? WORKING_DAYS_PER_SPRINT;
+
+  return skeleton.map((slot) => {
+    const dayTasks = tasks.filter((task) => Math.min(task.day, lastDay) === slot.day);
     let state: DayNodeState;
+    let fromCache = false;
     if (dayTasks.length === 0) state = 'empty';
-    else if (currentDay !== null && day > currentDay) state = 'future';
-    else if (dayTasks.some((task) => task.status === 'loading')) state = 'loading';
-    else if (dayTasks.some((task) => task.status === 'error')) state = 'fail';
-    else state = 'pass';
-    return { day, state, tasks: dayTasks };
+    else if (loadingDays.has(slot.day)) state = 'loading';
+    else if (loadedDays.has(slot.day)) {
+      state = dayTasks.some((task) => task.status === 'error') ? 'fail' : 'pass';
+    } else if (cachedStatus[slot.day]) {
+      state = cachedStatus[slot.day];
+      fromCache = true;
+    } else if (currentDay !== null && slot.day > currentDay) state = 'future';
+    else state = 'idle';
+    return { ...slot, state, fromCache, tasks: dayTasks };
   });
+}
+
+/** Hôm nay là ngày làm việc thứ mấy của sprint; rơi vào T7/CN -> lấy ngày làm việc kế tiếp. */
+function currentWorkingDay(startDate: string | null, totalCalendarDays: number): number | null {
+  if (!startDate) return null;
+  const today = getTodayUtc7();
+  let workingDay = 0;
+  for (let calendarDay = 1; calendarDay <= totalCalendarDays; calendarDay++) {
+    const date = addDays(startDate, calendarDay - 1);
+    if (isWeekend(date)) continue;
+    workingDay += 1;
+    if (compareDateStrings(date.toISOString().slice(0, 10), today) >= 0) return workingDay;
+  }
+  return workingDay || null;
 }
 
 const NODE_STYLE: Record<DayNodeState, { cls: string; glyph: string; hint: string }> = {
@@ -1857,6 +2025,13 @@ const NODE_STYLE: Record<DayNodeState, { cls: string; glyph: string; hint: strin
   loading: { cls: 'bg-white border-slate-300 text-slate-400 animate-pulse', glyph: '•', hint: 'Đang tải' },
   future: { cls: 'bg-slate-100 border-slate-200 text-slate-400', glyph: '', hint: 'Chưa tới' },
   empty: { cls: 'bg-white border-dashed border-slate-200 text-slate-300', glyph: '', hint: 'Không có việc' },
+  idle: { cls: 'bg-white border-slate-300 text-slate-400', glyph: '?', hint: 'Chưa kiểm tra' },
+};
+
+const fmtShortDate = (value: string | null) => {
+  if (!value) return '?';
+  const [, month, day] = value.split('-');
+  return `${day}/${month}`;
 };
 
 function SprintTimeline({
@@ -1864,12 +2039,22 @@ function SprintTimeline({
   currentDay,
   overdueDays,
   selectedDay,
+  sprintLabel,
+  startDate,
+  endDate,
+  onReloadAll,
+  reloadingAll,
   onSelect,
 }: {
   marks: DayMark[];
   currentDay: number | null;
   overdueDays: number;
   selectedDay: number | null;
+  sprintLabel: string;
+  startDate: string | null;
+  endDate: string | null;
+  onReloadAll: () => void;
+  reloadingAll: boolean;
   onSelect: (day: number) => void;
 }) {
   const totalDays = marks.length;
@@ -1880,7 +2065,10 @@ function SprintTimeline({
     <div className="border-t border-gray-100 px-6 py-5">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-base font-semibold text-gray-900">Timeline sprint ({totalDays} ngày)</h2>
+          <h2 className="text-base font-semibold text-gray-900">
+            Timeline {sprintLabel} ({totalDays} ngày làm việc từ {fmtShortDate(startDate)} đến{' '}
+            {fmtShortDate(endDate)})
+          </h2>
           {overdueDays > 0 && (
             <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
               Sprint quá hạn {overdueDays} ngày — chưa đóng sprint
@@ -1888,6 +2076,14 @@ function SprintTimeline({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-3 text-[11px] text-gray-500">
+          <button
+            type="button"
+            onClick={onReloadAll}
+            disabled={reloadingAll}
+            className="rounded border border-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300"
+          >
+            {reloadingAll ? 'Đang kiểm tra...' : 'Kiểm tra tất cả ngày'}
+          </button>
           <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /> Đã xong</span>
           <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-red-500" /> Cần xử lý</span>
           <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-slate-200" /> Chưa tới / không có việc</span>
@@ -1907,7 +2103,8 @@ function SprintTimeline({
               const style = NODE_STYLE[mark.state];
               const isToday = currentDay === mark.day;
               const isSelected = selectedDay === mark.day;
-              const clickable = mark.tasks.length > 0;
+              // mốc không có việc vẫn bấm được -> panel báo "ngày này không có việc"
+              const clickable = true;
               return (
                 <div key={mark.day} className="flex flex-col items-center gap-1.5">
                   <span className="relative flex h-[18px] w-[18px] items-center justify-center">
@@ -1920,11 +2117,15 @@ function SprintTimeline({
                     )}
                     <button
                       type="button"
-                      disabled={!clickable}
-                      onClick={() => clickable && onSelect(mark.day)}
-                      title={`Ngày ${mark.day} — ${style.hint}${mark.tasks.length ? ` (${mark.tasks.length} việc)` : ''}`}
+                      onClick={() => onSelect(mark.day)}
+                      title={`Ngày ${mark.day}${mark.weekdayLabel ? ` · ${mark.weekdayLabel}` : ''}${
+                        mark.date ? ` ${mark.date}` : ''
+                      } — ${style.hint}${mark.fromCache ? ' (kết quả lần kiểm tra trước)' : ''}${
+                        mark.tasks.length ? ` (${mark.tasks.length} việc)` : ''
+                      }`}
                       className={`relative flex h-[18px] w-[18px] items-center justify-center rounded-full border text-[10px] font-bold leading-none transition
                         ${style.cls}
+                        ${mark.fromCache ? 'opacity-60' : ''}
                         ${clickable ? 'cursor-pointer hover:scale-125' : 'cursor-default'}
                         ${isSelected ? 'ring-2 ring-blue-500 ring-offset-1' : ''}
                         ${isToday ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
@@ -1937,8 +2138,10 @@ function SprintTimeline({
                   >
                     {mark.day}
                   </span>
-                  {isToday && (
-                    <span className="whitespace-nowrap text-[10px] font-semibold text-blue-600">hôm nay</span>
+                  {isToday ? (
+                    <span className="whitespace-nowrap text-[10px] font-bold text-red-600">hôm nay</span>
+                  ) : (
+                    mark.weekdayLabel && <span className="text-[10px] text-gray-400">{mark.weekdayLabel}</span>
                   )}
                 </div>
               );
@@ -1950,120 +2153,491 @@ function SprintTimeline({
   );
 }
 
-// ─── Công việc chung: SVK support ────────────────────────────────────────────
+// ─── Subtask dev chưa xong (nguồn: backlog sprint hiện tại) ──────────────────
 
-interface SvkUrgencyStat {
-  count: number;
-  maxWorkingDays: number;
-  oldestKey: string;
+interface DevSubtask {
+  key: string;
+  summary: string;
+  statusName: string;
+  statusCategoryKey?: string;
+  assigneeName: string;
+  assigneeEmail: string;
+  ownSprint: number;
+  parentSprint: number;
 }
 
-interface SvkSummary {
-  total: number;
-  byUrgency: Record<Urgency, SvkUrgencyStat>;
-  oldest: { key: string; summary: string; workingDays: number; plWorkingDays: number } | null;
+// Cùng bộ lọc với trang /jira/backlog: sprint đang mở, fix version của sprint này,
+// type Backend-SubTask, ticket chưa Done.
+const DEV_SUBTASK_JQL =
+  'project IN (PL, PLO) AND sprint IN openSprints() AND fixVersion = earliestUnreleasedVersion() ' +
+  'AND issuetype = "Backend-SubTask" AND statusCategory != Done ORDER BY assignee ASC';
+
+/** Số sprint lớn nhất trong danh sách fix version (vd "Sprint 197 - Lending" -> 197). */
+function maxFixVersionSprint(names: string[]): number {
+  return names.reduce((max, name) => Math.max(max, extractSprintNumber(name)), 0);
 }
 
-const URGENCY_ORDER: Urgency[] = ['🔴', '🟡', '🟢'];
+async function loadDevSubtasks(): Promise<DevSubtask[]> {
+  const raw: any[] = [];
+  let nextPageToken: string | undefined;
+  for (let page = 0; page < 6; page++) {
+    const res = await jiraAPI.searchIssues({
+      jql: DEV_SUBTASK_JQL,
+      maxResults: 100,
+      fields: ['summary', 'status', 'assignee', 'issuetype', 'parent', 'fixVersions'],
+      nextPageToken,
+    });
+    const payload = res.data.data as { issues?: any[]; nextPageToken?: string } | undefined;
+    raw.push(...(payload?.issues || []));
+    nextPageToken = payload?.nextPageToken;
+    if (!nextPageToken) break;
+  }
 
-const URGENCY_META: Record<Urgency, { label: string; cls: string; num: string }> = {
-  '🔴': { label: 'Cần xử lý gấp', cls: 'border-red-200 bg-red-50', num: 'text-red-600' },
-  '🟡': { label: 'Đang theo dõi', cls: 'border-amber-200 bg-amber-50', num: 'text-amber-600' },
-  '🟢': { label: 'Đã merge, chờ verify', cls: 'border-emerald-200 bg-emerald-50', num: 'text-emerald-600' },
-};
-
-async function loadSvkSummary(): Promise<SvkSummary> {
-  const res = await supportAPI.getSvkTickets();
-  const rows = buildRows((res.data as SvkTicketDoc[]) || []);
-
-  const byUrgency = URGENCY_ORDER.reduce((acc, urgency) => {
-    acc[urgency] = { count: 0, maxWorkingDays: 0, oldestKey: '' };
-    return acc;
-  }, {} as Record<Urgency, SvkUrgencyStat>);
-
-  for (const row of rows) {
-    const stat = byUrgency[row.urgency];
-    stat.count += 1;
-    if (row.workingDays > stat.maxWorkingDays) {
-      stat.maxWorkingDays = row.workingDays;
-      stat.oldestKey = row.doc.key;
+  // Cha đã dời sang fix version sau (sprint lớn hơn) -> subtask chưa tới hạn, bỏ khỏi danh sách.
+  const parentKeys = Array.from(
+    new Set(raw.map((issue: any) => issue.fields?.parent?.key).filter(Boolean) as string[])
+  );
+  const parentSprintByKey = new Map<string, number>();
+  if (parentKeys.length > 0) {
+    const parentRes = await jiraAPI.searchIssues({
+      jql: `key IN (${parentKeys.join(',')})`,
+      maxResults: 100,
+      fields: ['fixVersions'],
+    });
+    const parents = ((parentRes.data.data as { issues?: any[] })?.issues) || [];
+    for (const parent of parents) {
+      parentSprintByKey.set(
+        parent.key,
+        maxFixVersionSprint(parent.fields?.normalizedFixVersionNames || [])
+      );
     }
   }
 
-  // buildRows đã sort theo tuổi PL rồi tới tuổi SVK -> phần tử đầu là ticket già nhất
-  const top = [...rows].sort((a, b) => b.workingDays - a.workingDays)[0];
-
-  return {
-    total: rows.length,
-    byUrgency,
-    oldest: top
-      ? {
-          key: top.doc.key,
-          summary: top.doc.summary,
-          workingDays: top.workingDays,
-          plWorkingDays: top.plWorkingDays,
-        }
-      : null,
-  };
+  return raw
+    .map((issue: any) => ({
+      key: issue.key as string,
+      summary: issue.fields?.summary || '',
+      statusName: issue.fields?.normalizedStatusName || issue.fields?.status?.name || '',
+      statusCategoryKey: issue.fields?.status?.statusCategory?.key || '',
+      assigneeName: issue.fields?.normalizedAssigneeName || '',
+      assigneeEmail: issue.fields?.assignee?.emailAddress || '',
+      ownSprint: maxFixVersionSprint(issue.fields?.normalizedFixVersionNames || []),
+      parentSprint: parentSprintByKey.get(issue.fields?.parent?.key) ?? 0,
+    }))
+    .filter((item) => !(item.parentSprint > 0 && item.ownSprint > 0 && item.parentSprint > item.ownSprint))
+    .sort(
+      (a, b) =>
+        (a.assigneeName || 'zzz').localeCompare(b.assigneeName || 'zzz') || a.key.localeCompare(b.key)
+    );
 }
 
-function SvkSupportCard({ summary, loading }: { summary: SvkSummary | null; loading: boolean }) {
+interface DevAssigneeGroup {
+  label: string;
+  items: DevSubtask[];
+}
+
+/** Gom theo assignee; tiêu đề là handle @<phần trước @ của email> để gõ/tag trong Teams. */
+function devAssigneeHandle(item: DevSubtask): string {
+  const local = item.assigneeEmail.split('@')[0];
+  if (local) return `@${local}`;
+  return item.assigneeName || 'Chưa gán';
+}
+
+function groupDevSubtasksByAssignee(items: DevSubtask[]): DevAssigneeGroup[] {
+  const groups = new Map<string, DevSubtask[]>();
+  for (const item of items) {
+    const label = devAssigneeHandle(item);
+    const bucket = groups.get(label);
+    if (bucket) bucket.push(item);
+    else groups.set(label, [item]);
+  }
+  return Array.from(groups.entries())
+    .map(([label, list]) => ({ label, items: list }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function buildDevSubtaskText(items: DevSubtask[]): string {
+  return groupDevSubtasksByAssignee(items)
+    .map((group) =>
+      [
+        group.label,
+        ...group.items.map((item, index) => `${index + 1}. ${item.key} - ${item.summary}`),
+      ].join('\n')
+    )
+    .join('\n\n');
+}
+
+function buildDevSubtaskHtml(items: DevSubtask[]): string {
+  return groupDevSubtasksByAssignee(items)
+    .map((group) => {
+      const rows = group.items
+        .map(
+          (item) =>
+            `<li><a href="${JIRA_BASE}/browse/${item.key}">${item.key}</a> - ${escapeHtml(item.summary)}</li>`
+        )
+        .join('');
+      return `<p><strong>${escapeHtml(group.label)}</strong></p><ol>${rows}</ol>`;
+    })
+    .join('');
+}
+
+function DevSubtaskPanel({
+  items,
+  loading,
+  onReload,
+}: {
+  items: DevSubtask[];
+  loading: boolean;
+  onReload: () => void;
+}) {
+  if (loading) return <div className="py-6 text-center text-sm text-gray-500">Đang tải...</div>;
+  if (items.length === 0) {
+    return <p className="pt-4 text-sm font-medium text-green-600">✅ Không còn subtask dev nào chưa xong</p>;
+  }
+
+  return (
+    <div className="space-y-3 pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-gray-400">{items.length} subtask chưa xong</p>
+          <CopyReportButton
+            text={buildDevSubtaskText(items)}
+            html={buildDevSubtaskHtml(items)}
+            label="Copy danh sách"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={onReload}
+          className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+        >
+          Tải lại
+        </button>
+      </div>
+
+      <div className="overflow-hidden rounded-lg border border-gray-200">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="bg-gray-100 text-xs uppercase tracking-wide text-gray-500">
+              <th className="w-[110px] px-3 py-2 text-left font-semibold">Ticket</th>
+              <th className="px-3 py-2 text-left font-semibold">Tên</th>
+              <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">Status</th>
+              <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">Assignee</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <tr key={item.key} className="border-t border-gray-100 transition-colors hover:bg-gray-50">
+                <td className="px-3 py-2">
+                  <a
+                    href={`${JIRA_BASE}/browse/${item.key}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-xs font-semibold text-blue-600 hover:underline"
+                  >
+                    {item.key}
+                  </a>
+                </td>
+                <td className="px-3 py-2 text-sm text-gray-700">{item.summary || '—'}</td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <JiraStatusPill name={item.statusName} categoryKey={item.statusCategoryKey} />
+                </td>
+                <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                  {item.assigneeName || <span className="text-red-500">Chưa gán</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Công việc chung: ticket gắn sprint sai board ────────────────────────────
+
+interface WrongBoardIssue {
+  key: string;
+  projectKey: string;
+  summary: string;
+  statusName: string;
+  statusCategoryKey?: string;
+  assigneeName: string;
+  wrongSprints: string[];
+}
+
+// Mỗi board chỉ nên gắn sprint của chính nó: PL -> Lending, PLO -> LOS, DOP -> DOP.
+const BOARD_SPRINT_KEYWORD: Record<string, string> = {
+  PL: 'lending',
+  PLO: 'los',
+  DOP: 'dop',
+};
+
+const WRONG_BOARD_JQL =
+  'project IN (PL, PLO, DOP) AND (sprint IN openSprints() OR sprint IN futureSprints()) ORDER BY key ASC';
+
+async function loadWrongBoardIssues(): Promise<WrongBoardIssue[]> {
+  const raw: any[] = [];
+  let nextPageToken: string | undefined;
+  for (let page = 0; page < 8; page++) {
+    const res = await jiraAPI.searchIssues({
+      jql: WRONG_BOARD_JQL,
+      maxResults: 100,
+      fields: ['summary', 'status', 'assignee', 'issuetype'],
+      nextPageToken,
+    });
+    const payload = res.data.data as { issues?: any[]; nextPageToken?: string } | undefined;
+    raw.push(...(payload?.issues || []));
+    nextPageToken = payload?.nextPageToken;
+    if (!nextPageToken) break;
+  }
+
+  const result: WrongBoardIssue[] = [];
+  for (const issue of raw) {
+    const projectKey = (issue.key as string).split('-')[0];
+    const keyword = BOARD_SPRINT_KEYWORD[projectKey];
+    if (!keyword) continue;
+    const wrongSprints = ((issue.fields?.normalizedSprints || []) as NormalizedSprintDetail[])
+      .filter((sprint) => (sprint.state || '').toLowerCase() !== 'closed')
+      .filter((sprint) => !sprint.name.toLowerCase().includes(keyword))
+      .map((sprint) => sprint.name);
+    if (wrongSprints.length === 0) continue;
+    result.push({
+      key: issue.key,
+      projectKey,
+      summary: issue.fields?.summary || '',
+      statusName: issue.fields?.normalizedStatusName || issue.fields?.status?.name || '',
+      statusCategoryKey: issue.fields?.status?.statusCategory?.key || '',
+      assigneeName: issue.fields?.normalizedAssigneeName || '',
+      wrongSprints: Array.from(new Set(wrongSprints)),
+    });
+  }
+  // gom theo sprint đang gắn sai để dễ xử lý từng nhóm
+  return result.sort(
+    (a, b) =>
+      a.wrongSprints.join(', ').localeCompare(b.wrongSprints.join(', ')) ||
+      a.projectKey.localeCompare(b.projectKey) ||
+      a.key.localeCompare(b.key)
+  );
+}
+
+function WrongBoardCard({
+  issues,
+  loading,
+  onReload,
+}: {
+  issues: WrongBoardIssue[];
+  loading: boolean;
+  onReload: () => void;
+}) {
   return (
     <div className="rounded-lg border border-gray-100 p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-gray-900">Support SVK</h3>
-          {summary && <span className="text-xs text-gray-400">{summary.total} ticket đang mở</span>}
+          <h3 className="text-sm font-semibold text-gray-900">Ticket sai board</h3>
+          {!loading && (
+            <span className="text-xs text-gray-400">
+              {issues.length === 0 ? 'không có' : `${issues.length} ticket`}
+            </span>
+          )}
         </div>
-        <Link href="/support" className="text-xs font-medium text-blue-600 hover:underline">
-          Mở trang Support →
-        </Link>
+        <button
+          type="button"
+          onClick={onReload}
+          className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+        >
+          Tải lại
+        </button>
       </div>
 
+      <p className="mb-3 text-[11px] text-gray-400">
+        PL phải gắn sprint Lending · PLO gắn LOS · DOP gắn DOP (chỉ xét sprint đang mở và sắp tới)
+      </p>
+
       {loading ? (
-        <div className="h-20 animate-pulse rounded bg-gray-50" />
+        <div className="h-16 animate-pulse rounded bg-gray-50" />
+      ) : issues.length === 0 ? (
+        <p className="text-sm font-medium text-green-600">✅ Không có ticket nào gắn sai sprint board</p>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-gray-200">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="bg-gray-100 text-xs uppercase tracking-wide text-gray-500">
+                <th className="w-[110px] px-3 py-2 text-left font-semibold">Ticket</th>
+                <th className="px-3 py-2 text-left font-semibold">Tên</th>
+                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">Sprint đang gắn</th>
+                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">Status</th>
+                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap">Assignee</th>
+              </tr>
+            </thead>
+            <tbody>
+              {issues.map((issue) => (
+                <tr key={issue.key} className="border-t border-gray-100 transition-colors hover:bg-gray-50">
+                  <td className="px-3 py-2">
+                    <a
+                      href={`${JIRA_BASE}/browse/${issue.key}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-xs font-semibold text-blue-600 hover:underline"
+                    >
+                      {issue.key}
+                    </a>
+                  </td>
+                  <td className="px-3 py-2 text-sm text-gray-700">{issue.summary || '—'}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {issue.wrongSprints.map((name) => (
+                      <span
+                        key={name}
+                        className="mr-1 inline-block rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[11px] font-medium text-red-700"
+                      >
+                        {name}
+                      </span>
+                    ))}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <JiraStatusPill name={issue.statusName} categoryKey={issue.statusCategoryKey} />
+                  </td>
+                  <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                    {issue.assigneeName || <span className="text-red-500">Chưa gán</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Công việc chung: SVK support ────────────────────────────────────────────
+
+interface SvkLine {
+  key: string;
+  urgency: Urgency;
+  plText: string;
+  workingDays: number;
+  note: string;
+}
+
+interface SvkSummary {
+  total: number;
+  counts: Record<Urgency, number>;
+  lines: SvkLine[];
+}
+
+const URGENCY_ORDER: Urgency[] = ['🔴', '🟡', '🟢'];
+
+const URGENCY_DOT: Record<Urgency, string> = {
+  '🔴': 'bg-red-500',
+  '🟡': 'bg-amber-400',
+  '🟢': 'bg-emerald-500',
+};
+
+const URGENCY_TITLE: Record<Urgency, string> = {
+  '🔴': 'Cần xử lý gấp',
+  '🟡': 'Đang theo dõi',
+  '🟢': 'Đã merge, chờ verify',
+};
+
+async function loadSvkSummary(): Promise<SvkSummary> {
+  const [ticketsRes, notesRes] = await Promise.all([
+    supportAPI.getSvkTickets(),
+    supportAPI.getSvkNotes().catch(() => ({ data: {} as Record<string, string> })),
+  ]);
+  const notes = (notesRes.data as Record<string, string>) || {};
+  const rows = buildRows((ticketsRes.data as SvkTicketDoc[]) || []);
+
+  const counts = URGENCY_ORDER.reduce((acc, urgency) => {
+    acc[urgency] = 0;
+    return acc;
+  }, {} as Record<Urgency, number>);
+
+  const lines: SvkLine[] = rows
+    .map((row) => {
+      counts[row.urgency] += 1;
+      const plKeys = row.doc.linkedPlKeys || [];
+      return {
+        key: row.doc.key,
+        urgency: row.urgency,
+        plText: plKeys.length ? plKeys.join(', ') : 'chưa có PL',
+        workingDays: row.workingDays,
+        note: (notes[row.doc.key] || '').trim(),
+      };
+    })
+    .sort((a, b) => b.workingDays - a.workingDays || a.key.localeCompare(b.key));
+
+  return { total: rows.length, counts, lines };
+}
+
+function SvkSupportCard({
+  summary,
+  loading,
+  scanning,
+  onRescan,
+}: {
+  summary: SvkSummary | null;
+  loading: boolean;
+  scanning: boolean;
+  onRescan: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-gray-100 p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <h3 className="text-sm font-semibold text-gray-900">Support SVK</h3>
+          {summary && (
+            <div className="flex items-center gap-3">
+              {URGENCY_ORDER.map((urgency) => (
+                <span
+                  key={urgency}
+                  title={URGENCY_TITLE[urgency]}
+                  className="inline-flex items-center gap-1.5 text-xs text-gray-600"
+                >
+                  <span className={`h-2.5 w-2.5 rounded-full ${URGENCY_DOT[urgency]}`} />
+                  <span className="font-semibold tabular-nums">{summary.counts[urgency]}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onRescan}
+            disabled={scanning}
+            title="Quét lại SVK từ Jira (giống nút scan ở trang Support)"
+            className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-300"
+          >
+            {scanning ? 'Đang quét...' : 'Tải lại'}
+          </button>
+          <Link href="/support" className="text-xs font-medium text-blue-600 hover:underline">
+            Mở trang Support →
+          </Link>
+        </div>
+      </div>
+
+      {loading || scanning ? (
+        <div className="h-16 animate-pulse rounded bg-gray-50" />
       ) : !summary || summary.total === 0 ? (
         <p className="text-sm font-medium text-green-600">✅ Không có ticket SVK nào đang mở</p>
       ) : (
-        <>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {URGENCY_ORDER.map((urgency) => {
-              const meta = URGENCY_META[urgency];
-              const stat = summary.byUrgency[urgency];
-              return (
-                <div key={urgency} className={`rounded-lg border px-4 py-3 ${meta.cls}`}>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-lg leading-none">{urgency}</span>
-                    <span className={`text-2xl font-bold tabular-nums ${meta.num}`}>{stat.count}</span>
-                  </div>
-                  <p className="mt-1 text-[11px] font-medium text-gray-600">{meta.label}</p>
-                  <p className="mt-1 text-[11px] text-gray-500">
-                    {stat.count === 0
-                      ? '—'
-                      : `Già nhất ${stat.maxWorkingDays} ngày công · ${stat.oldestKey}`}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-
-          {summary.oldest && (
-            <p className="mt-3 text-xs text-gray-500">
-              Ticket già nhất:{' '}
+        <ul className="space-y-1">
+          {summary.lines.map((line) => (
+            <li key={line.key} className="text-sm text-gray-700">
               <a
-                href={`${JIRA_BASE}/browse/${summary.oldest.key}`}
+                href={`${JIRA_BASE}/browse/${line.key}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-mono font-semibold text-blue-600 hover:underline"
+                className="font-medium text-blue-600 hover:underline"
               >
-                {summary.oldest.key}
+                {line.key}
               </a>{' '}
-              — {summary.oldest.workingDays} ngày công
-              {summary.oldest.plWorkingDays > 0 ? ` (PL link: ${summary.oldest.plWorkingDays} ngày công)` : ''}
-              <span className="text-gray-400"> · {summary.oldest.summary}</span>
-            </p>
-          )}
-        </>
+              x {line.plText} · {line.workingDays}d
+              {line.note ? ` · ${line.note}` : ''}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
@@ -2078,23 +2652,91 @@ export default function Dashboard() {
   const [smStats, setSmStats] = useState<SmStats | null>(null);
   const [smLoading, setSmLoading] = useState(true);
   const [smTicketCache, setSmTicketCache] = useState<Record<string, SmCachedTicket>>({});
-  const [smContributors, setSmContributors] = useState<Record<string, string>>({});
   const [smItems, setSmItems] = useState<SprintItem[]>([]);
   const [smPageId, setSmPageId] = useState('');
-  const [activeSprintName, setActiveSprintName] = useState('');
-  const [devReloadingIds, setDevReloadingIds] = useState<Set<string>>(new Set());
-  const [devReloadingAll, setDevReloadingAll] = useState(false);
   const [sprintHealth, setSprintHealth] = useState<SprintHealthResult | null>(null);
-  const [sprintHealthLoading, setSprintHealthLoading] = useState(true);
+  const [sprintHealthLoading, setSprintHealthLoading] = useState(false);
   const [fixVerReview, setFixVerReview] = useState<FixVersionReviewResult | null>(null);
-  const [fixVerReviewLoading, setFixVerReviewLoading] = useState(true);
+  const [fixVerReviewLoading, setFixVerReviewLoading] = useState(false);
   const [sprintClose, setSprintClose] = useState<SprintCloseResult | null>(null);
-  const [sprintCloseLoading, setSprintCloseLoading] = useState(true);
+  const [sprintCloseLoading, setSprintCloseLoading] = useState(false);
   const [fixVerMigration, setFixVerMigration] = useState<FixVersionMigrationResult | null>(null);
-  const [fixVerMigrationLoading, setFixVerMigrationLoading] = useState(true);
+  const [fixVerMigrationLoading, setFixVerMigrationLoading] = useState(false);
+  const [devSubtasks, setDevSubtasks] = useState<DevSubtask[]>([]);
+  const [devSubtasksLoading, setDevSubtasksLoading] = useState(false);
+  const [versionMismatch, setVersionMismatch] = useState<VersionMismatchIssue[]>([]);
+  const [versionMismatchLoading, setVersionMismatchLoading] = useState(false);
+  const [wrongBoardIssues, setWrongBoardIssues] = useState<WrongBoardIssue[]>([]);
+  const [wrongBoardLoading, setWrongBoardLoading] = useState(true);
   const [svkSummary, setSvkSummary] = useState<SvkSummary | null>(null);
   const [svkLoading, setSvkLoading] = useState(true);
+  const [svkScanning, setSvkScanning] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  // Ngày đã kiểm tra trong phiên này / đang chạy / kết quả cache của lần trước.
+  const [loadedDays, setLoadedDays] = useState<Set<number>>(new Set());
+  const [loadingDays, setLoadingDays] = useState<Set<number>>(new Set());
+  const [cachedDayStatus, setCachedDayStatus] = useState<CachedDayStatus>({});
+  const [reloadingAllDays, setReloadingAllDays] = useState(false);
+
+  // Quét lại SVK từ Jira rồi nạp lại summary — đúng thao tác scan ở trang Support.
+  const rescanSvk = useCallback(async () => {
+    setSvkScanning(true);
+    try {
+      await supportAPI.scanSvk();
+      setSvkSummary(await loadSvkSummary());
+      toast.success('Đã quét lại SVK');
+    } catch (err: any) {
+      toast.error(
+        `Quét SVK thất bại: ${err?.response?.data?.error || err?.response?.data?.message || err.message}`
+      );
+    } finally {
+      setSvkScanning(false);
+    }
+  }, []);
+
+  const reloadVersionMismatch = useCallback(async () => {
+    setVersionMismatchLoading(true);
+    try {
+      setVersionMismatch(await loadVersionMismatch());
+    } catch (err: any) {
+      toast.error(`Tải check lệch fix version thất bại: ${err?.response?.data?.error || err.message}`);
+    } finally {
+      setVersionMismatchLoading(false);
+    }
+  }, []);
+
+  const reloadSprintHealth = useCallback(async () => {
+    setSprintHealthLoading(true);
+    try {
+      setSprintHealth(await loadSprintTicketHealth());
+    } catch (err: any) {
+      toast.error(`Tải ticket health thất bại: ${err?.response?.data?.error || err.message}`);
+    } finally {
+      setSprintHealthLoading(false);
+    }
+  }, []);
+
+  const reloadWrongBoard = useCallback(async () => {
+    setWrongBoardLoading(true);
+    try {
+      setWrongBoardIssues(await loadWrongBoardIssues());
+    } catch (err: any) {
+      toast.error(`Tải ticket sai board thất bại: ${err?.response?.data?.error || err.message}`);
+    } finally {
+      setWrongBoardLoading(false);
+    }
+  }, []);
+
+  const reloadDevSubtasks = useCallback(async () => {
+    setDevSubtasksLoading(true);
+    try {
+      setDevSubtasks(await loadDevSubtasks());
+    } catch (err: any) {
+      toast.error(`Tải subtask dev thất bại: ${err?.response?.data?.error || err.message}`);
+    } finally {
+      setDevSubtasksLoading(false);
+    }
+  }, []);
 
   const reloadFixVerMigration = useCallback(async () => {
     setFixVerMigrationLoading(true);
@@ -2137,7 +2779,6 @@ export default function Dashboard() {
       if (result) {
         setSmStats(result.stats);
         setSmTicketCache(result.ticketCache);
-        setSmContributors(result.contributors);
         setSmItems(result.items);
         setSmPageId(result.pageId);
       }
@@ -2151,34 +2792,22 @@ export default function Dashboard() {
   useEffect(() => {
     const load = async () => {
       try {
+        // Chỉ nạp thông tin sprint + mục "Công việc chung"; task theo ngày nạp riêng (lazy).
         const [reports] = await Promise.all([
           loadSprintAlignmentReports(),
-          loadSprintTicketHealth().then((result) => {
-            setSprintHealth(result);
-            setSprintHealthLoading(false);
-          }).catch(() => setSprintHealthLoading(false)),
-          loadFixVersionReview().then((result) => {
-            setFixVerReview(result);
-            setFixVerReviewLoading(false);
-          }).catch(() => setFixVerReviewLoading(false)),
-          loadSprintCloseCheck().then((result) => {
-            setSprintClose(result);
-            setSprintCloseLoading(false);
-          }).catch(() => setSprintCloseLoading(false)),
-          loadFixVersionMigration().then((result) => {
-            setFixVerMigration(result);
-            setFixVerMigrationLoading(false);
-          }).catch(() => setFixVerMigrationLoading(false)),
           loadSvkSummary().then((result) => {
             setSvkSummary(result);
             setSvkLoading(false);
           }).catch(() => setSvkLoading(false)),
+          loadWrongBoardIssues().then((result) => {
+            setWrongBoardIssues(result);
+            setWrongBoardLoading(false);
+          }).catch(() => setWrongBoardLoading(false)),
         ]);
         setSprintReports(reports);
         setSprintLoading(false);
         const detectedSprintName =
           reports.find((r) => r.sprintLine.name !== 'Not found')?.sprintLine.name ?? '';
-        setActiveSprintName(detectedSprintName);
         await loadSmData(detectedSprintName);
       } catch (error) {
         console.error('Error loading sprint:', error);
@@ -2191,61 +2820,99 @@ export default function Dashboard() {
     load();
   }, [loadSmData]);
 
-  const activeSprintNum = useMemo(() => extractSprintNumber(activeSprintName), [activeSprintName]);
+  const {
+    rawDay,
+    totalDays: sprintTotalDays,
+    startDate: sprintStartDate,
+    endDate: sprintEndDate,
+  } = useMemo(() => getSprintDayInfo(sprintReports), [sprintReports]);
+  const sprintLabel = useMemo(() => {
+    const name = (sprintReports.find((r) => r.projectKey === 'PL') ?? sprintReports[0])?.sprintLine.name;
+    return name ? sprintPageLabel(name) : 'sprint';
+  }, [sprintReports]);
+  // Timeline luôn 14 mốc; sprint quá hạn (rawDay > 14) coi như đang ở mốc cuối.
+  const timelineDays = TIMELINE_DAYS;
+  const currentSprintDay = rawDay === null ? null : Math.min(rawDay, timelineDays);
+  const sprintOverdue = rawDay !== null && sprintTotalDays !== null && rawDay > sprintTotalDays;
+  const todayMarkDay = currentWorkingDay(sprintStartDate, timelineDays);
 
-  const devTickets = useMemo(() => {
-    const cacheIds = new Set(Object.keys(smTicketCache));
-    return Object.values(smTicketCache)
-      .filter((t) => {
-        const cat = smCategory(t.status || '');
-        if (!isSoftwareEngineer(t.assignee || '', smContributors)) return false;
-        if (cat !== 'todo' && cat !== 'inProgress') return false;
-        // Exclude subtask whose parent is not part of this sprint's data
-        if (t.parentId && !cacheIds.has(t.parentId)) return false;
-        // Exclude subtask whose parent has fixVersions pointing to a different sprint
-        if (t.parentId && cacheIds.has(t.parentId) && activeSprintNum > 0) {
-          const parentFvs = smTicketCache[t.parentId]?.fixVersions;
-          if (parentFvs && parentFvs.length > 0) {
-            const parentSprintMatches = parentFvs.some((fv) => extractSprintNumber(fv) === activeSprintNum);
-            if (!parentSprintMatches) return false;
-          }
-        }
-        return true;
-      })
-      .sort((a, b) => (a.assignee || '').localeCompare(b.assignee || '') || (a.status || '').localeCompare(b.status || ''));
-  }, [smTicketCache, smContributors, activeSprintNum]);
+  // ── Lazy load theo ngày ────────────────────────────────────────────────────
+  const dayRunners = useMemo<Record<number, Array<() => Promise<void>>>>(
+    () => ({
+      1: [reloadSprintHealth, reloadSprintClose, reloadFixVerMigration, reloadVersionMismatch],
+      5: [reloadDevSubtasks],
+      10: [reloadFixVerReview],
+    }),
+    [
+      reloadSprintHealth,
+      reloadSprintClose,
+      reloadFixVerMigration,
+      reloadVersionMismatch,
+      reloadDevSubtasks,
+      reloadFixVerReview,
+    ]
+  );
 
-  const handleReloadDevTicket = useCallback(async (ticketId: string) => {
-    setDevReloadingIds((prev) => new Set([...prev, ticketId]));
+  const runDay = useCallback(
+    async (day: number, force = false) => {
+      const runners = dayRunners[day];
+      if (!runners || runners.length === 0) return;
+      if (!force && (loadedDays.has(day) || loadingDays.has(day))) return;
+      setLoadingDays((prev) => new Set([...prev, day]));
+      try {
+        await Promise.all(runners.map((run) => run()));
+        setLoadedDays((prev) => new Set([...prev, day]));
+      } finally {
+        setLoadingDays((prev) => {
+          const next = new Set(prev);
+          next.delete(day);
+          return next;
+        });
+      }
+    },
+    [dayRunners, loadedDays, loadingDays]
+  );
+
+  const reloadAllDays = useCallback(async () => {
+    setReloadingAllDays(true);
     try {
-      const parentId = smTicketCache[ticketId]?.parentId;
-      const ids = Array.from(new Set([ticketId, ...(parentId ? [parentId] : [])]));
-      const res = await sprintManagementAPI.reloadTickets(ids);
-      setSmTicketCache((prev) => ({ ...prev, ...(res.data.data || {}) }));
-    } catch (err: any) {
-      toast.error(`Reload thất bại: ${err?.response?.data?.error || err.message}`);
+      await Promise.all(Object.keys(dayRunners).map((day) => runDay(Number(day), true)));
     } finally {
-      setDevReloadingIds((prev) => { const next = new Set(prev); next.delete(ticketId); return next; });
+      setReloadingAllDays(false);
     }
-  }, [smTicketCache]);
+  }, [dayRunners, runDay]);
 
-  const handleReloadAllDev = useCallback(async () => {
-    if (!devTickets.length) return;
-    setDevReloadingAll(true);
-    const parentIds = devTickets.map((t) => t.parentId).filter((id): id is string => Boolean(id));
-    const ids = Array.from(new Set([...devTickets.map((t) => t.id), ...parentIds]));
+  const cacheKey = sprintLabel ? `dashboard:dayStatus:${sprintLabel}` : '';
+
+  // đọc cache của sprint hiện tại để timeline có tick ngay khi vừa mở trang
+  useEffect(() => {
+    if (!cacheKey) return;
     try {
-      const res = await sprintManagementAPI.reloadTickets(ids);
-      setSmTicketCache((prev) => ({ ...prev, ...(res.data.data || {}) }));
-      toast.success(`Đã reload ${ids.length} tickets`);
-    } catch (err: any) {
-      toast.error(`Reload thất bại: ${err?.response?.data?.error || err.message}`);
-    } finally {
-      setDevReloadingAll(false);
+      const raw = localStorage.getItem(cacheKey);
+      setCachedDayStatus(raw ? (JSON.parse(raw) as CachedDayStatus) : {});
+    } catch {
+      setCachedDayStatus({});
     }
-  }, [devTickets]);
+  }, [cacheKey]);
+
+  // vào dashboard chỉ chạy task của ngày hôm nay
+  const autoRanDayRef = React.useRef<number | null>(null);
+  useEffect(() => {
+    if (todayMarkDay === null || autoRanDayRef.current === todayMarkDay) return;
+    autoRanDayRef.current = todayMarkDay;
+    runDay(todayMarkDay);
+  }, [todayMarkDay, runDay]);
+
+  const handleSelectDay = useCallback(
+    (day: number) => {
+      setSelectedDay(day);
+      runDay(day);
+    },
+    [runDay]
+  );
 
   const [needUatItems, setNeedUatItems] = useState<SprintItem[]>([]);
+
 
   useEffect(() => {
     if (smLoading || !smPageId || !smItems.length) {
@@ -2273,7 +2940,11 @@ export default function Dashboard() {
   );
 
   const sprintStatus: TaskStatus = sprintLoading ? 'loading' : sprintSummary.isAligned ? 'ok' : 'error';
-  const devStatus: TaskStatus = smLoading ? 'loading' : devTickets.length === 0 ? 'ok' : 'error';
+  const devStatus: TaskStatus = devSubtasksLoading
+    ? 'loading'
+    : devSubtasks.length === 0
+    ? 'ok'
+    : 'error';
   const uatStatus: TaskStatus = smLoading ? 'loading' : needUatItems.length === 0 ? 'ok' : 'error';
   const healthStatus: TaskStatus = sprintHealthLoading
     ? 'loading'
@@ -2283,6 +2954,11 @@ export default function Dashboard() {
   const sprintCloseStatus: TaskStatus = sprintCloseLoading
     ? 'loading'
     : !sprintClose || sprintClose.overdueSprints.length === 0
+    ? 'ok'
+    : 'error';
+  const versionMismatchStatus: TaskStatus = versionMismatchLoading
+    ? 'loading'
+    : versionMismatch.length === 0
     ? 'ok'
     : 'error';
   const fixVerMigrationStatus: TaskStatus = fixVerMigrationLoading
@@ -2296,26 +2972,33 @@ export default function Dashboard() {
     ? 'ok'
     : 'error';
 
-  const { rawDay, totalDays: sprintTotalDays } = useMemo(
-    () => getSprintDayInfo(sprintReports),
-    [sprintReports]
-  );
-  // Timeline luôn 14 mốc; sprint quá hạn (rawDay > 14) coi như đang ở mốc cuối.
-  const timelineDays = TIMELINE_DAYS;
-  const currentSprintDay = rawDay === null ? null : Math.min(rawDay, timelineDays);
-  const sprintOverdue = rawDay !== null && sprintTotalDays !== null && rawDay > sprintTotalDays;
 
   const dayTasks: DayTask[] = [
     {
       day: 1,
       title: 'Ngày 1 trở đi ticket đúng sprint',
       status: healthStatus,
+      filter: (
+        <TaskFilterNote
+          jql={SPRINT_HEALTH_JQL}
+          notes={['Lấy story trong sprint đang mở, tách ra 2 nhóm: status Draft và chưa có assignee']}
+        />
+      ),
       content: <SprintTicketHealthPanel result={sprintHealth} loading={sprintHealthLoading} />,
     },
     {
       day: 1,
       title: 'Đóng sprint cũ',
       status: sprintCloseStatus,
+      filter: (
+        <TaskFilterNote
+          jql={UNCLOSED_JQL}
+          notes={[
+            'Sprint "chưa đóng" = state khác closed nhưng đã qua end date',
+            'Chỉ giữ item thuộc các sprint quá hạn đó, gom theo reporter (PO → DEV → QA)',
+          ]}
+        />
+      ),
       content: (
         <SprintClosePanel
           result={sprintClose}
@@ -2328,6 +3011,15 @@ export default function Dashboard() {
       day: 1,
       title: 'Check fix version — item còn dính version cũ',
       status: fixVerMigrationStatus,
+      filter: (
+        <TaskFilterNote
+          jql={OLD_FIX_VER_JQL}
+          notes={[
+            'Fix version "cũ" = đã released, archived, hoặc release date đã qua',
+            'Dropdown đổi sang: version của project chưa released và chưa archived',
+          ]}
+        />
+      ),
       content: (
         <FixVersionMigrationPanel
           result={fixVerMigration}
@@ -2338,8 +3030,39 @@ export default function Dashboard() {
     },
     {
       day: 1,
+      title: 'Ticket khớp fix version với cha',
+      status: versionMismatchStatus,
+      filter: (
+        <TaskFilterNote
+          jql={VERSION_MISMATCH_JQL}
+          notes={[
+            'Lấy thêm con/cháu qua field parent rồi so tập fix version của subtask với ticket cha',
+            `Bỏ qua ticket Done, loại Defect, hoặc có label ${IGNORE_MISMATCH_LABEL} (chọn "Bỏ qua fix lệch" ở backlog)`,
+          ]}
+        />
+      ),
+      content: (
+        <VersionMismatchPanel
+          issues={versionMismatch}
+          loading={versionMismatchLoading}
+          onReload={reloadVersionMismatch}
+        />
+      ),
+    },
+    {
+      day: 1,
       title: 'Cập nhật sprint và fix version',
       status: sprintStatus,
+      filter: (
+        <TaskFilterNote
+          jql={PROJECT_KEYS.map((key) => buildOpenSprintJql(key)).join('\n')}
+          notes={[
+            'Sprint: sprint xuất hiện nhiều nhất trong các issue đang mở của project',
+            'Fix version: version chưa release có release date sớm nhất (earliestUnreleasedVersion)',
+            'Báo lệch khi sprint và fix version khác khoảng ngày, hoặc đã quá hạn / chưa tới',
+          ]}
+        />
+      ),
       content: sprintLoading ? (
         <div className="py-6 text-center text-gray-500">Đang tải...</div>
       ) : (
@@ -2347,32 +3070,48 @@ export default function Dashboard() {
       ),
     },
     {
-      day: 7,
-      title: 'Ngày 7 trở đi xong hết subtask dev',
+      day: 5,
+      title: 'Ngày 5 trở đi xong hết subtask dev',
       status: devStatus,
+      filter: (
+        <TaskFilterNote
+          jql={DEV_SUBTASK_JQL}
+          notes={['Bỏ subtask có ticket cha gắn fix version của sprint sau (cha đã dời, chưa tới hạn)']}
+        />
+      ),
       content: (
-        <DevTicketTable
-          tickets={devTickets}
-          ticketCache={smTicketCache}
-          reloadingAll={devReloadingAll}
-          onReloadAll={handleReloadAllDev}
-          loading={smLoading}
+        <DevSubtaskPanel
+          items={devSubtasks}
+          loading={devSubtasksLoading}
+          onReload={reloadDevSubtasks}
         />
       ),
     },
     {
-      day: 9,
-      title: 'Ngày 9 trở đi gửi UAT',
+      day: 7,
+      title: 'Ngày 7 trở đi gửi UAT',
       status: uatStatus,
+      filter: (
+        <TaskFilterNote
+          notes={[
+            'Nguồn: page Sprint Management của sprint hiện tại (không phải JQL)',
+            'Lấy item có PO status hiệu dụng = Need UAT (suy từ status ticket con + lựa chọn đã lưu)',
+          ]}
+        />
+      ),
       content: smLoading ? (
         <div className="py-6 text-center text-gray-500 text-sm">Đang tải...</div>
       ) : needUatItems.length === 0 ? (
-        <div className="py-4 text-center text-sm text-green-600 font-medium">
-          ✅ Không có item nào cần UAT!
+        <div className="space-y-2 py-4 text-center">
+          <p className="text-sm font-medium text-green-600">✅ Không có item nào cần UAT!</p>
+          <PoStatusLink pageId={smPageId} />
         </div>
       ) : (
         <div className="pt-4 space-y-2">
-          <p className="text-xs text-gray-400">{needUatItems.length} item cần gửi UAT</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-gray-400">{needUatItems.length} item cần gửi UAT</p>
+            <PoStatusLink pageId={smPageId} />
+          </div>
           <div className="rounded-lg border border-gray-200 overflow-hidden">
             <table className="w-full text-sm border-collapse">
               <thead>
@@ -2403,9 +3142,15 @@ export default function Dashboard() {
       ),
     },
     {
-      day: 13,
-      title: 'Ngày 13 trở đi kiểm tra status PO và Fix version',
+      day: 10,
+      title: 'Ngày 10 trở đi kiểm tra status PO và Fix version',
       status: fixVerStatus,
+      filter: (
+        <TaskFilterNote
+          jql={`${PO_REVIEW_JQL}\n\n${FIX_VER_NOT_DONE_JQL}`}
+          notes={['Bảng trên: ticket đang chờ PO review · Bảng dưới: ticket của fix version này chưa Done']}
+        />
+      ),
       content: (
         <FixVersionReviewPanel
           result={fixVerReview}
@@ -2416,12 +3161,53 @@ export default function Dashboard() {
     },
   ];
 
-  const dayMarks = buildDayMarks(dayTasks, timelineDays, currentSprintDay);
+  // Ngày chưa kiểm tra trong phiên này -> task hiện "Chưa kiểm tra" thay vì báo xanh nhầm.
+  const dayTasksWithState: DayTask[] = dayTasks.map((task) =>
+    loadedDays.has(task.day) || loadingDays.has(task.day) || !dayRunners[task.day]
+      ? task
+      : { ...task, status: 'idle' }
+  );
+
+  // ngày không có runner (data đã nạp sẵn lúc mở trang) coi như đã kiểm tra
+  const effectiveLoadedDays = new Set(loadedDays);
+  for (const task of dayTasks) {
+    if (!dayRunners[task.day]) effectiveLoadedDays.add(task.day);
+  }
+
+  const dayMarks = buildDayMarks(
+    dayTasksWithState,
+    timelineDays,
+    todayMarkDay,
+    sprintStartDate,
+    effectiveLoadedDays,
+    loadingDays,
+    cachedDayStatus
+  );
+
+  // lưu kết quả vừa kiểm tra để lần sau mở dashboard timeline có tick ngay
+  useEffect(() => {
+    if (!cacheKey) return;
+    const next: CachedDayStatus = { ...cachedDayStatus };
+    let changed = false;
+    for (const mark of dayMarks) {
+      if (mark.state !== 'pass' && mark.state !== 'fail') continue;
+      if (mark.fromCache || next[mark.day] === mark.state) continue;
+      next[mark.day] = mark.state;
+      changed = true;
+    }
+    if (!changed) return;
+    setCachedDayStatus(next);
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(next));
+    } catch {
+      // localStorage bị chặn -> bỏ qua cache, không ảnh hưởng chức năng
+    }
+  }, [dayMarks, cacheKey, cachedDayStatus]);
 
   // mặc định luôn đứng ở ngày hôm nay — kể cả ngày đó không có việc,
   // để panel không hiện nhầm việc của ngày khác
   const defaultDay =
-    currentSprintDay ?? dayMarks.find((mark) => mark.tasks.length > 0)?.day ?? 1;
+    todayMarkDay ?? currentSprintDay ?? dayMarks.find((mark) => mark.tasks.length > 0)?.day ?? 1;
 
   const activeDay = selectedDay ?? defaultDay;
   const activeMark = dayMarks.find((mark) => mark.day === activeDay) ?? null;
@@ -2438,6 +3224,40 @@ export default function Dashboard() {
       ) ??
     dayMarks.find((mark) => mark.tasks.length > 0) ??
     null;
+
+  // mục nào không còn việc thì gom vào khối "Đã xong" thu gọn
+  const generalWork: Array<{ key: string; done: boolean; node: React.ReactNode }> = [
+    {
+      key: 'svk',
+      done: !svkLoading && !svkScanning && svkSummary !== null && svkSummary.total === 0,
+      node: (
+        <SvkSupportCard
+          key="svk"
+          summary={svkSummary}
+          loading={svkLoading}
+          scanning={svkScanning}
+          onRescan={rescanSvk}
+        />
+      ),
+    },
+    {
+      key: 'notes',
+      done: false,
+      node: <NotesPanel key="notes" />,
+    },
+    {
+      key: 'wrong-board',
+      done: !wrongBoardLoading && wrongBoardIssues.length === 0,
+      node: (
+        <WrongBoardCard
+          key="wrong-board"
+          issues={wrongBoardIssues}
+          loading={wrongBoardLoading}
+          onReload={reloadWrongBoard}
+        />
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -2459,10 +3279,15 @@ export default function Dashboard() {
 
         <SprintTimeline
           marks={dayMarks}
-          currentDay={currentSprintDay}
+          currentDay={todayMarkDay}
           overdueDays={sprintOverdue && rawDay !== null && sprintTotalDays !== null ? rawDay - sprintTotalDays : 0}
           selectedDay={activeDay}
-          onSelect={setSelectedDay}
+          sprintLabel={sprintLabel}
+          startDate={sprintStartDate}
+          endDate={sprintEndDate}
+          onReloadAll={reloadAllDays}
+          reloadingAll={reloadingAllDays}
+          onSelect={handleSelectDay}
         />
 
         <div className="space-y-3 border-t border-gray-100 bg-slate-50 px-6 py-5">
@@ -2481,6 +3306,7 @@ export default function Dashboard() {
                 title={task.title}
                 status={task.status}
                 defaultOpen={activeMark.tasks.length === 1}
+                filter={task.filter}
               >
                 {task.content}
               </TaskItem>
@@ -2494,7 +3320,7 @@ export default function Dashboard() {
             {suggestedMark && suggestedMark.day !== activeDay && (
               <button
                 type="button"
-                onClick={() => setSelectedDay(suggestedMark.day)}
+                onClick={() => handleSelectDay(suggestedMark.day)}
                 className="mt-2 text-sm font-medium text-blue-600 hover:underline"
               >
                 Xem việc ngày {suggestedMark.day} ({suggestedMark.tasks.length} việc
@@ -2508,7 +3334,17 @@ export default function Dashboard() {
 
       <div className="rounded-lg bg-white shadow-md px-6 py-5">
         <h2 className="mb-4 text-base font-semibold text-gray-900">Công việc chung</h2>
-        <SvkSupportCard summary={svkSummary} loading={svkLoading} />
+        <div className="space-y-4">{generalWork.filter((item) => !item.done).map((item) => item.node)}</div>
+        {generalWork.some((item) => item.done) && (
+          <details className="mt-4 rounded-lg border border-gray-100 bg-gray-50">
+            <summary className="cursor-pointer px-4 py-2 text-xs font-medium text-gray-500">
+              ✅ Đã xong ({generalWork.filter((item) => item.done).length})
+            </summary>
+            <div className="space-y-4 px-4 pb-4">
+              {generalWork.filter((item) => item.done).map((item) => item.node)}
+            </div>
+          </details>
+        )}
       </div>
     </div>
   );

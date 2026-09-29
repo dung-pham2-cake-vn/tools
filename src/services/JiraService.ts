@@ -202,10 +202,19 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const SPRINT_LENGTH_MS = SPRINT_LENGTH_DAYS * DAY_MS;
 const UTC7_OFFSET_MS = 7 * 60 * 60 * 1000;
 
+export interface JiraApproval {
+  id: string;
+  name: string;
+  finalDecision: string;
+  canAnswer: boolean;
+  approvers: Array<{ name: string; decision: string }>;
+}
+
 export class JiraService {
   private axiosInstance: AxiosInstance;
   private agileAxiosInstance: AxiosInstance;
   private confluenceAxiosInstance: AxiosInstance;
+  private serviceDeskAxiosInstance: AxiosInstance;
   private fieldDefinitionsPromise: Promise<JiraFieldDefinition[]> | null = null;
 
   constructor() {
@@ -252,6 +261,220 @@ export class JiraService {
         'Content-Type': 'application/json',
       },
     });
+
+    // Jira Service Management: approval nằm ở API riêng, không phải /rest/api/3
+    this.serviceDeskAxiosInstance = axios.create({
+      baseURL: `${jiraHost}/rest/servicedeskapi`,
+      auth: {
+        username: jiraUsername,
+        password: jiraToken,
+      },
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'X-ExperimentalApi': 'opt-in',
+      },
+    });
+  }
+
+  /** Inline Markdown -> ADF text nodes: **đậm**, *nghiêng*, `code`, [text](url). */
+  private inlineToAdf(text: string): Array<Record<string, any>> {
+    const nodes: Array<Record<string, any>> = [];
+    const pattern = /(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*\n]+\*|_[^_\n]+_)|(\[[^\]]+\]\([^)\s]+\))/g;
+    let cursor = 0;
+
+    const pushText = (value: string, marks?: Array<Record<string, any>>) => {
+      if (!value) return;
+      nodes.push({ type: 'text', text: value, ...(marks?.length ? { marks } : {}) });
+    };
+
+    for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+      pushText(text.slice(cursor, match.index));
+      const [token] = match;
+      if (token.startsWith('`')) {
+        pushText(token.slice(1, -1), [{ type: 'code' }]);
+      } else if (token.startsWith('**')) {
+        pushText(token.slice(2, -2), [{ type: 'strong' }]);
+      } else if (token.startsWith('[')) {
+        const link = token.match(/^\[([^\]]+)\]\(([^)\s]+)\)$/);
+        if (link) pushText(link[1], [{ type: 'link', attrs: { href: link[2] } }]);
+        else pushText(token);
+      } else {
+        pushText(token.slice(1, -1), [{ type: 'em' }]);
+      }
+      cursor = match.index + token.length;
+    }
+    pushText(text.slice(cursor));
+
+    return nodes.length ? nodes : [{ type: 'text', text: ' ' }];
+  }
+
+  private paragraphNode(lines: string[]) {
+    const content = lines.flatMap((line, index) =>
+      index === 0 ? this.inlineToAdf(line) : [{ type: 'hardBreak' }, ...this.inlineToAdf(line)]
+    );
+    return { type: 'paragraph', content };
+  }
+
+  private listItemNode(line: string) {
+    return { type: 'listItem', content: [this.paragraphNode([line])] };
+  }
+
+  /**
+   * Markdown (AI trả về) -> ADF, vì Jira API v3 không nhận Markdown thô:
+   * hỗ trợ heading #, danh sách -/1., **đậm**, *nghiêng*, `code`, link.
+   */
+  private textToAdf(text: string) {
+    const content: Array<Record<string, any>> = [];
+    const lines = (text || '').split('\n');
+
+    let paragraph: string[] = [];
+    let bullets: string[] = [];
+    let ordered: string[] = [];
+
+    const flushParagraph = () => {
+      if (!paragraph.length) return;
+      content.push(this.paragraphNode(paragraph));
+      paragraph = [];
+    };
+    const flushBullets = () => {
+      if (!bullets.length) return;
+      content.push({ type: 'bulletList', content: bullets.map((line) => this.listItemNode(line)) });
+      bullets = [];
+    };
+    const flushOrdered = () => {
+      if (!ordered.length) return;
+      content.push({ type: 'orderedList', content: ordered.map((line) => this.listItemNode(line)) });
+      ordered = [];
+    };
+    const flushAll = () => {
+      flushParagraph();
+      flushBullets();
+      flushOrdered();
+    };
+
+    for (const rawLine of lines) {
+      const line = rawLine.replace(/\s+$/, '');
+
+      if (!line.trim()) {
+        flushAll();
+        continue;
+      }
+
+      const heading = line.match(/^(#{1,6})\s+(.*)$/);
+      if (heading) {
+        flushAll();
+        content.push({
+          type: 'heading',
+          attrs: { level: heading[1].length },
+          content: this.inlineToAdf(heading[2]),
+        });
+        continue;
+      }
+
+      const bullet = line.match(/^\s*[-*+]\s+(.*)$/);
+      if (bullet) {
+        flushParagraph();
+        flushOrdered();
+        bullets.push(bullet[1]);
+        continue;
+      }
+
+      const orderedItem = line.match(/^\s*\d+[.)]\s+(.*)$/);
+      if (orderedItem) {
+        flushParagraph();
+        flushBullets();
+        ordered.push(orderedItem[1]);
+        continue;
+      }
+
+      flushBullets();
+      flushOrdered();
+      paragraph.push(line.trim());
+    }
+    flushAll();
+
+    return {
+      type: 'doc',
+      version: 1,
+      content: content.length ? content : [{ type: 'paragraph', content: [{ type: 'text', text: ' ' }] }],
+    };
+  }
+
+  /**
+   * Thêm comment. `internal=true` (mặc định) -> comment nội bộ của Jira Service Management,
+   * khách hàng tạo ticket không nhìn thấy.
+   */
+  async addComment(issueKey: string, body: string, internal = true): Promise<string> {
+    try {
+      const response = await this.axiosInstance.post(`/issue/${issueKey}/comment`, {
+        body: this.textToAdf(body),
+        ...(internal ? { properties: [{ key: 'sd.public.comment', value: { internal: true } }] } : {}),
+      });
+      return String(response.data?.id || '');
+    } catch (error) {
+      const detail = this.formatAxiosError(error);
+      console.error(`Error adding comment to ${issueKey}:`, detail);
+      throw new Error(detail.errorMessages?.join('; ') || detail.message);
+    }
+  }
+
+  /** Sửa nội dung một comment đã có. */
+  async updateComment(issueKey: string, commentId: string, body: string): Promise<void> {
+    try {
+      await this.axiosInstance.put(`/issue/${issueKey}/comment/${commentId}`, {
+        body: this.textToAdf(body),
+      });
+    } catch (error) {
+      const detail = this.formatAxiosError(error);
+      console.error(`Error updating comment ${issueKey}/${commentId}:`, detail);
+      throw new Error(detail.errorMessages?.join('; ') || detail.message);
+    }
+  }
+
+  /** Tải nội dung attachment về dạng base64 — dùng để gửi ảnh kèm prompt AI. */
+  async getAttachmentBase64(attachmentId: string): Promise<string> {
+    const response = await this.axiosInstance.get(`/attachment/content/${attachmentId}`, {
+      responseType: 'arraybuffer',
+      maxRedirects: 5,
+    });
+    return Buffer.from(response.data as ArrayBuffer).toString('base64');
+  }
+
+  /** Approval đang chờ trên một request JSM (rỗng nếu request không có bước duyệt). */
+  async getRequestApprovals(issueKey: string): Promise<JiraApproval[]> {
+    try {
+      const response = await this.serviceDeskAxiosInstance.get(`/request/${issueKey}/approval`);
+      return ((response.data?.values || []) as Array<Record<string, any>>).map((value) => ({
+        id: String(value.id),
+        name: String(value.name || ''),
+        finalDecision: String(value.finalDecision || ''),
+        canAnswer: Boolean(value.canAnswerApproval),
+        approvers: ((value.approvers || []) as Array<Record<string, any>>).map((a) => ({
+          name: String(a.approver?.displayName || ''),
+          decision: String(a.approverDecision || ''),
+        })),
+      }));
+    } catch (error) {
+      const detail = this.formatAxiosError(error);
+      console.error(`Error fetching approvals for ${issueKey}:`, detail);
+      throw new Error(detail.errorMessages?.join('; ') || detail.message);
+    }
+  }
+
+  /** Trả lời approval: approve hoặc decline. Chỉ chạy được nếu tài khoản là approver. */
+  async answerApproval(issueKey: string, approvalId: string, decision: 'approve' | 'decline'): Promise<void> {
+    try {
+      await this.serviceDeskAxiosInstance.post(`/request/${issueKey}/approval/${approvalId}`, { decision });
+    } catch (error) {
+      const detail = this.formatAxiosError(error);
+      console.error(`Error answering approval ${issueKey}/${approvalId}:`, detail);
+      const reason =
+        detail.errorMessages?.join('; ') ||
+        (detail.errors ? Object.values(detail.errors).join('; ') : '') ||
+        detail.message;
+      throw new Error(reason);
+    }
   }
 
   async getConfluenceChildPages(pageId: string): Promise<ConfluencePage[]> {
@@ -382,6 +605,23 @@ export class JiraService {
       const detail = this.formatAxiosError(error);
       console.error(`Error setting fixVersions for ${issueKey}:`, detail);
       // Jira trả 400 kèm lý do thật (version thuộc project khác, field không có trên screen...)
+      const reason =
+        detail.errorMessages?.join('; ') ||
+        (detail.errors ? Object.values(detail.errors).join('; ') : '') ||
+        detail.message;
+      throw new Error(reason);
+    }
+  }
+
+  /** Đổi issue type (vd Bug -> Task). Jira từ chối nếu type mới không cùng scheme hoặc khác nhóm subtask. */
+  async setIssueType(issueKey: string, issueTypeId: string): Promise<void> {
+    try {
+      await this.axiosInstance.put(`/issue/${issueKey}`, {
+        fields: { issuetype: { id: issueTypeId } },
+      });
+    } catch (error) {
+      const detail = this.formatAxiosError(error);
+      console.error(`Error setting issue type for ${issueKey}:`, detail);
       const reason =
         detail.errorMessages?.join('; ') ||
         (detail.errors ? Object.values(detail.errors).join('; ') : '') ||

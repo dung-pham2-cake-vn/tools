@@ -104,7 +104,7 @@ interface Transition {
 }
 
 const NO_SPRINT = -1;
-const DONE_RE = /(done|passed|released|ready4release|closed|resolved|will not|reject|invalid|cancel|bot to delete)/;
+const DONE_RE = /(done|passed|released|ready4release|closed|resolved|converted|will not|reject|invalid|cancel|bot to delete)/;
 
 // Màu status pill theo keyword trong tên status (không có statusCategory trong data đã normalize).
 const statusPillClass = (status: string): string => {

@@ -130,7 +130,7 @@ export default function NotesPanel() {
   };
 
   return (
-    <div className="rounded-lg border border-gray-100 p-4">
+    <div className="rounded-lg border border-gray-100 bg-white p-4 shadow-sm">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-gray-900">Ghi chú</h3>
@@ -176,7 +176,7 @@ export default function NotesPanel() {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={'Ghi chú tự do...\n- Enter giữ nguyên gạch đầu dòng\n1. Danh sách số tự tăng'}
-          className="min-h-[220px] w-full resize-y rounded-lg border border-gray-200 px-3 py-2 font-mono text-[13px] leading-relaxed text-gray-800 outline-none focus:border-blue-400"
+          className="min-h-[140px] w-full resize-y rounded-lg border border-gray-200 px-3 py-2 font-mono text-[13px] leading-relaxed text-gray-800 outline-none focus:border-blue-400"
         />
       )}
     </div>

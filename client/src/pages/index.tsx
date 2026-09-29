@@ -1092,7 +1092,7 @@ interface VersionMismatchIssue {
 const VERSION_MISMATCH_JQL = 'project IN (PL, PLO) AND sprint IN openSprints() ORDER BY key ASC';
 const IGNORE_MISMATCH_LABEL = 'ignore-fix-mismatch';
 const MISMATCH_DONE_RE =
-  /(done|passed|released|ready4release|closed|resolved|will not|reject|invalid|cancel|bot to delete)/;
+  /(done|passed|released|ready4release|closed|resolved|converted|will not|reject|invalid|cancel|bot to delete)/;
 
 const versionSetKey = (names: string[]) => [...names].sort().join(', ');
 
@@ -2354,6 +2354,159 @@ function DevSubtaskPanel({
   );
 }
 
+// ─── Công việc chung: PO review nhưng con chưa xong ──────────────────────────
+
+interface PoReviewChild {
+  key: string;
+  typeName: string;
+  statusName: string;
+  statusCategoryKey?: string;
+  assigneeName: string;
+}
+
+interface PoReviewParent {
+  key: string;
+  summary: string;
+  children: PoReviewChild[];
+}
+
+const PO_REVIEW_PARENT_JQL = 'project IN (PL, PLO) AND status = "PO/TM Review" ORDER BY key ASC';
+
+/** Ticket đang chờ PO review mà subtask/defect bên dưới chưa xong -> review sớm, dễ trả lại. */
+async function loadPoReviewOpenChildren(): Promise<PoReviewParent[]> {
+  const parents = await searchAllPages(PO_REVIEW_PARENT_JQL, ['summary', 'status', 'issuetype']);
+  if (!parents.length) return [];
+
+  const children: any[] = [];
+  const keys = parents.map((p: any) => p.key);
+  for (let i = 0; i < keys.length; i += 50) {
+    const batch = keys.slice(i, i + 50);
+    children.push(
+      ...(await searchAllPages(
+        `parent IN (${batch.join(',')})`,
+        ['summary', 'status', 'assignee', 'issuetype', 'parent'],
+        4
+      ))
+    );
+  }
+
+  const byParent = new Map<string, PoReviewChild[]>();
+  for (const child of children) {
+    const status = child.fields?.normalizedStatusName || child.fields?.status?.name || '';
+    if (MISMATCH_DONE_RE.test(status.toLowerCase())) continue;
+    const parentKey = child.fields?.parent?.key;
+    if (!parentKey) continue;
+    const list = byParent.get(parentKey) || [];
+    list.push({
+      key: child.key,
+      typeName: child.fields?.issuetype?.name || '',
+      statusName: status,
+      statusCategoryKey: child.fields?.status?.statusCategory?.key || '',
+      assigneeName: child.fields?.normalizedAssigneeName || '',
+    });
+    byParent.set(parentKey, list);
+  }
+
+  return parents
+    .filter((p: any) => byParent.has(p.key))
+    .map((p: any) => ({
+      key: p.key,
+      summary: p.fields?.summary || '',
+      children: (byParent.get(p.key) || []).sort((a, b) => a.key.localeCompare(b.key)),
+    }));
+}
+
+function PoReviewChildrenCard({
+  parents,
+  loading,
+  onReload,
+}: {
+  parents: PoReviewParent[];
+  loading: boolean;
+  onReload: () => void;
+}) {
+  const totalChildren = parents.reduce((sum, parent) => sum + parent.children.length, 0);
+
+  return (
+    <div className="rounded-lg border border-gray-100 p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-gray-900">PO review nhưng con chưa xong</h3>
+          {!loading && (
+            <span className="text-xs text-gray-400">
+              {parents.length === 0 ? 'không có' : `${parents.length} ticket · ${totalChildren} item chưa xong`}
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onReload}
+          className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+        >
+          Tải lại
+        </button>
+      </div>
+
+      <p className="mb-3 text-[11px] text-gray-400">
+        Ticket ở status PO/TM Review mà subtask hoặc defect bên dưới vẫn chưa Done
+      </p>
+
+      {loading ? (
+        <div className="h-16 animate-pulse rounded bg-gray-50" />
+      ) : parents.length === 0 ? (
+        <p className="text-sm font-medium text-green-600">✅ Ticket PO review đều đã xong hết con</p>
+      ) : (
+        <div className="space-y-4">
+          {parents.map((parent) => (
+            <div key={parent.key}>
+              <p className="mb-1.5 text-xs">
+                <a
+                  href={`${JIRA_BASE}/browse/${parent.key}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono font-semibold text-blue-600 hover:underline"
+                >
+                  {parent.key}
+                </a>
+                <span className="text-gray-500"> · {parent.summary}</span>
+              </p>
+              <div className="overflow-hidden rounded-lg border border-gray-200">
+                <table className="w-full border-collapse text-sm">
+                  <tbody>
+                    {parent.children.map((child) => (
+                      <tr key={child.key} className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50">
+                        <td className="w-[110px] px-3 py-2">
+                          <a
+                            href={`${JIRA_BASE}/browse/${child.key}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-mono text-xs font-semibold text-blue-600 hover:underline"
+                          >
+                            {child.key}
+                          </a>
+                        </td>
+                        <td className="px-3 py-2">
+                          <JiraTypeTag name={child.typeName} />
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          <JiraStatusPill name={child.statusName} categoryKey={child.statusCategoryKey} />
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                          {child.assigneeName || <span className="text-red-500">Chưa gán</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Công việc chung: ticket gắn sprint sai board ────────────────────────────
 
 interface WrongBoardIssue {
@@ -2666,6 +2819,8 @@ export default function Dashboard() {
   const [devSubtasksLoading, setDevSubtasksLoading] = useState(false);
   const [versionMismatch, setVersionMismatch] = useState<VersionMismatchIssue[]>([]);
   const [versionMismatchLoading, setVersionMismatchLoading] = useState(false);
+  const [poReviewParents, setPoReviewParents] = useState<PoReviewParent[]>([]);
+  const [poReviewLoading, setPoReviewLoading] = useState(true);
   const [wrongBoardIssues, setWrongBoardIssues] = useState<WrongBoardIssue[]>([]);
   const [wrongBoardLoading, setWrongBoardLoading] = useState(true);
   const [svkSummary, setSvkSummary] = useState<SvkSummary | null>(null);
@@ -2713,6 +2868,17 @@ export default function Dashboard() {
       toast.error(`Tải ticket health thất bại: ${err?.response?.data?.error || err.message}`);
     } finally {
       setSprintHealthLoading(false);
+    }
+  }, []);
+
+  const reloadPoReviewChildren = useCallback(async () => {
+    setPoReviewLoading(true);
+    try {
+      setPoReviewParents(await loadPoReviewOpenChildren());
+    } catch (err: any) {
+      toast.error(`Tải check PO review thất bại: ${err?.response?.data?.error || err.message}`);
+    } finally {
+      setPoReviewLoading(false);
     }
   }, []);
 
@@ -2803,6 +2969,10 @@ export default function Dashboard() {
             setWrongBoardIssues(result);
             setWrongBoardLoading(false);
           }).catch(() => setWrongBoardLoading(false)),
+          loadPoReviewOpenChildren().then((result) => {
+            setPoReviewParents(result);
+            setPoReviewLoading(false);
+          }).catch(() => setPoReviewLoading(false)),
         ]);
         setSprintReports(reports);
         setSprintLoading(false);
@@ -3241,9 +3411,16 @@ export default function Dashboard() {
       ),
     },
     {
-      key: 'notes',
-      done: false,
-      node: <NotesPanel key="notes" />,
+      key: 'po-review-children',
+      done: !poReviewLoading && poReviewParents.length === 0,
+      node: (
+        <PoReviewChildrenCard
+          key="po-review-children"
+          parents={poReviewParents}
+          loading={poReviewLoading}
+          onReload={reloadPoReviewChildren}
+        />
+      ),
     },
     {
       key: 'wrong-board',
@@ -3263,9 +3440,14 @@ export default function Dashboard() {
     <div className="space-y-6">
       <Toaster position="top-right" />
 
-      <div>
-        <h1 className="text-4xl font-bold text-gray-900">Dashboard</h1>
-        <p className="mt-2 text-sm text-gray-600">Tổng quan các việc cần quản lý</p>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="text-4xl font-bold text-gray-900">Dashboard</h1>
+          <p className="mt-2 text-sm text-gray-600">Tổng quan các việc cần quản lý</p>
+        </div>
+        <div className="w-full lg:w-[420px] lg:shrink-0">
+          <NotesPanel />
+        </div>
       </div>
 
       {/* sprint + timeline + việc theo ngày gộp chung một card */}

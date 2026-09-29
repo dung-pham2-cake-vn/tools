@@ -12,7 +12,7 @@ info:
 
     | Thời gian | Email title | Cập nhật |
     |-----------|-------|-------|
-    | 2026-09-29 | email_title | Khởi tạo tài liệu (clone từ kov_cashloan) |
+    | 2026-09-29 | email_title | Khởi tạo tài liệu |
 
     ## Cơ chế xác thực (Signature)
     Tất cả request từ Partner gọi Cake đều phải ký signature:
@@ -563,82 +563,90 @@ components:
           type: object
           description: Dữ liệu bổ sung của đối tác
           required:
-            - partner_score
             - partner_onboarding_channel
-            - partner_business_info
+            - user_segment
           properties:
-            partner_score:
-              type: string
-              description: Raw credit score, truyền dạng string chứa số float
-              example: "0.04"
             partner_onboarding_channel:
               type: string
               description: Kênh KH truy cập, truyền mặc định `APP_DEFAULT`
               default: "APP_DEFAULT"
               example: "APP_DEFAULT"
-            partner_bank_code_disbursement:
+            user_segment:
               type: string
-              nullable: true
+              description: "Phân loại KH: user, driver"
+              enum: [ user, driver ]
+              example: "driver"
+            driver_qualified:
+              type: boolean
               description: |
-                Bank code ngân hàng nhận giải ngân ngoài (lấy từ data-config bank[].code).
-                Để trống (null) nếu giải ngân vào tài khoản Cake.
-            partner_bank_short_name_disbursement:
-              type: string
-              nullable: true
-              description: |
-                Bank short_name ngân hàng nhận giải ngân ngoài (lấy từ data-config bank[].short_name).
-                Để trống (null) nếu giải ngân vào tài khoản Cake.
-            partner_bank_account_disbursement:
-              type: string
-              nullable: true
-              description: |
-                Số tài khoản ngân hàng nhận giải ngân ngoài.
-                Để trống (null) nếu giải ngân vào tài khoản Cake.
-            partner_business_info:
-              type: object
-              nullable: true
-              description: |
-                Object chứa dữ liệu kinh doanh của KH trên nền tảng đối tác.
-                Cấu trúc dynamic, do 2 bên thống nhất theo từng nền tảng (không fix cứng trong spec này).
-                Thường gồm 2 nhóm:
-                - `business_info`: thông tin hộ kinh doanh (tax_code, first_software_use_date, business_type,
-                  industry - ngành hàng kinh doanh chi tiết, nid, phone, business_address{province, ward, address}).
-                - `revenue_info`: thông tin doanh thu (days_since_last_invoice, monthly_revenue[] - 12 tháng gần nhất,
-                  sắp xếp từ tháng gần nhất đến tháng xa nhất, mỗi phần tử gồm month định dạng YYYYMM,
-                  number_invoice_with_vat, number_invoice_without_vat, avg_revenue_invoice_with_vat,
-                  avg_revenue_invoice_without_vat, revenue_invoice, active_invoice_days - tần suất sử dụng KOV
-                  trong 1 tháng, purchase_order).
-              example:
-                business_info:
-                  tax_code: "123456789"
-                  first_software_use_date: "2022-03-15"
-                  business_type: "Hộ kinh doanh"
-                  industry: "Quán ăn"
-                  nid: "079090000000"
-                  phone: "0909900000"
-                  business_address:
-                    province: "Hà Nội"
-                    ward: "Dịch Vọng"
-                    address: "Số 123, Đường Trần Duy Hưng"
-                revenue_info:
-                  days_since_last_invoice: 1
-                  monthly_revenue:
-                    - month: "202607"
-                      number_invoice_with_vat: 100
-                      number_invoice_without_vat: 100
-                      avg_revenue_invoice_with_vat: 1000000
-                      avg_revenue_invoice_without_vat: 2000000
-                      revenue_invoice: 300000000
-                      active_invoice_days: 20
-                      purchase_order: true
-                    - month: "202606"
-                      number_invoice_with_vat: 100
-                      number_invoice_without_vat: 100
-                      avg_revenue_invoice_with_vat: 1000000
-                      avg_revenue_invoice_without_vat: 2000000
-                      revenue_invoice: 300000000
-                      active_invoice_days: 20
-                      purchase_order: false
+                true khi driver thỏa các điều kiện:
+                - Thu nhập mỗi tháng trong 3 tháng gần nhất >= 3 triệu
+                - Thời gian active (first trip) >= 90 ngày
+                - Account status hiện tại = completed
+                false nếu không thỏa các điều kiện trên
+              example: true
+            driver_data:
+              $ref: "#/components/schemas/DriverData"
+
+    DriverData:
+      type: object
+      description: Truyền dữ liệu nếu KH là tài xế đủ điều kiện
+      required:
+        - full_name
+        - document_id
+        - phone_number
+        - register_date
+        - rank
+        - account_status
+        - income
+      properties:
+        full_name:
+          type: string
+          description: Họ tên
+          example: "Nguyễn Văn A"
+        document_id:
+          type: string
+          description: Số CCCD
+          example: "xxxxxxxxxxxx"
+        phone_number:
+          type: string
+          description: Số điện thoại đăng ký làm tài xế
+          example: "0xxxxxxxxx"
+        register_date:
+          type: string
+          format: date
+          description: Ngày đăng ký hoạt động với BE (yyyy-mm-dd)
+          example: "2020-12-02"
+        rank:
+          type: string
+          description: "Hạng tài xế hiện tại: Pro+, Pro, Vàng, Bạc, Không xếp hạng"
+          example: "Pro+"
+        account_status:
+          type: string
+          description: |
+            Account status hiện tại của tài xế:
+            - Completed: Đang hoạt động
+            - Tempoblocked: Khóa tạm thời
+            - Permanentblocked: Khóa vĩnh viễn
+          enum: [ Completed, Tempoblocked, Permanentblocked ]
+          example: "Completed"
+        income:
+          type: array
+          description: Thu nhập thực nhận của tài xế trong 03 tháng gần nhất
+          items:
+            type: object
+            required:
+              - month
+              - income
+            properties:
+              month:
+                type: string
+                description: Tháng thu nhập (yyyymm)
+                example: "202604"
+              income:
+                type: string
+                description: Thu nhập trong tháng (VNĐ)
+                example: "10000000"
 
     ClientCreateResponse:
       allOf:

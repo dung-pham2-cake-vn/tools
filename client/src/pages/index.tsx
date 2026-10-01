@@ -501,6 +501,35 @@ function computeSprintSummary(reports: ProjectReport[], loadError: string | null
 
 // ─── Sprint alignment detail panel ───────────────────────────────────────────
 
+/** Link mở thẳng backlog và trang Releases của từng project trên Jira. */
+const JIRA_PROJECT_LINKS: Record<string, { backlog: string; releases: string }> = {
+  PL: {
+    backlog: `${JIRA_BASE}/jira/software/c/projects/PL/boards/4/backlog`,
+    releases: `${JIRA_BASE}/projects/PL?selectedItem=com.atlassian.jira.jira-projects-plugin%3Arelease-page`,
+  },
+  PLO: {
+    backlog: `${JIRA_BASE}/jira/software/c/projects/PLO/boards/46/backlog`,
+    releases: `${JIRA_BASE}/projects/PLO?selectedItem=com.atlassian.jira.jira-projects-plugin%3Arelease-page`,
+  },
+};
+
+function JiraProjectLinks({ projectKey }: { projectKey: string }) {
+  const links = JIRA_PROJECT_LINKS[projectKey];
+  if (!links) return null;
+  const cls =
+    'rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 hover:bg-blue-100';
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <a href={links.backlog} target="_blank" rel="noopener noreferrer" className={cls}>
+        Backlog {projectKey} →
+      </a>
+      <a href={links.releases} target="_blank" rel="noopener noreferrer" className={cls}>
+        Releases {projectKey} →
+      </a>
+    </span>
+  );
+}
+
 function SprintAlignmentDetail({ reports, loadError }: { reports: ProjectReport[]; loadError: string | null }) {
   const summary = useMemo(() => computeSprintSummary(reports, loadError), [reports, loadError]);
 
@@ -514,6 +543,12 @@ function SprintAlignmentDetail({ reports, loadError }: { reports: ProjectReport[
         <div className="space-y-3">
           {reports.map((report) => (
             <div key={report.projectKey} className="space-y-1.5 border-b border-slate-200 pb-3 last:border-b-0 last:pb-0">
+              <div className="mb-1 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  {report.projectKey}
+                </span>
+                <JiraProjectLinks projectKey={report.projectKey} />
+              </div>
               <div className="font-mono text-sm text-gray-900">
                 {report.sprintLine.marker} {report.projectKey} Sprint: {report.sprintLine.name}{' '}
                 {formatRange(report.sprintLine.startDate, report.sprintLine.endDate, report.sprintLine.timeStatus)}
@@ -1189,7 +1224,7 @@ function VersionMismatchPanel({
         <p className="text-xs text-gray-400">{issues.length} subtask lệch fix version so với cha</p>
         <div className="flex items-center gap-2">
           <Link
-            href="/jira/backlog"
+            href="/jira/backlog?mismatch=1&matched=1"
             className="rounded border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
           >
             Mở backlog để sửa →
@@ -1784,19 +1819,65 @@ function FixVersionReviewPanel({
   if (loading) return <div className="py-6 text-center text-gray-500 text-sm">Đang tải...</div>;
   if (!result) return <div className="py-6 text-center text-gray-400 text-sm">Không có dữ liệu</div>;
   return (
-    <div className="pt-4 space-y-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
-          Check tickets PO review ({result.poReviewIssues.length})
-        </p>
-        <PoReviewTable issues={result.poReviewIssues} onTransitioned={onReload} />
-      </div>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
+    <div className="pt-4 space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
           Check fix ver not done ({result.notDoneIssues.length})
         </p>
-        <FixVersionNotDoneTable issues={result.notDoneIssues} />
+        <button
+          type="button"
+          onClick={onReload}
+          className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+        >
+          Tải lại
+        </button>
       </div>
+      <FixVersionNotDoneTable issues={result.notDoneIssues} />
+    </div>
+  );
+}
+
+/** Bảng PO review tách riêng sang mục "Công việc chung" — không gắn với mốc ngày nào. */
+function PoReviewCard({
+  result,
+  loading,
+  onReload,
+}: {
+  result: FixVersionReviewResult | null;
+  loading: boolean;
+  onReload: () => void;
+}) {
+  const issues = result?.poReviewIssues || [];
+
+  return (
+    <div className="rounded-lg border border-gray-100 p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-gray-900">Ticket chờ PO review</h3>
+          {!loading && (
+            <span className="text-xs text-gray-400">
+              {issues.length === 0 ? 'không có' : `${issues.length} ticket`}
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onReload}
+          className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+        >
+          Tải lại
+        </button>
+      </div>
+
+      <p className="mb-3 text-[11px] text-gray-400">
+        Fix version hiện tại, status PO/TM Review — tick chọn rồi chuyển hàng loạt sang Ready4Release
+      </p>
+
+      {loading ? (
+        <div className="h-16 animate-pulse rounded bg-gray-50" />
+      ) : (
+        <PoReviewTable issues={issues} onTransitioned={onReload} />
+      )}
     </div>
   );
 }
@@ -2810,7 +2891,7 @@ export default function Dashboard() {
   const [sprintHealth, setSprintHealth] = useState<SprintHealthResult | null>(null);
   const [sprintHealthLoading, setSprintHealthLoading] = useState(false);
   const [fixVerReview, setFixVerReview] = useState<FixVersionReviewResult | null>(null);
-  const [fixVerReviewLoading, setFixVerReviewLoading] = useState(false);
+  const [fixVerReviewLoading, setFixVerReviewLoading] = useState(true);
   const [sprintClose, setSprintClose] = useState<SprintCloseResult | null>(null);
   const [sprintCloseLoading, setSprintCloseLoading] = useState(false);
   const [fixVerMigration, setFixVerMigration] = useState<FixVersionMigrationResult | null>(null);
@@ -2973,6 +3054,10 @@ export default function Dashboard() {
             setPoReviewParents(result);
             setPoReviewLoading(false);
           }).catch(() => setPoReviewLoading(false)),
+          loadFixVersionReview().then((result) => {
+            setFixVerReview(result);
+            setFixVerReviewLoading(false);
+          }).catch(() => setFixVerReviewLoading(false)),
         ]);
         setSprintReports(reports);
         setSprintLoading(false);
@@ -3138,7 +3223,7 @@ export default function Dashboard() {
     : 'error';
   const fixVerStatus: TaskStatus = fixVerReviewLoading
     ? 'loading'
-    : !fixVerReview || (fixVerReview.poReviewIssues.length === 0 && fixVerReview.notDoneIssues.length === 0)
+    : !fixVerReview || fixVerReview.notDoneIssues.length === 0
     ? 'ok'
     : 'error';
 
@@ -3313,12 +3398,12 @@ export default function Dashboard() {
     },
     {
       day: 10,
-      title: 'Ngày 10 trở đi kiểm tra status PO và Fix version',
+      title: 'Ngày 10 trở đi kiểm tra Fix version',
       status: fixVerStatus,
       filter: (
         <TaskFilterNote
-          jql={`${PO_REVIEW_JQL}\n\n${FIX_VER_NOT_DONE_JQL}`}
-          notes={['Bảng trên: ticket đang chờ PO review · Bảng dưới: ticket của fix version này chưa Done']}
+          jql={FIX_VER_NOT_DONE_JQL}
+          notes={['Ticket của fix version hiện tại mà chưa Done (bảng PO review đã chuyển sang mục Công việc chung)']}
         />
       ),
       content: (
@@ -3407,6 +3492,18 @@ export default function Dashboard() {
           loading={svkLoading}
           scanning={svkScanning}
           onRescan={rescanSvk}
+        />
+      ),
+    },
+    {
+      key: 'po-review',
+      done: !fixVerReviewLoading && (fixVerReview?.poReviewIssues.length ?? 0) === 0,
+      node: (
+        <PoReviewCard
+          key="po-review"
+          result={fixVerReview}
+          loading={fixVerReviewLoading}
+          onReload={reloadFixVerReview}
         />
       ),
     },

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import toast, { Toaster } from 'react-hot-toast';
 import { jiraAPI } from '@/utils/api';
 
@@ -12,6 +13,30 @@ const projectRank = (key: string): number => (projectOf(key) === 'PLO' ? 0 : 1);
 // '' = không lọc, nên "chưa assignee" cần giá trị riêng.
 const UNASSIGNED = '__unassigned__';
 // Bulk fix version: '' = không đổi, nên "xoá hết version" cần giá trị riêng.
+/** Ô "type + title" trong bảng xác nhận, để biết mình đang đổi đúng ticket nào. */
+function IssueSummaryCell({ issue }: { issue?: JiraIssue }) {
+  if (!issue) return <span className="text-xs text-gray-400">—</span>;
+  const f = issue.fields;
+  return (
+    <span className="flex min-w-0 items-center gap-1.5">
+      {f.issuetype?.iconUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={f.issuetype.iconUrl} alt={f.issuetype.name} title={f.issuetype.name} className="h-3.5 w-3.5 shrink-0" />
+      ) : (
+        <span className="text-[10px] text-gray-400">{f.issuetype?.subtask ? '🔧' : '📄'}</span>
+      )}
+      <span className="flex min-w-0 items-baseline gap-2">
+        <span className="shrink-0 text-[10px] uppercase tracking-wide text-gray-400">
+          {f.issuetype?.name || '—'}
+        </span>
+        <span className="truncate text-xs text-gray-700" title={f.summary || ''}>
+          {f.summary || '—'}
+        </span>
+      </span>
+    </span>
+  );
+}
+
 const CLEAR_VERSION = '__clear_version__';
 const IGNORE_MISMATCH = '__ignore_fix_mismatch__';
 /** Label Jira đánh dấu ticket được bỏ qua khi soát lệch fix version cha-con. */
@@ -168,6 +193,8 @@ export default function BacklogPage() {
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
+  const router = useRouter();
+
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [labelFilter, setLabelFilter] = useState('');
@@ -178,6 +205,8 @@ export default function BacklogPage() {
   const [versionMismatchOnly, setVersionMismatchOnly] = useState(false);
   // false = giữ cha để thấy đường dẫn tới kết quả; true = chỉ ticket thực sự khớp filter
   const [onlyMatched, setOnlyMatched] = useState(false);
+  // filter nằm trong URL -> trang khác link thẳng vào đúng bộ lọc, và F5 không mất filter
+  const filtersFromUrl = useRef(false);
 
   const [collapsedSprints, setCollapsedSprints] = useState<Set<number>>(new Set());
   // Tree: track key node đang MỞ. Rỗng = tất cả thu gọn (mặc định).
@@ -294,6 +323,48 @@ export default function BacklogPage() {
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // URL -> state (chạy một lần, khi router đã có query)
+  useEffect(() => {
+    if (!router.isReady || filtersFromUrl.current) return;
+    filtersFromUrl.current = true;
+    const q = router.query;
+    const str = (value: unknown) => (typeof value === 'string' ? value : '');
+    const flag = (value: unknown) => value === '1' || value === 'true';
+    setSearch(str(q.q));
+    setTypeFilter(str(q.type));
+    setLabelFilter(str(q.label));
+    setVersionFilter(str(q.version));
+    setAssigneeFilter(str(q.assignee));
+    setOpenOnly(flag(q.open));
+    setVersionMismatchOnly(flag(q.mismatch));
+    setOnlyMatched(flag(q.matched));
+  }, [router.isReady, router.query]);
+
+  // state -> URL (replace để không làm bẩn lịch sử back)
+  useEffect(() => {
+    if (!router.isReady || !filtersFromUrl.current) return;
+    const next: Record<string, string> = {};
+    if (search) next.q = search;
+    if (typeFilter) next.type = typeFilter;
+    if (labelFilter) next.label = labelFilter;
+    if (versionFilter) next.version = versionFilter;
+    if (assigneeFilter) next.assignee = assigneeFilter;
+    if (openOnly) next.open = '1';
+    if (versionMismatchOnly) next.mismatch = '1';
+    if (onlyMatched) next.matched = '1';
+
+    const current = new URLSearchParams(
+      Object.entries(router.query).flatMap(([k, v]) => (typeof v === 'string' ? [[k, v] as [string, string]] : []))
+    );
+    current.sort();
+    const wanted = new URLSearchParams(next);
+    wanted.sort();
+    if (current.toString() === wanted.toString()) return;
+
+    router.replace({ pathname: router.pathname, query: next }, undefined, { shallow: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, typeFilter, labelFilter, versionFilter, assigneeFilter, openOnly, versionMismatchOnly, onlyMatched, router.isReady]);
 
   const keySet = useMemo(() => new Set(issues.map((i) => i.key)), [issues]);
   // Chỉ nhận link cha-con CÙNG project (PL↔PLO không lồng nhau — PLO chỉ xếp khối trên).
@@ -1594,7 +1665,7 @@ export default function BacklogPage() {
       {confirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
           <div className="fixed inset-0 bg-black/40" onClick={applying ? undefined : closeBulk} />
-          <div className="relative z-10 flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl">
+          <div className="relative z-10 flex max-h-[85vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl">
             <div className="border-b px-5 py-4">
               <h2 className="text-lg font-bold text-gray-900">
                 {applyResults ? 'Kết quả' : 'Xác nhận đổi hàng loạt'}
@@ -1611,14 +1682,17 @@ export default function BacklogPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 py-3">
-              <table className="min-w-full text-sm">
+              <table className="w-full table-fixed text-sm">
                 <tbody>
                   {applyResults
                     ? applyResults.map((r) => (
                         <tr key={r.key} className="border-b border-gray-100">
-                          <td className="py-1.5 pr-3 font-mono text-xs">{r.key}</td>
-                          <td className="py-1.5 pr-2">{r.ok ? '✅' : '❌'}</td>
-                          <td className={`py-1.5 text-xs ${r.ok ? 'text-gray-600' : 'text-red-600'}`}>{r.msg}</td>
+                          <td className="w-[110px] whitespace-nowrap py-1.5 pr-3 align-top font-mono text-xs">{r.key}</td>
+                          <td className="py-1.5 pr-3 align-top">
+                            <IssueSummaryCell issue={issueByKey.get(r.key)} />
+                          </td>
+                          <td className="w-8 py-1.5 pr-2 align-top">{r.ok ? '✅' : '❌'}</td>
+                          <td className={`py-1.5 align-top text-xs ${r.ok ? 'text-gray-600' : 'text-red-600'}`}>{r.msg}</td>
                         </tr>
                       ))
                     : bulkPlan.map((r) => {
@@ -1629,8 +1703,11 @@ export default function BacklogPage() {
                         const noop = !changeStatus && !changeAssignee && !changeVersion && !changeLabels;
                         return (
                           <tr key={r.key} className={`border-b border-gray-100 ${noop ? 'opacity-40' : ''}`}>
-                            <td className="py-1.5 pr-3 align-top font-mono text-xs">{r.key}</td>
-                            <td className="py-1.5 text-xs">
+                            <td className="w-[110px] whitespace-nowrap py-1.5 pr-3 align-top font-mono text-xs">{r.key}</td>
+                            <td className="py-1.5 pr-3 align-top">
+                              <IssueSummaryCell issue={issueByKey.get(r.key)} />
+                            </td>
+                            <td className="w-[360px] whitespace-nowrap py-1.5 align-top text-xs">
                               {changeStatus && (
                                 <div>
                                   <span className="text-gray-500">{r.statusFrom || '—'}</span>

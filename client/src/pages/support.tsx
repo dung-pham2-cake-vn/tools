@@ -420,6 +420,17 @@ const SvkDetailPanel: React.FC<{
 
           {(doc.linkedPl || []).map((pl) => (
             <React.Fragment key={pl.key}>
+              <div className="flex flex-wrap items-center gap-2 px-1 pt-2">
+                <a
+                  href={`${JIRA_BASE}/browse/${pl.key}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-mono text-xs font-semibold text-blue-600 hover:underline"
+                >
+                  {pl.key}
+                </a>
+                <IssueTypeSwitch issueKey={pl.key} />
+              </div>
               <Collapse
                 title={
                   <span className="flex items-center gap-2 flex-wrap">
@@ -432,9 +443,6 @@ const SvkDetailPanel: React.FC<{
                 <p className="text-xs text-gray-500 mb-2">
                   {pl.summary} · {pl.assignee || 'chưa gán'} · {pl.sprint || '—'}
                 </p>
-                <div className="mb-3">
-                  <IssueTypeSwitch issueKey={pl.key} />
-                </div>
                 {pl.descriptionAdf || pl.description ? (
                   <AdfRenderer adf={pl.descriptionAdf} fallback={pl.description} />
                 ) : (

@@ -2,29 +2,40 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import toast, { Toaster } from 'react-hot-toast';
-import { SprintManagementAnalysis, sprintPageLabel } from '@/components/SprintManagementAnalysis';
+import { SprintManagementAnalysis } from '@/components/SprintManagementAnalysis';
 import type { LoadedPage } from '@/components/SprintManagementAnalysis';
 import { sprintManagementAPI } from '@/utils/api';
+import { sprintPageSlug } from '@/utils/sprintPages';
 
-export default function SprintManagementDetailPage() {
+/**
+ * URL dạng /sprints/management/sprint-197. Vẫn nhận pageId Confluence cũ (link/bookmark
+ * cũ) và tự đổi sang slug cho dễ đọc.
+ */
+export default function SprintCheckDetailPage() {
   const router = useRouter();
-  const pageId = typeof router.query.pageId === 'string' ? router.query.pageId : '';
+  const param = typeof router.query.pageId === 'string' ? router.query.pageId : '';
   const [page, setPage] = useState<LoadedPage | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadPage = useCallback(async () => {
-    if (!pageId) return;
+    if (!param) return;
     setLoading(true);
     try {
       const res = await sprintManagementAPI.getLoadedPages();
       const pages: LoadedPage[] = res.data.data || [];
-      setPage(pages.find((p) => p.pageId === pageId) || null);
+      const found =
+        pages.find((p) => sprintPageSlug(p.title) === param) || pages.find((p) => p.pageId === param) || null;
+      setPage(found);
+      if (found && found.pageId === param) {
+        router.replace(`/sprints/management/${sprintPageSlug(found.title)}`, undefined, { shallow: true });
+      }
     } catch (err: any) {
       toast.error(`Không tải được page: ${err?.response?.data?.error || err.message}`);
     } finally {
       setLoading(false);
     }
-  }, [pageId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [param]);
 
   useEffect(() => {
     loadPage();
@@ -43,13 +54,13 @@ export default function SprintManagementDetailPage() {
       <div className="space-y-4">
         <Toaster position="top-right" />
         <div className="rounded-xl bg-white shadow-sm border border-gray-100 px-6 py-8">
-          <h1 className="text-xl font-bold text-gray-900">Không tìm thấy Sprint page</h1>
-          <p className="mt-2 text-sm text-gray-500">Page này chưa được load hoặc đã bị xoá khỏi danh sách loaded pages.</p>
+          <h1 className="text-xl font-bold text-gray-900">Không tìm thấy sprint</h1>
+          <p className="mt-2 text-sm text-gray-500">Sprint này chưa được load hoặc đã bị gỡ khỏi danh sách.</p>
           <Link
             href="/sprints/management"
             className="inline-flex mt-4 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700"
           >
-            Quay lại Sprint Management
+            Quay lại Sprint check
           </Link>
         </div>
       </div>
@@ -57,23 +68,9 @@ export default function SprintManagementDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <>
       <Toaster position="top-right" />
-
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">{sprintPageLabel(page.title)}</h1>
-          <p className="mt-1 text-sm text-gray-500">{page.title}</p>
-        </div>
-        <Link
-          href="/sprints/management"
-          className="flex-shrink-0 px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 text-gray-600 bg-white hover:bg-gray-50"
-        >
-          Sprint Management
-        </Link>
-      </div>
-
       <SprintManagementAnalysis page={page} />
-    </div>
+    </>
   );
 }

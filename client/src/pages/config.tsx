@@ -9,6 +9,7 @@ interface TestResult {
 }
 
 const PROVIDERS = [
+  { value: 'claude_code', label: 'Claude Code (trên máy này)' },
   { value: 'anthropic', label: 'Anthropic (Claude)' },
   { value: 'openai', label: 'OpenAI' },
   { value: 'custom', label: 'Custom (OpenAI-compatible)' },
@@ -16,6 +17,7 @@ const PROVIDERS = [
 ];
 
 const DEFAULT_MODELS: Record<string, string> = {
+  claude_code: '',
   anthropic: 'claude-sonnet-4-6',
   openai: 'gpt-4o',
   custom: '',
@@ -263,7 +265,21 @@ const Config: React.FC = () => {
           </select>
         </div>
 
+        {provider === 'claude_code' && (
+          <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-800 space-y-1">
+            <p>
+              Gọi lệnh <code className="font-mono">claude -p</code> trên máy đang chạy backend, dùng tài khoản Claude Code đã
+              đăng nhập sẵn — <b>không cần API key</b>.
+            </p>
+            <p className="text-blue-700">
+              Chạy trong thư mục tạm, chỉ được dùng tool Read (để xem ảnh đính kèm). Không tìm thấy lệnh thì đặt
+              <code className="font-mono"> CLAUDE_CODE_BIN</code> trong .env.
+            </p>
+          </div>
+        )}
+
         {/* API Key */}
+        {provider !== 'claude_code' && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
           <div className="relative">
@@ -286,6 +302,7 @@ const Config: React.FC = () => {
             </button>
           </div>
         </div>
+        )}
 
         {/* Model */}
         <div>
@@ -294,9 +311,14 @@ const Config: React.FC = () => {
             type="text"
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            placeholder={DEFAULT_MODELS[provider] || 'model-name'}
+            placeholder={provider === 'claude_code' ? 'để trống = model mặc định của Claude Code' : DEFAULT_MODELS[provider] || 'model-name'}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 font-mono"
           />
+          {provider === 'claude_code' && (
+            <p className="text-xs text-gray-400 mt-1">
+              Alias của Claude Code: opus · sonnet · haiku, hoặc tên model đầy đủ.
+            </p>
+          )}
           {provider === 'anthropic' && (
             <p className="text-xs text-gray-400 mt-1">
               Options: claude-opus-4-7 · claude-sonnet-4-6 · claude-haiku-4-5-20251001

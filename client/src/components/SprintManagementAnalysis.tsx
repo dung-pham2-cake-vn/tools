@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { JiraStatusPill } from '@/components/JiraBadges';
+import { ACTIVE_SPRINT_ICON, sprintNumberOfTitle, useActiveSprintNumbers } from '@/utils/sprintPages';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import { sprintManagementAPI, configAPI } from '@/utils/api';
@@ -314,31 +316,7 @@ function PoStatusBadge({
   );
 }
 
-function statusBadgeClass(status: string): string {
-  const s = status.toUpperCase().replace(/\s+/g, ' ').trim();
-  if (['OPEN', 'DRAFT'].includes(s)) return 'bg-gray-100 text-gray-900 border-gray-100';
-  if (['IN CODING', 'IN PROGRESS', 'READY4TEST', 'IN TESTING', 'TEST FAILED'].includes(s)) {
-    return 'bg-blue-50 text-blue-900 border-blue-200';
-  }
-  if (['PO/TM REVIEW', 'READY4RELEASE', 'RELEASED', 'WILL NOT DO', 'REQUEST BOT TO DELETE', 'DONE'].includes(s)) {
-    return 'bg-emerald-50 text-emerald-900 border-emerald-200';
-  }
-  return 'bg-gray-100 text-gray-700 border-gray-100';
-}
 
-function typeBadgeClass(type: string): string {
-  const t = type.toLowerCase();
-  if (t.includes('subtask') || t.includes('sub-task')) return 'bg-blue-50 text-blue-700 border border-blue-100';
-  if (t === 'epic') return 'bg-purple-50 text-purple-700 border border-purple-100';
-  if (t === 'story') return 'bg-green-50 text-green-700 border border-green-100';
-  if (t === 'techdebt' || t.includes('tech debt')) return 'bg-violet-50 text-violet-700 border border-violet-100';
-  if (t.includes('security')) return 'bg-orange-50 text-orange-700 border border-orange-100';
-  if (t.includes('vendor')) return 'bg-blue-50 text-blue-700 border border-blue-100';
-  if (t === 'bug' || t === 'defect') return 'bg-red-50 text-red-700 border border-red-100';
-  if (t === 'initiative') return 'bg-amber-50 text-amber-700 border border-amber-100';
-  if (t === 'task') return 'bg-sky-50 text-sky-700 border border-sky-100';
-  return 'bg-slate-50 text-slate-600 border border-slate-100';
-}
 
 function stripRoleSuffix(name: string): string {
   return name.replace(/\s*\(.*?\)\s*/g, '').trim();
@@ -582,7 +560,7 @@ function HealthMiniTable({ issues, columns }: { issues: HealthIssue[]; columns: 
               <td className="px-2 py-1.5 text-gray-700 truncate max-w-0">{i.name || '—'}</td>
               {columns.includes('status') && (
                 <td className="px-2 py-1.5 w-[130px]">
-                  <span className={`px-1.5 py-0.5 rounded border font-medium ${statusBadgeClass(i.status || '')}`}>{i.status || '—'}</span>
+                  <JiraStatusPill name={i.status || ''} />
                 </td>
               )}
               {columns.includes('assignee') && (
@@ -951,7 +929,7 @@ function renderTicketRows({
   const rows: React.ReactNode[] = [
     (
       <tr key={rowKeyPrefix} className={rowClassName}>
-        <td className="px-3 py-2" style={{ paddingLeft: `${32 + depth * 24}px` }}>
+        <td className="px-2 py-1.5" style={{ paddingLeft: `${32 + depth * 24}px` }}>
           <div className="flex items-center gap-1.5">
             {hasChildren ? (
               <button
@@ -963,7 +941,9 @@ function renderTicketRows({
             ) : (
               <span className="w-3 shrink-0" />
             )}
-            <IssueTypeIcon type={displayTicket.type} />
+            <span title={displayTicket.type || ''} className="inline-flex shrink-0">
+              <IssueTypeIcon type={displayTicket.type} />
+            </span>
             <a
               href={`${jiraBase}/browse/${ticket.id}`}
               target="_blank"
@@ -974,28 +954,20 @@ function renderTicketRows({
             </a>
           </div>
         </td>
-        <td className={`px-3 py-2 text-sm ${depth === 0 ? 'text-gray-700' : 'text-gray-600'}`}>
+        <td className={`px-2 py-1.5 text-sm ${depth === 0 ? 'text-gray-700' : 'text-gray-600'}`}>
           {depth > 0 && <span className="text-xs text-gray-400 mr-2">{'↳'.repeat(Math.min(depth, 6))}</span>}
           {displayTicket.name}
         </td>
-        <td className="px-3 py-2">
-          <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded font-medium ${typeBadgeClass(displayTicket.type)}`}>
-            <IssueTypeIcon type={displayTicket.type} />
-            {displayTicket.type}
-          </span>
+        <td className="px-2 py-1.5">
+          <JiraStatusPill name={displayTicket.status || ''} />
         </td>
-        <td className="px-3 py-2">
-          <span className={`text-xs px-2 py-0.5 rounded border font-medium ${statusBadgeClass(displayTicket.status)}`}>
-            {displayTicket.status}
-          </span>
-        </td>
-        <td className="px-3 py-2 text-xs text-gray-700">
+        <td className="px-2 py-1.5 text-xs text-gray-700">
           {shortName(displayTicket.assignee) || 'Unassigned'}
         </td>
-        <td className="px-3 py-2 text-xs text-gray-500">
+        <td className="px-2 py-1.5 text-xs text-gray-500">
           {cached?.fixVersions?.length ? cached.fixVersions.join(', ') : '-'}
         </td>
-        <td className="px-3 py-2 text-xs text-gray-500 font-mono text-center">
+        <td className="px-2 py-1.5 text-xs text-gray-500 font-mono text-center">
           {(() => {
             const sp = hasChildren
               ? aggregateStoryPoints(ticket.id, ticketCache)
@@ -1011,7 +983,7 @@ function renderTicketRows({
             ) : sp;
           })()}
         </td>
-        <td className="px-3 py-2 text-xs font-mono text-center">
+        <td className="px-2 py-1.5 text-xs font-mono text-center">
           {(() => {
             const pct = hasChildren
               ? aggregatePercent(ticket.id, ticketCache, teamCapacity)
@@ -1026,9 +998,6 @@ function renderTicketRows({
               </span>
             );
           })()}
-        </td>
-        <td className="px-3 py-2 text-xs text-gray-500">
-          {cached?.lastUpdatedAt ? formatDate(cached.lastUpdatedAt) : '-'}
         </td>
       </tr>
     ),
@@ -1058,6 +1027,7 @@ function SprintSectionTable({
   collapseAllKey,
   uncheckedItems: controlledUnchecked,
   onUncheckedItemsChange,
+  hideTotals = false,
 }: {
   section: SprintSection;
   jiraBase: string;
@@ -1074,6 +1044,8 @@ function SprintSectionTable({
   // Khi truyền vào → state tick được điều khiển từ ngoài (vd header trang).
   uncheckedItems?: Set<string>;
   onUncheckedItemsChange?: (next: Set<string>) => void;
+  /** tổng SP / % / tick tất cả đã hiện trên thanh công cụ thì không lặp lại ở bảng */
+  hideTotals?: boolean;
 }) {
   const [collapsedItems, setCollapsedItems] = useState<Set<string>>(new Set());
   const [collapsedTicketIds, setCollapsedTicketIds] = useState<Set<string>>(new Set());
@@ -1168,6 +1140,7 @@ function SprintSectionTable({
           <span className="font-mono">{tableOpen ? '▼' : '▶'}</span>
           Danh sách ticket
         </button>
+        {!hideTotals && (
         <div className="flex items-center gap-2">
           <span
             className="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2.5 py-1 rounded"
@@ -1191,20 +1164,19 @@ function SprintSectionTable({
             {allChecked ? 'Bỏ tick tất cả' : 'Tick tất cả'}
           </button>
         </div>
+        )}
       </div>
       {!tableOpen ? null : <div className="rounded-lg border border-gray-200 overflow-hidden">
       <table className="w-full text-sm border-collapse">
         <thead>
           <tr className="bg-gray-100 text-xs text-gray-500 uppercase tracking-wide">
-            <th className="text-left px-3 py-2 font-semibold w-[110px]">Ticket ID</th>
-            <th className="text-left px-3 py-2 font-semibold">Tên Ticket</th>
-            <th className="text-left px-3 py-2 font-semibold w-[90px]">Loại</th>
-            <th className="text-left px-3 py-2 font-semibold w-[130px]">Trạng thái</th>
-            <th className="text-left px-3 py-2 font-semibold w-[150px]">Assignee</th>
-            <th className="text-left px-3 py-2 font-semibold w-[140px]">Fix Version</th>
-            <th className="text-center px-3 py-2 font-semibold w-[52px]">SP</th>
-            <th className="text-center px-3 py-2 font-semibold w-[64px]">%</th>
-            <th className="text-left px-3 py-2 font-semibold w-[170px]">Last update</th>
+            <th className="text-left px-2 py-1.5 font-semibold w-[130px]">Ticket ID</th>
+            <th className="text-left px-2 py-1.5 font-semibold">Tên Ticket</th>
+            <th className="text-left px-2 py-1.5 font-semibold w-[130px]">Trạng thái</th>
+            <th className="text-left px-2 py-1.5 font-semibold w-[150px]">Assignee</th>
+            <th className="text-left px-2 py-1.5 font-semibold w-[140px]">Fix Version</th>
+            <th className="text-center px-2 py-1.5 font-semibold w-[52px]">SP</th>
+            <th className="text-center px-2 py-1.5 font-semibold w-[64px]">%</th>
           </tr>
         </thead>
         <tbody>
@@ -1216,7 +1188,7 @@ function SprintSectionTable({
             return (
               <React.Fragment key={item.number}>
                 <tr className={`border-t border-blue-100 ${checked ? 'bg-blue-50' : 'bg-gray-50'}`}>
-                  <td colSpan={9} className="px-3 py-2.5">
+                  <td colSpan={7} className="px-2 py-1.5">
                     <div className="flex items-center gap-2 flex-wrap">
                       <input
                         type="checkbox"
@@ -1274,7 +1246,7 @@ function SprintSectionTable({
                 {!collapsed && (
                   item.tickets.length === 0 ? (
                     <tr className="border-t border-gray-100">
-                      <td colSpan={9} className="px-3 py-1.5 text-xs text-red-500 italic pl-10">
+                      <td colSpan={7} className="px-2 py-1 text-xs text-red-500 italic pl-10">
                         Không có sub-ticket
                       </td>
                     </tr>
@@ -1555,13 +1527,10 @@ function SprintSummaryTable({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
-  const [parsing, setParsing] = useState(false);
-  const [reloadingPage, setReloadingPage] = useState(false);
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [loadingResults, setLoadingResults] = useState(false);
   const [ticketCache, setTicketCache] = useState<Record<string, CachedSprintTicket>>({});
   const [teamCapacity, setTeamCapacity] = useState<TeamCapacity>(DEFAULT_TEAM_CAPACITY);
-  const [reloadingTicketIds, setReloadingTicketIds] = useState<Set<string>>(new Set());
   const [showChildTickets, setShowChildTickets] = useState(true);
   const [hideClosedStatuses, setHideClosedStatuses] = useState(true);
   const [collapseAllKey, setCollapseAllKey] = useState(0);
@@ -1662,52 +1631,6 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
       .catch(() => {});
   }, []);
 
-  const handleReloadPage = async () => {
-    setReloadingPage(true);
-    try {
-      await sprintManagementAPI.loadPage(page.pageId);
-      toast.success('Đã reload từ Confluence');
-    } catch (err: any) {
-      toast.error(`Lỗi: ${err?.response?.data?.error || err.message}`);
-    } finally {
-      setReloadingPage(false);
-    }
-  };
-
-  const handleParseByScript = async () => {
-    setParsing(true);
-    try {
-      const res = await sprintManagementAPI.parseByScript({ pageIds: [page.pageId] });
-      const entry: AnalysisResult = res.data.data;
-      setResults((prev) => [entry, ...prev]);
-      await loadTicketCache(collectTicketIds(parseSprintJSON(entry.result)));
-      toast.success('Parse xong');
-    } catch (err: any) {
-      toast.error(`Lỗi: ${err?.response?.data?.error || err.message}`);
-    } finally {
-      setParsing(false);
-    }
-  };
-
-  const handleReloadTickets = async (ticketIds: string[]) => {
-    const ids = Array.from(new Set(ticketIds.filter(Boolean)));
-    if (!ids.length) return;
-    setReloadingTicketIds((prev) => new Set([...prev, ...ids]));
-    try {
-      const res = await sprintManagementAPI.reloadTickets(ids);
-      setTicketCache((prev) => ({ ...prev, ...(res.data.data || {}) }));
-      toast.success(ids.length === 1 ? `Đã reload ${ids[0]}` : `Đã reload ${ids.length} tickets`);
-    } catch (err: any) {
-      toast.error(`Reload Jira thất bại: ${err?.response?.data?.error || err.message}`);
-    } finally {
-      setReloadingTicketIds((prev) => {
-        const next = new Set(prev);
-        ids.forEach((id) => next.delete(id));
-        return next;
-      });
-    }
-  };
-
   // Reload All: chạy tuần tự Confluence → Parse script → Reload Jira.
   const handleReloadAll = async () => {
     if (reloadingAll) return;
@@ -1743,7 +1666,6 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
 
   const latestResult = results[0] || null;
   const latestParsed = latestResult ? parseSprintJSON(latestResult.result) : null;
-  const latestTicketIds = collectTicketIds(latestParsed);
 
   // Split sections by name for structured rendering
   const getSection = (name: string) => latestParsed?.sections.find((s) => s.name === name) ?? null;
@@ -1755,6 +1677,12 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
   const headerMatchLeaf = makeLeafMatcher({ filterAssignees, filterStatusCategory, filterTypeCategories, hideClosedStatuses });
   const mustHaveTotal = mustHaveSection
     ? sumSectionPoints(mustHaveSection, ticketCache, headerMatchLeaf, mustHaveUnchecked)
+    : 0;
+  const activeSprintNumbers = useActiveSprintNumbers();
+  const isActiveSprint = activeSprintNumbers.has(sprintNumberOfTitle(page.title));
+
+  const mustHavePercent = mustHaveSection
+    ? sumSectionPercent(mustHaveSection, ticketCache, teamCapacity, headerMatchLeaf, mustHaveUnchecked)
     : 0;
   const mustHaveAllChecked = mustHaveUnchecked.size === 0;
   const toggleMustHaveAll = () => {
@@ -1788,17 +1716,23 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
   };
 
   return (
-    <div className="space-y-6 pb-48">
-      {/* Sticky page header — luôn nằm trên đầu trang */}
-      <div className="sticky top-0 z-40 -mx-8 px-8 py-3 bg-white/95 backdrop-blur border-b border-gray-200 shadow-sm">
+    <div className="space-y-3 pb-24">
+      {/* Thanh công cụ sticky — thay cho tiêu đề trang */}
+      <div className="sticky top-0 z-40 -mx-8 -mt-8 px-8 py-2 bg-white/95 backdrop-blur border-b border-gray-200 shadow-sm">
         <div className="flex items-center gap-2 flex-wrap">
+          <span className="mr-1 flex items-center gap-1.5 text-lg font-bold text-gray-900" title={page.title}>
+            {isActiveSprint && <span title="Sprint đang chạy">{ACTIVE_SPRINT_ICON}</span>}
+            {sprintPageLabel(page.title)}
+          </span>
           <button
             onClick={handleReloadAll}
-            disabled={reloadingAll || parsing || reloadingPage}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-sm transition-colors shadow-sm"
-            title="Chạy tuần tự: Reload Confluence → Parse script → Reload Jira"
+            disabled={reloadingAll}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-sm transition-colors shadow-sm"
+            title={`Chạy tuần tự: Reload Confluence → Parse script → Reload Jira${
+              latestResult ? ` · lần parse gần nhất ${formatDate(latestResult.timestamp)}` : ''
+            }`}
           >
-            {reloadingAll ? <><span className="animate-spin inline-block">⏳</span> Đang reload...</> : '🔄 Reload All'}
+            {reloadingAll ? <><span className="animate-spin inline-block">⏳</span> Đang reload...</> : '🔄 Reload'}
           </button>
 
           {/* Bộ lọc theo loại — dropdown cho gọn */}
@@ -1844,6 +1778,19 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
             )}
           </div>
 
+          <label
+            className="flex cursor-pointer items-center gap-1.5 px-1 text-sm text-gray-600"
+            title="Ẩn ticket ở status Will Not Do và Request Bot To Delete"
+          >
+            <input
+              type="checkbox"
+              checked={hideClosedStatuses}
+              onChange={(e) => setHideClosedStatuses(e.target.checked)}
+              className="h-4 w-4 cursor-pointer rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            Ẩn ticket đã huỷ
+          </label>
+
           <button
             onClick={handleToggleChildTickets}
             className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
@@ -1859,9 +1806,17 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
               >
                 Must have: {mustHaveTotal} SP
               </span>
+              {mustHavePercent > 0 && (
+                <span
+                  className="text-sm font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-lg"
+                  title="Tổng % tải so với capacity team của các item Must have đang tick"
+                >
+                  {fmtPercent(mustHavePercent)}
+                </span>
+              )}
               <button
                 onClick={toggleMustHaveAll}
-                className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
+                className="px-2.5 py-1.5 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
               >
                 {mustHaveAllChecked ? 'Bỏ tick tất cả' : 'Tick tất cả'}
               </button>
@@ -1870,69 +1825,22 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
         </div>
       </div>
 
-      {/* Dữ liệu đã phân tích — nút nạp/parse gộp luôn vào header cho đỡ một khối riêng */}
+      {/* Dữ liệu sprint — tên + thời điểm parse đã lên thanh công cụ */}
       <div className="rounded-xl bg-white shadow-sm border border-gray-100">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="font-bold text-gray-900">Dữ liệu đã phân tích</h2>
-              <p className="text-xs text-gray-400 mt-0.5">
-                {page.title}
-                {latestResult ? ` · parse lúc ${formatDate(latestResult.timestamp)}` : ' · chưa parse lần nào'}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleReloadPage}
-                disabled={reloadingPage || parsing}
-                title="Tải lại nội dung page từ Confluence"
-                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40"
-              >
-                {reloadingPage ? '⏳ Đang reload...' : '☁️ Reload Confluence'}
-              </button>
-              <button
-                onClick={handleParseByScript}
-                disabled={parsing || reloadingPage}
-                title="Parse lại nội dung page thành dữ liệu sprint"
-                className="rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
-              >
-                {parsing ? '⏳ Đang parse...' : '⚙️ Parse lại'}
-              </button>
-            </div>
-            {latestParsed && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setHideClosedStatuses((prev) => !prev)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${hideClosedStatuses ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}
-                >
-                  {hideClosedStatuses ? 'Đang ẩn WND/RBD' : 'Hiện WND/RBD'}
-                </button>
-                <button
-                  onClick={() => handleReloadTickets(latestTicketIds)}
-                  disabled={latestTicketIds.length === 0 || reloadingTicketIds.size > 0}
-                  className="px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50"
-                >
-                  {reloadingTicketIds.size > 0 ? 'Đang reload Jira...' : 'Reload Jira'}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
         {loadingResults ? (
           <div className="py-8 text-center text-gray-400 text-sm">Đang tải...</div>
         ) : !latestParsed ? (
           <div className="py-8 text-center text-gray-400 text-sm">
             {results.length === 0
-              ? 'Chưa có dữ liệu cho page này. Bấm "Parse lại" ở góc phải để bắt đầu.'
+              ? 'Chưa có dữ liệu cho sprint này. Bấm "Reload" để bắt đầu.'
               : 'Không parse được JSON.'}
           </div>
         ) : (
-          <div className="px-6 py-4 space-y-8">
+          <div className="px-4 py-3 space-y-5">
             {/* Core section */}
             {coreSection && (
               <div>
-                <div className="flex items-center gap-2 mb-3">
+                <div className="flex items-center gap-2 mb-2">
                   <span className="text-base">{coreSection.emoji}</span>
                   <h3 className="font-bold text-gray-900">{coreSection.name}</h3>
                   <span className="text-xs text-gray-400">({coreSection.items.length} items)</span>
@@ -1943,7 +1851,7 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
 
             {/* Must have: health check → summary → table */}
             {mustHaveSection && (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <span className="text-base">{mustHaveSection.emoji}</span>
                   <h3 className="font-bold text-gray-900">{mustHaveSection.name}</h3>
@@ -1956,13 +1864,14 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
                   {...commonSectionProps}
                   uncheckedItems={mustHaveUnchecked}
                   onUncheckedItemsChange={setMustHaveUnchecked}
+                  hideTotals
                 />
               </div>
             )}
 
             {/* Nice to have: lazy — only render content when opened */}
             {niceToHaveSection && (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <button
                   type="button"
                   onClick={() => setNiceToHaveOpen((p) => !p)}

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { JiraStatusPill } from '@/components/JiraBadges';
 import { jiraAPI } from '@/utils/api';
 
 const JIRA_BASE = 'https://cakedigitalbank.atlassian.net';
@@ -55,15 +56,6 @@ function shortName(fullName: string): string {
   return `${parts[parts.length - 1]} ${parts[0]}`;
 }
 
-function statusBadgeClass(status: string): string {
-  const s = status.toUpperCase().replace(/\s+/g, ' ').trim();
-  if (['OPEN', 'DRAFT', 'TO DO', 'BACKLOG'].includes(s)) return 'bg-gray-100 text-gray-700 border-gray-200';
-  if (['IN CODING', 'IN PROGRESS', 'READY4TEST', 'IN TESTING', 'TEST FAILED', 'WAIT4DEV'].includes(s)) {
-    return 'bg-blue-50 text-blue-700 border-blue-200';
-  }
-  if (['PO/TM REVIEW', 'READY4RELEASE'].includes(s)) return 'bg-amber-50 text-amber-700 border-amber-200';
-  return 'bg-gray-100 text-gray-700 border-gray-200';
-}
 
 function daysBadgeClass(days: number): string {
   if (days >= 90) return 'text-red-700 font-bold';
@@ -225,9 +217,7 @@ export default function CarryoverPage() {
                       {t.reporter ? shortName(t.reporter) : '—'}
                     </td>
                     <td className="px-3 py-2">
-                      <span className={`text-xs px-2 py-0.5 rounded border font-medium ${statusBadgeClass(t.status)}`}>
-                        {t.status || '—'}
-                      </span>
+                      <JiraStatusPill name={t.status || ''} />
                     </td>
                     <td className="px-3 py-2 text-right">
                       <span

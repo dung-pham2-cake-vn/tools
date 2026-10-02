@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import toast, { Toaster } from 'react-hot-toast';
 import { sprintManagementAPI } from '@/utils/api';
+import { JiraStatusPill } from '@/components/JiraBadges';
+import { ACTIVE_SPRINT_ICON, sprintNumberOfTitle, sprintPagePath, useActiveSprintNumbers } from '@/utils/sprintPages';
 import { sprintPageLabel } from '@/components/SprintManagementAnalysis';
 import type { CachedSprintTicket, LoadedPage } from '@/components/SprintManagementAnalysis';
 
@@ -20,13 +22,6 @@ interface PageContentModal {
 
 const JIRA_BASE = 'https://cakedigitalbank.atlassian.net';
 
-function statusBadgeCls(status: string) {
-  const s = status.toUpperCase().replace(/\s+/g, ' ').trim();
-  if (['OPEN', 'DRAFT'].includes(s)) return 'bg-gray-100 text-gray-700 border-gray-200';
-  if (['IN CODING', 'IN PROGRESS', 'READY4TEST', 'IN TESTING', 'TEST FAILED'].includes(s)) return 'bg-blue-50 text-blue-800 border-blue-200';
-  if (['PO/TM REVIEW', 'READY4RELEASE', 'RELEASED', 'WILL NOT DO', 'REQUEST BOT TO DELETE', 'DONE'].includes(s)) return 'bg-emerald-50 text-emerald-800 border-emerald-200';
-  return 'bg-gray-100 text-gray-600 border-gray-200';
-}
 
 export default function SprintManagementPage() {
   const [confluencePages, setConfluencePages] = useState<ConfluencePage[]>([]);
@@ -35,6 +30,9 @@ export default function SprintManagementPage() {
   const [loadingPageIds, setLoadingPageIds] = useState<Set<string>>(new Set());
   const [unlinkingPageIds, setUnlinkingPageIds] = useState<Set<string>>(new Set());
   const [contentModal, setContentModal] = useState<PageContentModal | null>(null);
+  const activeSprintNumbers = useActiveSprintNumbers();
+  // danh sách Confluence chỉ dùng khi thêm sprint mới -> mặc định gập
+  const [showConfluence, setShowConfluence] = useState(false);
   const [loadingModalId, setLoadingModalId] = useState<string | null>(null);
 
   // Ticket search
@@ -166,16 +164,18 @@ export default function SprintManagementPage() {
       <Toaster position="top-right" />
 
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Sprint Management</h1>
-        <p className="mt-1 text-sm text-gray-500">Chọn Confluence page để load và mở từng Sprint đã load từ menu con.</p>
+        <h1 className="text-3xl font-bold text-gray-900">Sprint check</h1>
+        <p className="mt-1 text-sm text-gray-500">Mở sprint đã load, hoặc tìm nhanh một ticket trong các sprint đó.</p>
       </div>
 
-      {/* Ticket search */}
+      {/* Sprint đã load — thứ dùng nhiều nhất nên đặt trên cùng, ô tìm ticket nằm ngay header */}
       <div className="rounded-xl bg-white shadow-sm border border-gray-100">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="font-bold text-gray-900">Tìm kiếm ticket đã load</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-gray-100">
+          <h2 className="font-bold text-gray-900">
+            Sprint đã load <span className="text-sm font-normal text-gray-400">({loadedPages.length})</span>
+          </h2>
         </div>
-        <div className="px-6 py-4 space-y-3">
+        <div className="space-y-4 px-6 py-4">
           <input
             type="text"
             value={searchQuery}
@@ -223,9 +223,7 @@ export default function SprintManagementPage() {
                             <td className="px-3 py-2 text-sm text-gray-700">{t.name || '-'}</td>
                             <td className="px-3 py-2 text-xs text-gray-600">{t.type || '-'}</td>
                             <td className="px-3 py-2">
-                              <span className={`text-xs px-2 py-0.5 rounded border font-medium ${statusBadgeCls(t.status || '')}`}>
-                                {t.status || '-'}
-                              </span>
+                              <JiraStatusPill name={t.status || ''} />
                             </td>
                             <td className="px-3 py-2 text-xs text-gray-700">{t.assignee || 'Unassigned'}</td>
                             <td className="px-3 py-2 text-xs text-gray-500 text-center">{t.storyPoints || '-'}</td>
@@ -254,23 +252,68 @@ export default function SprintManagementPage() {
               )}
             </div>
           )}
+
+          {loadedPages.length === 0 ? (
+            <div className="py-8 text-center text-gray-400 text-sm">Chưa có page nào được load.</div>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {loadedPages.map((page) => (
+                <Link
+                  key={page.pageId}
+                  href={sprintPagePath(page.title)}
+                  className={`block rounded-lg border px-4 py-3 transition-colors ${
+                    activeSprintNumbers.has(sprintNumberOfTitle(page.title))
+                      ? 'border-orange-300 bg-orange-50 hover:bg-orange-100'
+                      : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50'
+                  }`}
+                >
+                  <p className="flex items-center gap-1.5 font-semibold text-blue-700">
+                    {activeSprintNumbers.has(sprintNumberOfTitle(page.title)) && (
+                      <span title="Sprint đang chạy">{ACTIVE_SPRINT_ICON}</span>
+                    )}
+                    {sprintPageLabel(page.title)}
+                    {activeSprintNumbers.has(sprintNumberOfTitle(page.title)) && (
+                      <span className="rounded bg-orange-500 px-1.5 py-px text-[10px] font-bold uppercase text-white">
+                        đang chạy
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500 truncate">{page.title}</p>
+                  <p className="mt-2 text-xs text-gray-400">Loaded {formatDate(page.loadedAt)}</p>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
+      {/* Thêm sprint mới từ Confluence — chỉ cần mỗi đầu sprint nên gập mặc định */}
       <div className="rounded-xl bg-white shadow-sm border border-gray-100">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="font-bold text-gray-900">Confluence Pages</h2>
+        <div className="flex items-center justify-between px-6 py-3">
           <button
-            onClick={loadConfluenceChildren}
-            disabled={loadingList}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition-colors"
+            type="button"
+            onClick={() => setShowConfluence((v) => !v)}
+            className="flex items-center gap-2 text-sm font-semibold text-gray-700"
           >
-            <span className={loadingList ? 'animate-spin inline-block' : ''}>↻</span>
-            Reload list
+            <span className="text-gray-400">{showConfluence ? '▾' : '▸'}</span>
+            Thêm / quản lý page Confluence
+            <span className="font-normal text-xs text-gray-400">
+              ({confluencePages.length} page · {confluencePages.filter((p) => p.loaded).length} đã link)
+            </span>
           </button>
+          {showConfluence && (
+            <button
+              onClick={loadConfluenceChildren}
+              disabled={loadingList}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition-colors"
+            >
+              <span className={loadingList ? 'animate-spin inline-block' : ''}>↻</span>
+              Reload list
+            </button>
+          )}
         </div>
-
-        <div className="px-6 py-4">
+        {showConfluence && (
+          <div className="border-t border-gray-100 px-6 py-4">
           {loadingList ? (
             <div className="py-8 text-center text-gray-400 text-sm">Đang tải...</div>
           ) : confluencePages.length === 0 ? (
@@ -332,33 +375,8 @@ export default function SprintManagementPage() {
               })}
             </div>
           )}
-        </div>
-      </div>
-
-      <div className="rounded-xl bg-white shadow-sm border border-gray-100">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="font-bold text-gray-900">Pages đã load</h2>
-        </div>
-
-        <div className="px-6 py-4">
-          {loadedPages.length === 0 ? (
-            <div className="py-8 text-center text-gray-400 text-sm">Chưa có page nào được load.</div>
-          ) : (
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {loadedPages.map((page) => (
-                <Link
-                  key={page.pageId}
-                  href={`/sprints/management/${page.pageId}`}
-                  className="block rounded-lg border border-gray-200 bg-white px-4 py-3 hover:border-blue-300 hover:bg-blue-50 transition-colors"
-                >
-                  <p className="font-semibold text-blue-700">{sprintPageLabel(page.title)}</p>
-                  <p className="mt-1 text-xs text-gray-500 truncate">{page.title}</p>
-                  <p className="mt-2 text-xs text-gray-400">Loaded {formatDate(page.loadedAt)}</p>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {contentModal && (

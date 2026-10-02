@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import NotesPanel from '@/components/NotesPanel';
+import { sprintPagePath } from '@/utils/sprintPages';
+import { JiraStatusPill, JiraTypeTag } from '@/components/JiraBadges';
 import toast, { Toaster } from 'react-hot-toast';
 import { jiraAPI, sprintManagementAPI, supportAPI } from '@/utils/api';
 import { buildRows, type SvkTicketDoc, type Urgency } from '@/utils/svk';
@@ -51,6 +53,7 @@ interface SprintMgmtLoadResult {
   contributors: Record<string, string>;
   topLevelIds: string[];
   pageId: string;
+  pageTitle: string;
   items: SprintItem[];
 }
 
@@ -353,72 +356,9 @@ async function loadSprintMgmtData(activeSprintName: string): Promise<SprintMgmtL
     contributors,
     topLevelIds,
     pageId: matchPage.pageId,
+    pageTitle: matchPage.title,
     items,
   };
-}
-
-// ─── Jira-style status / type badges ─────────────────────────────────────────
-
-type JiraStatusCategory = 'new' | 'indeterminate' | 'done';
-
-// Bảng màu lexical của Jira theo status category.
-const STATUS_CATEGORY_STYLE: Record<JiraStatusCategory, string> = {
-  new: 'bg-[#DFE1E6] text-[#42526E]',
-  indeterminate: 'bg-[#DEEBFF] text-[#0052CC]',
-  done: 'bg-[#E3FCEF] text-[#006644]',
-};
-
-const DONE_STATUS_NAMES = new Set([
-  'done', 'closed', 'released', 'ready4release', 'will not do', 'resolved', 'cancelled', 'canceled',
-]);
-const NEW_STATUS_NAMES = new Set(['open', 'to do', 'backlog', 'draft', 'new', 'wait4dev', 'in coding']);
-
-function statusCategoryOf(statusName: string, rawCategoryKey?: string): JiraStatusCategory {
-  const raw = (rawCategoryKey || '').toLowerCase();
-  if (raw === 'new' || raw === 'indeterminate' || raw === 'done') return raw;
-  const s = (statusName || '').toLowerCase().replace(/\s+/g, ' ').trim();
-  if (DONE_STATUS_NAMES.has(s)) return 'done';
-  if (NEW_STATUS_NAMES.has(s) || SM_TODO.has(s)) return 'new';
-  return 'indeterminate';
-}
-
-function JiraStatusPill({ name, categoryKey }: { name: string; categoryKey?: string }) {
-  if (!name) return <span className="text-xs text-gray-400">—</span>;
-  const cls = STATUS_CATEGORY_STYLE[statusCategoryOf(name, categoryKey)];
-  return (
-    <span className={`inline-block rounded-[3px] px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide ${cls}`}>
-      {name}
-    </span>
-  );
-}
-
-// Màu/glyph icon type theo Jira.
-function typeVisual(typeName: string): { color: string; glyph: string } {
-  const t = (typeName || '').toLowerCase();
-  if (t.includes('epic')) return { color: '#904EE2', glyph: '⚡' };
-  if (t.includes('initiative')) return { color: '#904EE2', glyph: '◈' };
-  if (t.includes('story')) return { color: '#63BA3C', glyph: '✦' };
-  if (t.includes('bug') || t.includes('defect')) return { color: '#E5493A', glyph: '●' };
-  if (t.includes('subtask') || t.includes('sub-task')) return { color: '#4BADE8', glyph: '↳' };
-  if (t.includes('techdebt') || t.includes('tech debt')) return { color: '#FF991F', glyph: '◆' };
-  if (t.includes('security')) return { color: '#FF5630', glyph: '⚑' };
-  return { color: '#4BADE8', glyph: '✓' };
-}
-
-function JiraTypeTag({ name }: { name: string }) {
-  if (!name) return <span className="text-xs text-gray-400">—</span>;
-  const { color, glyph } = typeVisual(name);
-  return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-      <span
-        className="flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] text-[10px] leading-none text-white"
-        style={{ backgroundColor: color }}
-      >
-        {glyph}
-      </span>
-      <span className="text-xs text-gray-600">{name}</span>
-    </span>
-  );
 }
 
 async function loadSprintAlignmentReports(): Promise<ProjectReport[]> {
@@ -651,9 +591,9 @@ function SprintOverviewCard({
             </div>
           ) : (
             <p className="text-sm text-gray-400">
-              Chưa nạp page Sprint Management của sprint này nên không có thống kê subtask/story.{' '}
+              Chưa nạp page Sprint check của sprint này nên không có thống kê subtask/story.{' '}
               <Link href="/sprints/management" className="text-blue-600 hover:underline">
-                Mở Sprint Management →
+                Mở Sprint check →
               </Link>
             </p>
           )}
@@ -1884,10 +1824,10 @@ function PoReviewCard({
 
 // ─── Link sang trang đổi PO status ───────────────────────────────────────────
 
-function PoStatusLink({ pageId }: { pageId: string }) {
+function PoStatusLink({ pageId, pageTitle }: { pageId: string; pageTitle?: string }) {
   return (
     <Link
-      href={pageId ? `/sprints/management/${pageId}` : '/sprints/management'}
+      href={pageTitle ? sprintPagePath(pageTitle) : pageId ? `/sprints/management/${pageId}` : '/sprints/management'}
       className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
     >
       Đổi PO status →
@@ -2888,6 +2828,7 @@ export default function Dashboard() {
   const [smTicketCache, setSmTicketCache] = useState<Record<string, SmCachedTicket>>({});
   const [smItems, setSmItems] = useState<SprintItem[]>([]);
   const [smPageId, setSmPageId] = useState('');
+  const [smPageTitle, setSmPageTitle] = useState('');
   const [sprintHealth, setSprintHealth] = useState<SprintHealthResult | null>(null);
   const [sprintHealthLoading, setSprintHealthLoading] = useState(false);
   const [fixVerReview, setFixVerReview] = useState<FixVersionReviewResult | null>(null);
@@ -3028,6 +2969,7 @@ export default function Dashboard() {
         setSmTicketCache(result.ticketCache);
         setSmItems(result.items);
         setSmPageId(result.pageId);
+        setSmPageTitle(result.pageTitle);
       }
     } catch {
       // non-critical
@@ -3349,7 +3291,7 @@ export default function Dashboard() {
       filter: (
         <TaskFilterNote
           notes={[
-            'Nguồn: page Sprint Management của sprint hiện tại (không phải JQL)',
+            'Nguồn: page Sprint check của sprint hiện tại (không phải JQL)',
             'Lấy item có PO status hiệu dụng = Need UAT (suy từ status ticket con + lựa chọn đã lưu)',
           ]}
         />
@@ -3359,13 +3301,13 @@ export default function Dashboard() {
       ) : needUatItems.length === 0 ? (
         <div className="space-y-2 py-4 text-center">
           <p className="text-sm font-medium text-green-600">✅ Không có item nào cần UAT!</p>
-          <PoStatusLink pageId={smPageId} />
+          <PoStatusLink pageId={smPageId} pageTitle={smPageTitle} />
         </div>
       ) : (
         <div className="pt-4 space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-gray-400">{needUatItems.length} item cần gửi UAT</p>
-            <PoStatusLink pageId={smPageId} />
+            <PoStatusLink pageId={smPageId} pageTitle={smPageTitle} />
           </div>
           <div className="rounded-lg border border-gray-200 overflow-hidden">
             <table className="w-full text-sm border-collapse">

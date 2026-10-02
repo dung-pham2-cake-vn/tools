@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import toast, { Toaster } from 'react-hot-toast';
 import { jiraAPI } from '@/utils/api';
+import { statusPillClassOf } from '@/components/JiraBadges';
 
 const PROJECT_KEY = 'PL';
 // Board lấy theo PL Lending, nhưng issue gồm cả PLO (cùng sprint). PLO xếp khối trên PL.
@@ -141,14 +142,6 @@ const NO_SPRINT = -1;
 const DONE_RE = /(done|passed|released|ready4release|closed|resolved|converted|will not|reject|invalid|cancel|bot to delete)/;
 
 // Màu status pill theo keyword trong tên status (không có statusCategory trong data đã normalize).
-const statusPillClass = (status: string): string => {
-  const s = status.toLowerCase();
-  if (/(done|passed|released|ready4release|closed|resolved)/.test(s)) return 'bg-green-100 text-green-700';
-  if (/(reject|will not|invalid|cancel)/.test(s)) return 'bg-red-100 text-red-700';
-  if (/(test|review|qa)/.test(s)) return 'bg-purple-100 text-purple-700';
-  if (/(coding|progress|develop|doing)/.test(s)) return 'bg-blue-100 text-blue-700';
-  return 'bg-gray-100 text-gray-700';
-};
 
 const priorityDot: Record<string, string> = {
   Highest: 'bg-red-600',
@@ -1202,7 +1195,7 @@ export default function BacklogPage() {
             type="button"
             disabled={busyKey === issue.key}
             onClick={() => openStatusMenu(issue)}
-            className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold uppercase ${statusPillClass(status)} disabled:opacity-50`}
+            className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold uppercase ${statusPillClassOf(status)} disabled:opacity-50`}
           >
             {busyKey === issue.key ? '...' : status}
             <span className="text-[8px]">▼</span>
@@ -1342,7 +1335,7 @@ export default function BacklogPage() {
                           {f.normalizedFixVersionNames?.[0] || '—'}
                         </td>
                         <td className="w-[130px] whitespace-nowrap px-2 py-1.5">
-                          <span className={`rounded px-2 py-0.5 text-[11px] font-medium ${statusPillClass(f.normalizedStatusName || '')}`}>
+                          <span className={`rounded px-2 py-0.5 text-[11px] font-medium ${statusPillClassOf(f.normalizedStatusName || '')}`}>
                             {f.normalizedStatusName || '—'}
                           </span>
                         </td>

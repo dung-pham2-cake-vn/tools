@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { sprintManagementAPI } from '@/utils/api';
 import { sprintPageLabel } from './SprintManagementAnalysis';
+import { ACTIVE_SPRINT_ICON, sprintPagePath } from '@/utils/sprintPages';
 import type { LoadedPage } from './SprintManagementAnalysis';
 
 interface NavChild {
@@ -24,7 +25,7 @@ const navItems: NavItem[] = [
     path: '/sprints/management',
     icon: '🏃',
     children: [
-      { label: 'Sprint Management', path: '/sprints/management' },
+      { label: 'Sprint check', path: '/sprints/management' },
       { label: 'Roadmap', path: '/roadmap' },
     ],
   },
@@ -138,7 +139,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed = false, onToggle }) => {
       .catch(() => {});
   }, []);
 
-  const isActive = (path: string) => router.asPath === path;
+  const isActive = (path: string) => router.asPath.split('?')[0] === path;
 
   return (
     <div
@@ -220,7 +221,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed = false, onToggle }) => {
                               const nb = b.title.match(/[Ss]print\s*(\d+)/);
                               return (nb ? parseInt(nb[1], 10) : 0) - (na ? parseInt(na[1], 10) : 0);
                             }).map((page) => {
-                              const path = `/sprints/management/${page.pageId}`;
+                              const path = sprintPagePath(page.title);
                               const sprintNumMatch = page.title.match(/[Ss]print\s*(\d+)/);
                               const sprintNum = sprintNumMatch ? parseInt(sprintNumMatch[1], 10) : -1;
                               const isCurrent = sprintNum > 0 && activeSprintNums.has(sprintNum);
@@ -236,8 +237,15 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed = false, onToggle }) => {
                                       : 'text-blue-200 hover:bg-blue-700 hover:text-white'
                                   }`}
                                 >
+                                  {isCurrent && (
+                                    <span className="mr-1" title="Sprint đang chạy">{ACTIVE_SPRINT_ICON}</span>
+                                  )}
                                   {sprintPageLabel(page.title)}
-                                  {isCurrent && <span className="ml-1 text-[10px] text-blue-300">●</span>}
+                                  {isCurrent && (
+                                    <span className="ml-1.5 rounded bg-orange-400/90 px-1 py-px text-[9px] font-bold uppercase text-white">
+                                      đang chạy
+                                    </span>
+                                  )}
                                 </Link>
                               );
                             })}

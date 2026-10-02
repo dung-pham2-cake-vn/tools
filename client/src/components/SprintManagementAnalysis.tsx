@@ -1870,42 +1870,34 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
         </div>
       </div>
 
-      {/* Step 1: Confluence + Parse */}
+      {/* Dữ liệu đã phân tích — nút nạp/parse gộp luôn vào header cho đỡ một khối riêng */}
       <div className="rounded-xl bg-white shadow-sm border border-gray-100">
         <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="font-bold text-gray-900 flex items-center gap-2">
-            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold">1</span>
-            Dữ liệu Confluence
-            <span className="text-xs text-gray-400 font-normal ml-1">({page.title})</span>
-          </h2>
-        </div>
-        <div className="px-6 py-4 flex items-center gap-3">
-          <button
-            onClick={handleReloadPage}
-            disabled={reloadingPage || parsing}
-            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-sm transition-colors shadow-sm"
-          >
-            {reloadingPage ? <><span className="animate-spin inline-block">⏳</span> Đang reload...</> : '☁️ Reload từ Confluence'}
-          </button>
-          <button
-            onClick={handleParseByScript}
-            disabled={parsing || reloadingPage}
-            className="flex items-center gap-2 px-5 py-2.5 bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-sm transition-colors shadow-sm"
-          >
-            {parsing ? <><span className="animate-spin inline-block">⏳</span> Đang parse...</> : '⚙️ Parse bằng Script'}
-          </button>
-        </div>
-      </div>
-
-      {/* Step 2: Parsed data */}
-      <div className="rounded-xl bg-white shadow-sm border border-gray-100">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="font-bold text-gray-900">Dữ liệu đã phân tích</h2>
-              {latestResult && (
-                <p className="text-xs text-gray-400 mt-0.5">Mới nhất: {formatDate(latestResult.timestamp)}</p>
-              )}
+              <p className="text-xs text-gray-400 mt-0.5">
+                {page.title}
+                {latestResult ? ` · parse lúc ${formatDate(latestResult.timestamp)}` : ' · chưa parse lần nào'}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleReloadPage}
+                disabled={reloadingPage || parsing}
+                title="Tải lại nội dung page từ Confluence"
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+              >
+                {reloadingPage ? '⏳ Đang reload...' : '☁️ Reload Confluence'}
+              </button>
+              <button
+                onClick={handleParseByScript}
+                disabled={parsing || reloadingPage}
+                title="Parse lại nội dung page thành dữ liệu sprint"
+                className="rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
+              >
+                {parsing ? '⏳ Đang parse...' : '⚙️ Parse lại'}
+              </button>
             </div>
             {latestParsed && (
               <div className="flex items-center gap-2">
@@ -1932,7 +1924,7 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
         ) : !latestParsed ? (
           <div className="py-8 text-center text-gray-400 text-sm">
             {results.length === 0
-              ? 'Chưa có dữ liệu cho page này. Bấm "Parse bằng Script" để bắt đầu.'
+              ? 'Chưa có dữ liệu cho page này. Bấm "Parse lại" ở góc phải để bắt đầu.'
               : 'Không parse được JSON.'}
           </div>
         ) : (

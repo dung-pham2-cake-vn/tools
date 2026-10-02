@@ -19,14 +19,13 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', path: '/', icon: '📊' },
-  { label: 'Roadmap', path: '/roadmap', icon: '🗺️' },
   {
     label: 'Sprints',
-    path: '/sprints',
+    path: '/sprints/management',
     icon: '🏃',
     children: [
-      { label: 'Sprint Alignment', path: '/sprints' },
       { label: 'Sprint Management', path: '/sprints/management' },
+      { label: 'Roadmap', path: '/roadmap' },
     ],
   },
   { label: 'Tasks', path: '/tasks', icon: '📋' },

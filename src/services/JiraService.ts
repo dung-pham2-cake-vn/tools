@@ -202,6 +202,52 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const SPRINT_LENGTH_MS = SPRINT_LENGTH_DAYS * DAY_MS;
 const UTC7_OFFSET_MS = 7 * 60 * 60 * 1000;
 
+// ── PL delivery ticket từ PR idea ────────────────────────────────────────────
+/** Link type Jira Product Discovery: PL "implements" -> PR idea. */
+const POLARIS_LINK_TYPE_ID = '10010';
+const DELIVERY_PROJECT_KEY = 'PL';
+const DEFAULT_DELIVERY_ISSUE_TYPE = 'Story';
+const DEFAULT_DELIVERY_PRIORITY = 'Medium';
+const DEFAULT_DELIVERY_LABELS = ['TC_Covered'];
+/** Target sprint trên ticket PR (Product Roadmap). */
+const IDEA_SPRINT_FIELD = 'customfield_10631';
+
+export interface DeliveryIssuePrefill {
+  idea: { key: string; summary: string; descriptionAdf: any; sprintLabel: string };
+  projectKey: string;
+  boardId: number;
+  issueTypes: JiraNamedRef[];
+  sprints: Array<{ id: number; name: string; state: string }>;
+  fixVersions: Array<{ id: string; name: string }>;
+  existingDeliveryKeys: string[];
+  defaults: {
+    issueTypeId: string;
+    summary: string;
+    descriptionAdf: any;
+    sprintId: number | null;
+    fixVersionIds: string[];
+    priorityName: string;
+    labels: string[];
+    assigneeAccountId: string;
+    assigneeName: string;
+  };
+}
+
+export interface DeliveryIssueCreatePayload {
+  ideaKey: string;
+  projectKey?: string;
+  issueTypeId: string;
+  summary: string;
+  descriptionAdf?: any;
+  sprintId?: number | null;
+  fixVersionIds?: string[];
+  priorityName?: string;
+  labels?: string[];
+  assigneeAccountId?: string;
+  /** false để bỏ qua việc copy ảnh inline từ idea sang ticket mới. */
+  copyMedia?: boolean;
+}
+
 export interface JiraApproval {
   id: string;
   name: string;
@@ -513,7 +559,7 @@ export class JiraService {
 
   async getIssue(issueKey: string) {
     try {
-      const response = await this.axiosInstance.get(`/issues/${issueKey}`);
+      const response = await this.axiosInstance.get(`/issue/${issueKey}`);
       return response.data;
     } catch (error) {
       console.error(`Error fetching Jira issue ${issueKey}:`, this.formatAxiosError(error));
@@ -545,7 +591,7 @@ export class JiraService {
 
   async createIssue(issueData: any) {
     try {
-      const response = await this.axiosInstance.post('/issues', issueData);
+      const response = await this.axiosInstance.post('/issue', issueData);
       return response.data;
     } catch (error) {
       console.error('Error creating Jira issue:', this.formatAxiosError(error));
@@ -555,7 +601,7 @@ export class JiraService {
 
   async updateIssue(issueKey: string, updateData: any) {
     try {
-      const response = await this.axiosInstance.put(`/issues/${issueKey}`, updateData);
+      const response = await this.axiosInstance.put(`/issue/${issueKey}`, updateData);
       return response.data;
     } catch (error) {
       console.error(`Error updating Jira issue ${issueKey}:`, this.formatAxiosError(error));
@@ -1585,6 +1631,425 @@ export class JiraService {
     };
     return priorityMap[jiraPriority || ''] || 'medium';
   }
+  // ── PL delivery ticket từ PR idea ──────────────────────────────────────────
+
+  /** Tài khoản đang dùng token trong .env — mặc định assignee khi tạo ticket PL. */
+  async getMyself(): Promise<{ accountId: string; displayName: string }> {
+    try {
+      const response = await this.axiosInstance.get('/myself');
+      return {
+        accountId: String(response.data?.accountId || ''),
+        displayName: String(response.data?.displayName || ''),
+      };
+    } catch (error) {
+      console.error('Error fetching current Jira user:', this.formatAxiosError(error));
+      throw error;
+    }
+  }
+
+  async createIssueLink(typeId: string, inwardKey: string, outwardKey: string): Promise<void> {
+    try {
+      await this.axiosInstance.post('/issueLink', {
+        type: { id: typeId },
+        inwardIssue: { key: inwardKey },
+        outwardIssue: { key: outwardKey },
+      });
+    } catch (error) {
+      console.error(`Error linking ${outwardKey} -> ${inwardKey}:`, this.formatAxiosError(error));
+      throw error;
+    }
+  }
+
+  /** Board scrum của project giao hàng — ưu tiên PL_BOARD_ID, không có thì lấy scrum board đầu tiên. */
+  private async resolveDeliveryBoardId(projectKey: string): Promise<number> {
+    const fromEnv = Number(process.env.PL_BOARD_ID);
+    if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+
+    const boards = await this.getBoards(projectKey);
+    const scrum = boards.find((board) => board.type === 'scrum');
+    if (!scrum) throw new Error(`Project ${projectKey} không có scrum board`);
+    return scrum.id;
+  }
+
+  /** "Sprint 198 - Lending" | "Sprint 198" -> 198; không parse được thì null. */
+  private sprintNumber(name?: string | null): number | null {
+    const matched = String(name || '').match(/(\d+)/);
+    return matched ? Number(matched[1]) : null;
+  }
+
+  /**
+   * Sprint "sắp tới": future gần nhất sau sprint active. Không có active thì lấy
+   * future có số nhỏ nhất.
+   */
+  private pickUpcomingSprint(sprints: JiraSprint[]): JiraSprint | null {
+    const numbered = sprints
+      .map((sprint) => ({ sprint, number: this.sprintNumber(sprint.name) }))
+      .filter((item): item is { sprint: JiraSprint; number: number } => item.number !== null);
+
+    const activeNumber = Math.max(
+      0,
+      ...numbered.filter((item) => item.sprint.state === 'active').map((item) => item.number)
+    );
+
+    const future = numbered
+      .filter((item) => item.sprint.state === 'future' && item.number > activeNumber)
+      .sort((a, b) => a.number - b.number);
+
+    return future[0]?.sprint || null;
+  }
+
+  /**
+   * Gom sẵn mọi thứ modal "Tạo ticket PL" cần: nội dung copy từ idea, danh sách
+   * issue type / sprint / fix version, và giá trị mặc định đã suy ra.
+   */
+  async prepareDeliveryIssueFromIdea(
+    ideaKey: string,
+    projectKey = DELIVERY_PROJECT_KEY
+  ): Promise<DeliveryIssuePrefill> {
+    if (!ideaKey?.trim()) throw new Error('ideaKey is required');
+
+    const idea = await this.getIssue(ideaKey.trim().toUpperCase());
+    const ideaFields = idea?.fields || {};
+    const ideaSprintLabel: string = ideaFields[IDEA_SPRINT_FIELD]?.value || '';
+
+    const boardId = await this.resolveDeliveryBoardId(projectKey);
+    const [issueTypes, sprints, versions, me] = await Promise.all([
+      this.getProjectIssueTypes(projectKey),
+      this.getBoardSprints(boardId, 'active,future'),
+      this.getProjectVersions(projectKey),
+      this.getMyself(),
+    ]);
+
+    const upcoming = this.pickUpcomingSprint(sprints);
+    const ideaSprintNumber = this.sprintNumber(ideaSprintLabel);
+    const openVersions = versions.filter((version) => !version.archived && !version.released);
+    const fixVersion =
+      ideaSprintNumber === null
+        ? null
+        : openVersions.find((version) => this.sprintNumber(version.name) === ideaSprintNumber) || null;
+
+    const defaultType =
+      issueTypes.find((type) => type.name.toLowerCase() === DEFAULT_DELIVERY_ISSUE_TYPE.toLowerCase()) ||
+      issueTypes[0];
+
+    // Ticket PL đã gắn với idea này rồi -> UI hiện key thay vì nút tạo.
+    const existingDeliveryKeys: string[] = (ideaFields.issuelinks || [])
+      .filter((link: any) => link?.type?.id === POLARIS_LINK_TYPE_ID)
+      .flatMap((link: any) => [link.inwardIssue?.key, link.outwardIssue?.key])
+      .filter((key: unknown): key is string => typeof key === 'string' && key.startsWith(`${projectKey}-`));
+
+    return {
+      idea: {
+        key: String(idea.key),
+        summary: String(ideaFields.summary || ''),
+        descriptionAdf: ideaFields.description || null,
+        sprintLabel: ideaSprintLabel,
+      },
+      projectKey,
+      boardId,
+      issueTypes,
+      sprints: sprints.map((sprint) => ({ id: sprint.id, name: sprint.name, state: sprint.state || '' })),
+      fixVersions: openVersions.map((version) => ({ id: version.id, name: version.name })),
+      existingDeliveryKeys: Array.from(new Set(existingDeliveryKeys)),
+      defaults: {
+        issueTypeId: defaultType?.id || '',
+        summary: String(ideaFields.summary || ''),
+        descriptionAdf: ideaFields.description || null,
+        sprintId: upcoming?.id ?? null,
+        fixVersionIds: fixVersion ? [fixVersion.id] : [],
+        priorityName: DEFAULT_DELIVERY_PRIORITY,
+        labels: [...DEFAULT_DELIVERY_LABELS],
+        assigneeAccountId: me.accountId,
+        assigneeName: me.displayName,
+      },
+    };
+  }
+
+  /**
+   * ADF copy từ idea còn trỏ tới attachment của project cũ -> Jira từ chối
+   * ("We don't recognise the format of a file you added"). Bỏ node media, thay
+   * bằng một dòng text link về idea để không mất dấu ảnh.
+   */
+  private stripForeignMedia(
+    node: any,
+    ideaKey: string,
+    resolve?: (alt: string) => any | null
+  ): { node: any; stripped: number; altTexts: string[] } {
+    let stripped = 0;
+    const altTexts: string[] = [];
+    const ideaUrl = `${process.env.JIRA_HOST}/browse/${ideaKey}`;
+
+    const placeholder = (alt: string) => ({
+      type: 'paragraph',
+      content: [
+        { type: 'text', text: `🖼 ${alt || 'Ảnh'} — xem trên ` },
+        { type: 'text', text: ideaKey, marks: [{ type: 'link', attrs: { href: ideaUrl } }] },
+      ],
+    });
+
+    const mediaAlt = (value: any): string => {
+      if (Array.isArray(value)) {
+        for (const child of value) {
+          const found = mediaAlt(child);
+          if (found) return found;
+        }
+        return '';
+      }
+      if (value && typeof value === 'object') {
+        if (value.type === 'media') return String(value.attrs?.alt || value.attrs?.id || '');
+        return mediaAlt(value.content);
+      }
+      return '';
+    };
+
+    const replacementFor = (alt: string) => {
+      stripped += 1;
+      altTexts.push(alt);
+      return resolve?.(alt) ?? placeholder(alt);
+    };
+
+    const walk = (current: any): any => {
+      if (Array.isArray(current)) {
+        return current.flatMap((child) => {
+          const result = walk(child);
+          if (result === null) return [];
+          return Array.isArray(result) ? result : [result];
+        });
+      }
+      if (!current || typeof current !== 'object') return current;
+
+      const type = String(current.type || '');
+      if (type === 'mediaSingle' || type === 'mediaGroup') {
+        return replacementFor(mediaAlt(current.content));
+      }
+      if (type === 'media' || type === 'mediaInline') {
+        const alt = String(current.attrs?.alt || current.attrs?.id || '');
+        const replacement = replacementFor(alt);
+        // media trần nằm trong paragraph -> chỉ chèn được inline content, bỏ hẳn cho an toàn
+        return replacement?.type === 'paragraph' ? null : replacement;
+      }
+
+      const next: any = { ...current };
+      if (Array.isArray(current.content)) next.content = walk(current.content);
+      return next;
+    };
+
+    return { node: walk(node), stripped, altTexts };
+  }
+
+  /** Attachment của một issue, kèm url tải nội dung. */
+  private async getIssueAttachments(
+    issueKey: string
+  ): Promise<Array<{ id: string; filename: string; mimeType: string; content: string }>> {
+    const issue = await this.getIssue(issueKey);
+    return (issue?.fields?.attachment || []).map((item: any) => ({
+      id: String(item.id),
+      filename: String(item.filename || ''),
+      mimeType: String(item.mimeType || 'application/octet-stream'),
+      content: String(item.content || ''),
+    }));
+  }
+
+  private async downloadAttachment(attachmentId: string): Promise<Buffer> {
+    const response = await this.axiosInstance.get(`/attachment/content/${attachmentId}`, {
+      responseType: 'arraybuffer',
+      maxRedirects: 5,
+    });
+    return Buffer.from(response.data);
+  }
+
+  /** Upload file lên issue; trả về attachment vừa tạo. */
+  async uploadAttachment(
+    issueKey: string,
+    filename: string,
+    data: Buffer,
+    mimeType = 'application/octet-stream'
+  ): Promise<{ id: string; filename: string; content: string }> {
+    const form = new FormData();
+    form.append('file', new Blob([new Uint8Array(data)], { type: mimeType }), filename);
+
+    const response = await this.axiosInstance.post(`/issue/${issueKey}/attachments`, form, {
+      headers: { 'X-Atlassian-Token': 'no-check', 'Content-Type': 'multipart/form-data' },
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+    });
+
+    const created = Array.isArray(response.data) ? response.data[0] : response.data;
+    return {
+      id: String(created?.id || ''),
+      filename: String(created?.filename || filename),
+      content: String(created?.content || ''),
+    };
+  }
+
+  /**
+   * Copy ảnh/file inline từ idea sang ticket vừa tạo rồi trỏ description vào bản
+   * copy. Jira không cho tái dùng media id giữa hai project, nên ảnh hiện dưới
+   * dạng attachment + link thay vì inline.
+   */
+  private async copyMediaToDeliveryIssue(
+    ideaKey: string,
+    deliveryKey: string,
+    descriptionAdf: any,
+    altTexts: string[]
+  ): Promise<{ copied: number; failed: string[] }> {
+    const wanted = new Set(altTexts.filter(Boolean));
+    if (wanted.size === 0) return { copied: 0, failed: [] };
+
+    const attachments = await this.getIssueAttachments(ideaKey);
+    const byName = new Map(attachments.map((item) => [item.filename, item]));
+
+    const uploaded = new Map<string, { url: string; filename: string }>();
+    const failed: string[] = [];
+
+    for (const alt of wanted) {
+      const source = byName.get(alt);
+      if (!source) {
+        failed.push(`${alt} (không thấy attachment trên ${ideaKey})`);
+        continue;
+      }
+      try {
+        const data = await this.downloadAttachment(source.id);
+        const created = await this.uploadAttachment(deliveryKey, source.filename, data, source.mimeType);
+        uploaded.set(alt, {
+          url: `${process.env.JIRA_HOST}/rest/api/3/attachment/content/${created.id}`,
+          filename: created.filename,
+        });
+      } catch (error) {
+        failed.push(`${alt} (${this.describeError(error)})`);
+      }
+    }
+
+    if (uploaded.size === 0) return { copied: 0, failed };
+
+    const rewritten = this.stripForeignMedia(descriptionAdf, ideaKey, (alt) => {
+      const target = uploaded.get(alt);
+      if (!target) return null;
+      return {
+        type: 'paragraph',
+        content: [
+          { type: 'text', text: '📎 ' },
+          {
+            type: 'text',
+            text: target.filename,
+            marks: [{ type: 'link', attrs: { href: target.url } }],
+          },
+          { type: 'text', text: ' (đã copy từ ' },
+          {
+            type: 'text',
+            text: ideaKey,
+            marks: [{ type: 'link', attrs: { href: `${process.env.JIRA_HOST}/browse/${ideaKey}` } }],
+          },
+          { type: 'text', text: ')' },
+        ],
+      };
+    });
+
+    try {
+      await this.updateIssue(deliveryKey, { fields: { description: rewritten.node } });
+    } catch (error) {
+      failed.push(`cập nhật description (${this.describeError(error)})`);
+    }
+
+    return { copied: uploaded.size, failed };
+  }
+
+  /** Tạo ticket PL từ idea rồi nối "implements" về idea. Link lỗi không huỷ ticket đã tạo. */
+  async createDeliveryIssueFromIdea(
+    payload: DeliveryIssueCreatePayload
+  ): Promise<{
+    id: string;
+    key: string;
+    linked: boolean;
+    linkError?: string;
+    strippedMedia: number;
+    copiedMedia: number;
+    mediaErrors: string[];
+  }> {
+    const projectKey = String(payload.projectKey || DELIVERY_PROJECT_KEY).toUpperCase();
+    const ideaKey = String(payload.ideaKey || '').trim().toUpperCase();
+    if (!ideaKey) throw new Error('ideaKey is required');
+    if (!payload.summary?.trim()) throw new Error('summary is required');
+    if (!payload.issueTypeId) throw new Error('issueTypeId is required');
+
+    const [fieldMap, creatable] = await Promise.all([
+      this.getFieldDefinitionMap(),
+      this.getCreatableFieldIds(projectKey, payload.issueTypeId),
+    ]);
+    const allowed = (fieldId: string | null) => !!fieldId && (creatable.size === 0 || creatable.has(fieldId));
+    const sprintField = this.findFieldIdByName(fieldMap, ['Sprint']);
+
+    const labels = (payload.labels || []).map((label) => label.trim()).filter(Boolean);
+    const badLabel = labels.find((label) => /\s/.test(label));
+    if (badLabel) throw new Error(`Label "${badLabel}" chứa khoảng trắng`);
+
+    const fields: Record<string, unknown> = {
+      project: { key: projectKey },
+      issuetype: { id: payload.issueTypeId },
+      summary: payload.summary.trim(),
+    };
+
+    let strippedMedia = 0;
+    let mediaAltTexts: string[] = [];
+    if (payload.descriptionAdf && allowed('description')) {
+      const cleaned = this.stripForeignMedia(payload.descriptionAdf, ideaKey);
+      strippedMedia = cleaned.stripped;
+      mediaAltTexts = cleaned.altTexts;
+      fields.description = cleaned.node;
+    }
+    if (labels.length && allowed('labels')) fields.labels = labels;
+    if (payload.sprintId && allowed(sprintField)) fields[sprintField as string] = payload.sprintId;
+    if (payload.fixVersionIds?.length && allowed('fixVersions')) {
+      fields.fixVersions = payload.fixVersionIds.map((id) => ({ id: String(id) }));
+    }
+    if (payload.priorityName && allowed('priority')) fields.priority = { name: payload.priorityName };
+    if (payload.assigneeAccountId && allowed('assignee')) {
+      fields.assignee = { accountId: payload.assigneeAccountId };
+    }
+
+    let created: { id: string; key: string };
+    try {
+      const response = await this.axiosInstance.post('/issue', { fields });
+      created = { id: String(response.data.id), key: String(response.data.key) };
+    } catch (error) {
+      console.error(`Error creating delivery issue for ${ideaKey}:`, this.formatAxiosError(error));
+      throw new Error(this.describeError(error));
+    }
+
+    // Ảnh copy sau khi ticket đã tồn tại; lỗi ở đây không huỷ ticket.
+    let copiedMedia = 0;
+    let mediaErrors: string[] = [];
+    if (payload.copyMedia !== false && mediaAltTexts.length > 0) {
+      try {
+        const result = await this.copyMediaToDeliveryIssue(
+          ideaKey,
+          created.key,
+          payload.descriptionAdf,
+          mediaAltTexts
+        );
+        copiedMedia = result.copied;
+        mediaErrors = result.failed;
+      } catch (error) {
+        mediaErrors = [this.describeError(error)];
+      }
+    }
+
+    try {
+      // PL implements PR: PL là outward, idea là inward.
+      await this.createIssueLink(POLARIS_LINK_TYPE_ID, ideaKey, created.key);
+      return { ...created, linked: true, strippedMedia, copiedMedia, mediaErrors };
+    } catch (error) {
+      return {
+        ...created,
+        linked: false,
+        linkError: this.describeError(error),
+        strippedMedia,
+        copiedMedia,
+        mediaErrors,
+      };
+    }
+  }
+
 }
 
 export const jiraService = new JiraService();

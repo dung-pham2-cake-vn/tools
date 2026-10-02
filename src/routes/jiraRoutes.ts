@@ -20,6 +20,10 @@ router.get('/boards/:boardId/sprints/suggest', (req, res) => jiraController.sugg
 router.get('/projects/:projectKeyOrId/versions', (req, res) => jiraController.getProjectVersions(req, res));
 router.get('/projects/:projectKeyOrId/versions/suggest', (req, res) => jiraController.suggestProjectVersions(req, res));
 
+// PL delivery ticket tạo từ PR idea
+router.get('/delivery-issue/prepare', (req, res) => jiraController.prepareDeliveryIssue(req, res));
+router.post('/delivery-issue', (req, res) => jiraController.createDeliveryIssue(req, res));
+
 // Tech debt ticket endpoints
 router.get('/tech-debt/suggest', (req, res) => jiraController.suggestTechDebt(req, res));
 router.post('/tech-debt/bulk', (req, res) => jiraController.createTechDebtIssues(req, res));

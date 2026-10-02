@@ -127,6 +127,29 @@ function mapAttachments(raw: any): IAttachment[] {
   }));
 }
 
+/** Công thức scan hiển thị trên UI — đọc thẳng từ hằng số đang chạy nên không lệch với code. */
+export const getScanRecipe = () => ({
+  svkJql: SVK_JQL,
+  plJql: PL_BROAD_JQL,
+  svkFields: SVK_FIELDS,
+  plFields: PL_FIELDS,
+  steps: [
+    'Lấy SVK ticket theo JQL trên (phân trang 100/lần).',
+    'Từ issuelinks của mỗi SVK, bắt key khớp PL-/PLO-/DOP- làm ticket PL liên quan.',
+    'Nạp PL theo JQL rộng (30 ngày, link "causes"); PL nào thiếu thì query bù theo issueKey.',
+    'Comment trong kết quả search bị Jira cắt ngắn -> tải lại full comment của từng SVK và PL.',
+    'Tính aiInputHash = SHA1(description + comment + từng PL) — hash đổi mới chạy lại AI.',
+    'Lưu SVK + PL + file đính kèm vào DB, đồng thời ghi snapshot sang collection lịch sử.',
+    'Xoá khỏi danh sách đang mở những ticket không còn khớp JQL (đã Done/Cancelled...).',
+    'Ticket có hash mới -> đẩy vào hàng đợi AI review, chạy tối đa 5 ticket song song.',
+  ],
+  urgencyRules: [
+    '🟢 Comment có dấu đã merge/deploy nhưng chưa có xác nhận verify.',
+    '🔴 Tuổi ticket >= 5 ngày làm việc, hoặc tiêu đề có gấp/urgent/ảnh hưởng nhiều/DPD tăng — trừ khi comment nói đã giảm ưu tiên.',
+    '🟡 Các trường hợp còn lại.',
+  ],
+});
+
 export interface ScanResult {
   total: number;
   pendingAi: number;

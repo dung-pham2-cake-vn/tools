@@ -5,6 +5,7 @@ import {
   saveAnalyzeNote,
   reloadTicket,
   proxyAttachment,
+  svkScanRecipe,
   getSvkNotes,
   saveSvkNote,
   getSvkTickets,
@@ -24,6 +25,7 @@ router.put('/svk-notes/:key', saveSvkNote);
 router.get('/svk/tickets', getSvkTickets);
 router.get('/svk/history', getSvkHistoryTickets);
 router.post('/svk/scan', scanSvk);
+router.get('/svk/scan-recipe', svkScanRecipe);
 router.get('/svk/ai-status', svkAiStatus);
 router.post('/svk/ai-run', svkAiRunAll);
 router.post('/svk/tickets/:key/ai', svkAiRunOne);

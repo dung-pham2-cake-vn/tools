@@ -65,6 +65,89 @@ function statusBadge(status: string): string {
   return 'bg-gray-100 text-gray-600';
 }
 
+// ── Công thức scan ───────────────────────────────────────────────────────────
+
+interface ScanRecipe {
+  svkJql: string;
+  plJql: string;
+  svkFields: string[];
+  plFields: string[];
+  steps: string[];
+  urgencyRules: string[];
+}
+
+/** Lấy thẳng từ hằng số trong SvkService nên luôn khớp với code đang chạy. */
+const ScanRecipePanel: React.FC = () => {
+  const [recipe, setRecipe] = useState<ScanRecipe | null>(null);
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    supportAPI
+      .svkScanRecipe()
+      .then((res) => setRecipe(res.data as ScanRecipe))
+      .catch((err: any) => setError(err?.response?.data?.message || err?.message || 'Không tải được công thức scan'));
+  }, []);
+
+  return (
+    <div className="bg-white rounded-lg shadow p-4 mb-4">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 text-left text-sm font-semibold text-gray-900"
+      >
+        <span className="text-gray-400">{open ? '▾' : '▸'}</span>
+        Công thức scan
+        <span className="font-normal text-xs text-gray-400">JQL và các bước đang chạy</span>
+      </button>
+
+      {open && (
+        <div className="mt-3 space-y-4 text-xs">
+          {error && <p className="text-red-600">{error}</p>}
+          {!recipe && !error && <div className="h-16 animate-pulse rounded bg-gray-50" />}
+          {recipe && (
+            <>
+              <div>
+                <p className="mb-1 font-semibold uppercase tracking-wide text-gray-400">JQL lấy SVK</p>
+                <pre className="whitespace-pre-wrap rounded bg-gray-50 px-3 py-2 font-mono text-[11px] leading-relaxed text-gray-700">
+                  {recipe.svkJql}
+                </pre>
+                <p className="mt-1 text-[11px] text-gray-400">Fields: {recipe.svkFields.join(', ')}</p>
+              </div>
+
+              <div>
+                <p className="mb-1 font-semibold uppercase tracking-wide text-gray-400">JQL nạp PL liên quan</p>
+                <pre className="whitespace-pre-wrap rounded bg-gray-50 px-3 py-2 font-mono text-[11px] leading-relaxed text-gray-700">
+                  {recipe.plJql}
+                </pre>
+                <p className="mt-1 text-[11px] text-gray-400">Fields: {recipe.plFields.join(', ')}</p>
+              </div>
+
+              <div>
+                <p className="mb-1 font-semibold uppercase tracking-wide text-gray-400">Các bước</p>
+                <ol className="list-decimal space-y-0.5 pl-5 text-gray-600">
+                  {recipe.steps.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+              </div>
+
+              <div>
+                <p className="mb-1 font-semibold uppercase tracking-wide text-gray-400">Quy tắc màu độ khẩn</p>
+                <ul className="space-y-0.5 text-gray-600">
+                  {recipe.urgencyRules.map((rule) => (
+                    <li key={rule}>{rule}</li>
+                  ))}
+                </ul>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ── File đính kèm ────────────────────────────────────────────────────────────
 
 const ATTACHMENT_API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002/api';
@@ -692,6 +775,8 @@ const SVKTicketsTab: React.FC = () => {
         />
       )}
 
+      <ScanRecipePanel />
+
       <div className="bg-white rounded-lg shadow p-4 mb-4 flex items-center gap-4 flex-wrap">
         <button
           onClick={handleScan}
@@ -743,6 +828,7 @@ const SVKTicketsTab: React.FC = () => {
               <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
                 <tr>
                   <th className="px-3 py-3 text-center w-[60px]">Độ khẩn</th>
+                  <th className="px-3 py-3 text-left w-[220px]">Note</th>
                   <th className="px-3 py-3 text-left w-[160px]">Ticket</th>
                   <th className="px-3 py-3 text-left w-[100px]">Ticket SVK</th>
                   <th className="px-3 py-3 text-left w-[100px]">PL Linked</th>
@@ -752,7 +838,6 @@ const SVKTicketsTab: React.FC = () => {
                   <th className="px-3 py-3 text-left w-[120px]">PL Sprint</th>
                   <th className="px-3 py-3 text-left w-[130px]">TT SVK</th>
                   <th className="px-3 py-3 text-left w-[140px]">TT PL</th>
-                  <th className="px-3 py-3 text-left w-[220px]">Note</th>
                   <th className="px-3 py-3 text-center w-[150px]">Detail</th>
                 </tr>
               </thead>
@@ -764,6 +849,13 @@ const SVKTicketsTab: React.FC = () => {
                   return (
                     <tr key={doc.key} className="border-t border-gray-100 hover:bg-gray-50 align-top">
                       <td className="px-3 py-3 text-center text-lg">{row.urgency}</td>
+                      <td className="px-3 py-3 align-top">
+                        <NoteCell
+                          svkKey={doc.key}
+                          value={notes[doc.key] || ''}
+                          onChange={handleNoteChange}
+                        />
+                      </td>
                       <td className="px-3 py-3 font-mono text-xs">
                         {plKeys.length === 0 ? (
                           <span className="text-gray-700">{doc.key}</span>
@@ -858,13 +950,6 @@ const SVKTicketsTab: React.FC = () => {
                             })}
                           </div>
                         )}
-                      </td>
-                      <td className="px-3 py-3 align-top">
-                        <NoteCell
-                          svkKey={doc.key}
-                          value={notes[doc.key] || ''}
-                          onChange={handleNoteChange}
-                        />
                       </td>
                       <td className="px-3 py-3 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1">

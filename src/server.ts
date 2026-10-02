@@ -11,6 +11,7 @@ import jiraRoutes from './routes/jiraRoutes';
 import supportRoutes from './routes/supportRoutes';
 import configRoutes from './routes/configRoutes';
 import sprintManagementRoutes from './routes/sprintManagementRoutes';
+import ticketAIRoutes from './routes/ticketAIRoutes';
 import { startSvkAutoScan } from './services/svkAutoScan';
 import { startTelegramBot } from './services/telegramBot';
 
@@ -21,8 +22,8 @@ const PORT = process.env.PORT || 3002;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(requestLogger);
 
 // Health check endpoint
@@ -38,6 +39,7 @@ app.use('/api/jira', jiraRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/sprint-management', sprintManagementRoutes);
+app.use('/api/ticket-ai', ticketAIRoutes);
 
 // Root endpoint
 app.get('/', (_req, res) => {

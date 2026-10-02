@@ -39,6 +39,15 @@ function IssueSummaryCell({ issue }: { issue?: JiraIssue }) {
 
 const CLEAR_VERSION = '__clear_version__';
 const IGNORE_MISMATCH = '__ignore_fix_mismatch__';
+
+/** Thứ tự nhóm ở tab Analyze: Initiative -> Story -> Task -> Bug -> còn lại. */
+const ANALYZE_GROUPS: Array<{ label: string; match: (type: string) => boolean }> = [
+  { label: 'Initiative', match: (t) => t.includes('initiative') || t.includes('epic') },
+  { label: 'Story', match: (t) => t.includes('story') },
+  { label: 'Task', match: (t) => t.includes('task') && !t.includes('subtask') && !t.includes('sub-task') },
+  { label: 'Bug', match: (t) => t.includes('bug') || t.includes('defect') },
+];
+const ANALYZE_OTHER = 'Khác';
 /** Label Jira đánh dấu ticket được bỏ qua khi soát lệch fix version cha-con. */
 const IGNORE_MISMATCH_LABEL = 'ignore-fix-mismatch';
 
@@ -205,6 +214,8 @@ export default function BacklogPage() {
   const [versionMismatchOnly, setVersionMismatchOnly] = useState(false);
   // false = giữ cha để thấy đường dẫn tới kết quả; true = chỉ ticket thực sự khớp filter
   const [onlyMatched, setOnlyMatched] = useState(false);
+  // sub-menu: cây backlog như cũ, hoặc bảng analyze gom theo type
+  const [view, setView] = useState<'tree' | 'analyze'>('tree');
   // filter nằm trong URL -> trang khác link thẳng vào đúng bộ lọc, và F5 không mất filter
   const filtersFromUrl = useRef(false);
 
@@ -339,6 +350,7 @@ export default function BacklogPage() {
     setOpenOnly(flag(q.open));
     setVersionMismatchOnly(flag(q.mismatch));
     setOnlyMatched(flag(q.matched));
+    setView(q.view === 'analyze' ? 'analyze' : 'tree');
   }, [router.isReady, router.query]);
 
   // state -> URL (replace để không làm bẩn lịch sử back)
@@ -353,6 +365,7 @@ export default function BacklogPage() {
     if (openOnly) next.open = '1';
     if (versionMismatchOnly) next.mismatch = '1';
     if (onlyMatched) next.matched = '1';
+    if (view === 'analyze') next.view = 'analyze';
 
     const current = new URLSearchParams(
       Object.entries(router.query).flatMap(([k, v]) => (typeof v === 'string' ? [[k, v] as [string, string]] : []))
@@ -364,7 +377,7 @@ export default function BacklogPage() {
 
     router.replace({ pathname: router.pathname, query: next }, undefined, { shallow: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, typeFilter, labelFilter, versionFilter, assigneeFilter, openOnly, versionMismatchOnly, onlyMatched, router.isReady]);
+  }, [search, typeFilter, labelFilter, versionFilter, assigneeFilter, openOnly, versionMismatchOnly, onlyMatched, view, router.isReady]);
 
   const keySet = useMemo(() => new Set(issues.map((i) => i.key)), [issues]);
   // Chỉ nhận link cha-con CÙNG project (PL↔PLO không lồng nhau — PLO chỉ xếp khối trên).
@@ -1260,6 +1273,97 @@ export default function BacklogPage() {
     return rows;
   };
 
+  /** Gom ticket của một sprint theo nhóm type, bỏ qua cấu trúc cha-con. */
+  const analyzeGroupsOf = (issues: JiraIssue[]) => {
+    const buckets = new Map<string, JiraIssue[]>();
+    for (const issue of issues) {
+      const type = (issue.fields.issuetype?.name || '').toLowerCase();
+      const group = ANALYZE_GROUPS.find((g) => g.match(type))?.label ?? ANALYZE_OTHER;
+      buckets.set(group, [...(buckets.get(group) || []), issue]);
+    }
+    return [...ANALYZE_GROUPS.map((g) => g.label), ANALYZE_OTHER]
+      .map((label) => ({ label, items: buckets.get(label) || [] }))
+      .filter((group) => group.items.length > 0);
+  };
+
+  const renderAnalyzeTable = (issues: JiraIssue[], sprintId: number) => {
+    const groups = analyzeGroupsOf(issues);
+    if (groups.length === 0) {
+      return <div className="px-4 py-6 text-center text-sm text-gray-400">Không có work item khớp filter</div>;
+    }
+    return (
+      <div className="divide-y divide-gray-100">
+        {groups.map((group) => {
+          const sp = group.items.reduce((acc, i) => acc + (i.fields.normalizedStoryPoints || 0), 0);
+          return (
+            <div key={group.label} className="px-4 py-3">
+              <div className="mb-2 flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">{group.label}</span>
+                <span className="text-xs text-gray-400">{group.items.length} item</span>
+                {sp > 0 && (
+                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                    {sp} SP
+                  </span>
+                )}
+              </div>
+              <table className="w-full table-fixed text-sm">
+                <tbody>
+                  {group.items.map((issue) => {
+                    const f = issue.fields;
+                    const done = DONE_RE.test((f.normalizedStatusName || '').toLowerCase());
+                    return (
+                      <tr key={issue.key} className="border-b border-gray-50 last:border-b-0 hover:bg-slate-50">
+                        <td className="w-8 px-2 py-1.5 text-center">
+                          <input
+                            type="checkbox"
+                            checked={checked.has(issue.key)}
+                            onChange={() => toggleChecked(issue.key)}
+                            className="h-4 w-4 cursor-pointer rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                        </td>
+                        <td className="w-[110px] whitespace-nowrap px-2 py-1.5">
+                          <a
+                            href={getIssueBrowseUrl(issue)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={`font-mono text-xs font-semibold text-blue-600 hover:underline ${
+                              done ? 'line-through opacity-70' : ''
+                            }`}
+                          >
+                            {issue.key}
+                          </a>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <span className={`line-clamp-1 ${done ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
+                            {f.summary || '-'}
+                          </span>
+                        </td>
+                        <td className="w-[150px] whitespace-nowrap px-2 py-1.5 text-xs text-gray-500">
+                          {f.normalizedFixVersionNames?.[0] || '—'}
+                        </td>
+                        <td className="w-[130px] whitespace-nowrap px-2 py-1.5">
+                          <span className={`rounded px-2 py-0.5 text-[11px] font-medium ${statusPillClass(f.normalizedStatusName || '')}`}>
+                            {f.normalizedStatusName || '—'}
+                          </span>
+                        </td>
+                        <td className="w-[150px] whitespace-nowrap px-2 py-1.5 text-xs text-gray-600">
+                          {f.normalizedAssigneeName || <span className="text-gray-400">Chưa gán</span>}
+                        </td>
+                        <td className="w-[50px] whitespace-nowrap px-2 py-1.5 text-center text-xs text-gray-500">
+                          {f.normalizedStoryPoints || '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   const renderSprintGroup = (sprint: JiraSprint) => {
     const allRoots = rootsBySprint.get(sprint.id) || [];
     const roots = flatMode
@@ -1311,7 +1415,12 @@ export default function BacklogPage() {
         </div>
         {!isCollapsed && (
           <div className="overflow-x-auto">
-            {roots.length === 0 ? (
+            {view === 'analyze' ? (
+              renderAnalyzeTable(
+                allRoots.flatMap((r) => flattenVisible(r, sprint.id)).filter((i) => !filterActive || matches(i)),
+                sprint.id
+              )
+            ) : roots.length === 0 ? (
               <div className="px-4 py-6 text-center text-sm text-gray-400">Không có work item khớp filter</div>
             ) : (
               <table className="min-w-full text-sm">
@@ -1351,18 +1460,22 @@ export default function BacklogPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={expandAll}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            Mở hết
-          </button>
-          <button
-            onClick={collapseAll}
-            className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            Thu gọn hết
-          </button>
+          {view === 'tree' && (
+            <>
+              <button
+                onClick={expandAll}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Mở hết
+              </button>
+              <button
+                onClick={collapseAll}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Thu gọn hết
+              </button>
+            </>
+          )}
           <button
             onClick={loadAll}
             disabled={loading}
@@ -1371,6 +1484,22 @@ export default function BacklogPage() {
             {loading ? 'Đang tải...' : 'Reload'}
           </button>
         </div>
+      </div>
+
+      {/* Sub-menu: Backlog (cây) · Analyze (gom theo type) — dùng chung filter */}
+      <div className="flex gap-1 border-b border-gray-200">
+        {([['tree', 'Backlog'], ['analyze', 'Analyze']] as Array<['tree' | 'analyze', string]>).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setView(key)}
+            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+              view === key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Filter bar */}

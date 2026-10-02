@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import {
   jiraService,
+  DeliveryIssueCreatePayload,
   SprintCreatePayload,
   TechDebtCreatePayload,
   VersionCreatePayload,
@@ -361,6 +362,31 @@ export class JiraController {
       res.status(400).json({ success: false, error: error.message });
     }
   }
+
+  /** Prefill cho modal "Tạo ticket PL" từ một PR idea. */
+  async prepareDeliveryIssue(req: Request, res: Response): Promise<void> {
+    try {
+      const { ideaKey, projectKey } = req.query;
+      const prefill = await jiraService.prepareDeliveryIssueFromIdea(
+        String(ideaKey || ''),
+        projectKey ? String(projectKey) : undefined
+      );
+      res.status(200).json({ success: true, data: prefill });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async createDeliveryIssue(req: Request, res: Response): Promise<void> {
+    try {
+      const payload = req.body as DeliveryIssueCreatePayload;
+      const created = await jiraService.createDeliveryIssueFromIdea(payload);
+      res.status(201).json({ success: true, data: created });
+    } catch (error: any) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
 }
 
 export const jiraController = new JiraController();

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
-import { jiraAPI } from '@/utils/api';
+import { jiraAPI, type DeliveryIssuePrefill } from '@/utils/api';
+import TicketAIPanel from '@/components/TicketAIPanel';
 
 type SegmentKey = 'lending' | 'plos' | 'los';
 
@@ -20,10 +21,20 @@ interface RoadmapIssue {
   fields: {
     summary?: string;
     issuelinks?: JiraIssueLink[];
+    status?: { name?: string } | null;
+    normalizedStatusName?: string;
     customfield_10222?: { value: string } | null;
     customfield_10631?: { value: string } | null;
   };
 }
+
+const READY_FOR_DELIVERY = 'Ready for delivery';
+
+const issueStatus = (issue: RoadmapIssue) =>
+  issue.fields.normalizedStatusName || issue.fields.status?.name || '';
+
+/** "Sprint 198" -> 198; không parse được thì trả 0. */
+const sprintNumberOf = (label?: string | null) => Number(label?.match(/(\d+)/)?.[1] || 0);
 
 const ROADMAP_ORDER = ['Now', 'Next', 'Someday'] as const;
 
@@ -75,17 +86,17 @@ const SEGMENTS: Array<{ key: SegmentKey; label: string; prefix: string; boardUrl
 ];
 
 const LENDING_JQL = `project = "Product Roadmap"
-AND status in (Impact)
+AND status in (Impact, "Ready for delivery")
 AND "Pillars[Checkboxes]" = Lending
 ORDER BY "cf[10016]" ASC, status ASC, cf[10235] ASC, cf[10631] asc, cf[10222] asc, cf[10227] DESC, cf[10225] DESC`;
 
 const PLOS_JQL = `project = "Product Roadmap"
-and status in (Impact)
+and status in (Impact, "Ready for delivery")
 and "Products[Checkboxes]" in (PLOS)
 ORDER BY "cf[10016]" ASC, status ASC, cf[10235] ASC, cf[10631] asc, cf[10222] asc, cf[10227] DESC, cf[10225] DESC`;
 
 const LOS_JQL = `project = "Product Roadmap"
-and status in (Impact)
+and status in (Impact, "Ready for delivery")
 and "Products[Checkboxes]" in (LOS)
 ORDER BY "cf[10016]" ASC, status ASC, cf[10235] ASC, cf[10631] asc, cf[10222] asc, cf[10227] DESC, cf[10225] DESC`;
 
@@ -133,10 +144,274 @@ const copyToClipboard = async (plainText: string, htmlText: string) => {
   await navigator.clipboard.writeText(plainText);
 };
 
+// ── Modal tạo ticket PL từ PR idea ───────────────────────────────────────────
+
+interface CreatePlModalProps {
+  ideaKey: string;
+  onClose: () => void;
+  onCreated: (ideaKey: string, plKey: string) => void;
+}
+
+const CreatePlModal: React.FC<CreatePlModalProps> = ({ ideaKey, onClose, onCreated }) => {
+  const [prefill, setPrefill] = useState<DeliveryIssuePrefill | null>(null);
+  const [loadError, setLoadError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const [issueTypeId, setIssueTypeId] = useState('');
+  const [summary, setSummary] = useState('');
+  const [sprintId, setSprintId] = useState<number | null>(null);
+  const [fixVersionId, setFixVersionId] = useState('');
+  const [priorityName, setPriorityName] = useState('Medium');
+  const [labelsText, setLabelsText] = useState('');
+  const [assignToMe, setAssignToMe] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    jiraAPI
+      .prepareDeliveryIssue(ideaKey)
+      .then((res) => {
+        if (cancelled) return;
+        const data = res.data.data as DeliveryIssuePrefill;
+        setPrefill(data);
+        setIssueTypeId(data.defaults.issueTypeId);
+        setSummary(data.defaults.summary);
+        setSprintId(data.defaults.sprintId);
+        setFixVersionId(data.defaults.fixVersionIds[0] || '');
+        setPriorityName(data.defaults.priorityName);
+        setLabelsText(data.defaults.labels.join(', '));
+      })
+      .catch((error: any) => {
+        if (cancelled) return;
+        setLoadError(error?.response?.data?.error || error?.message || 'Không tải được dữ liệu');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ideaKey]);
+
+  const handleSubmit = async () => {
+    if (!prefill || !summary.trim()) {
+      toast.error('Summary không được rỗng');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await jiraAPI.createDeliveryIssue({
+        ideaKey,
+        projectKey: prefill.projectKey,
+        issueTypeId,
+        summary: summary.trim(),
+        descriptionAdf: prefill.defaults.descriptionAdf,
+        sprintId,
+        fixVersionIds: fixVersionId ? [fixVersionId] : [],
+        priorityName,
+        labels: labelsText.split(',').map((label) => label.trim()).filter(Boolean),
+        assigneeAccountId: assignToMe ? prefill.defaults.assigneeAccountId : undefined,
+      });
+
+      const created = res.data.data as {
+        key: string;
+        linked: boolean;
+        linkError?: string;
+        strippedMedia?: number;
+        copiedMedia?: number;
+        mediaErrors?: string[];
+      };
+      const mediaNote = created.strippedMedia
+        ? ` · ${created.copiedMedia || 0}/${created.strippedMedia} ảnh đã copy sang ticket mới`
+        : '';
+      if (created.linked) {
+        toast.success(`Đã tạo ${created.key} và gắn vào ${ideaKey}${mediaNote}`);
+      } else {
+        toast.error(`Đã tạo ${created.key} nhưng không gắn được idea: ${created.linkError || ''}`);
+      }
+      if (created.mediaErrors?.length) {
+        toast.error(`Ảnh lỗi: ${created.mediaErrors.join('; ')}`, { duration: 8000 });
+      }
+      onCreated(ideaKey, created.key);
+      onClose();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || error?.message || 'Tạo ticket thất bại');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const sprintOptions = useMemo(() => {
+    if (!prefill) return [];
+    return [...prefill.sprints].sort((a, b) => sprintSortValue(a.name) - sprintSortValue(b.name));
+  }, [prefill]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Tạo ticket PL từ {ideaKey}</h2>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Nội dung copy nguyên từ idea; ticket mới sẽ được gắn "implements" về {ideaKey}.
+            </p>
+          </div>
+          <button onClick={onClose} className="text-2xl leading-none text-gray-400 hover:text-gray-600">
+            ×
+          </button>
+        </div>
+
+        {loadError ? (
+          <p className="rounded bg-red-50 p-3 text-sm text-red-600">{loadError}</p>
+        ) : !prefill ? (
+          <p className="py-8 text-center text-gray-500">Đang tải dữ liệu từ Jira...</p>
+        ) : (
+          <div className="space-y-4">
+            {prefill.existingDeliveryKeys.length > 0 && (
+              <p className="rounded bg-amber-50 p-3 text-sm text-amber-800">
+                Idea này đã có ticket {prefill.projectKey}: {prefill.existingDeliveryKeys.join(', ')}. Tạo thêm sẽ có 2 ticket cùng gắn.
+              </p>
+            )}
+
+            <div>
+              <label className="mb-1 block text-sm font-semibold text-gray-700">Summary</label>
+              <input
+                value={summary}
+                onChange={(event) => setSummary(event.target.value)}
+                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-gray-700">Issue type</label>
+                <select
+                  value={issueTypeId}
+                  onChange={(event) => setIssueTypeId(event.target.value)}
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                >
+                  {prefill.issueTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-gray-700">Priority</label>
+                <select
+                  value={priorityName}
+                  onChange={(event) => setPriorityName(event.target.value)}
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                >
+                  {['Highest', 'High', 'Medium', 'Low', 'Lowest'].map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-gray-700">Sprint</label>
+                <select
+                  value={sprintId ?? ''}
+                  onChange={(event) => setSprintId(event.target.value ? Number(event.target.value) : null)}
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="">— không set —</option>
+                  {sprintOptions.map((sprint) => (
+                    <option key={sprint.id} value={sprint.id}>
+                      {sprint.name} ({sprint.state})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-gray-700">
+                  Fix version{prefill.idea.sprintLabel ? ` (idea: ${prefill.idea.sprintLabel})` : ''}
+                </label>
+                <select
+                  value={fixVersionId}
+                  onChange={(event) => setFixVersionId(event.target.value)}
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="">— không set —</option>
+                  {prefill.fixVersions.map((version) => (
+                    <option key={version.id} value={version.id}>
+                      {version.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-semibold text-gray-700">
+                Labels <span className="font-normal text-gray-400">(phân cách bằng dấu phẩy, không có khoảng trắng trong label)</span>
+              </label>
+              <input
+                value={labelsText}
+                onChange={(event) => setLabelsText(event.target.value)}
+                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={assignToMe}
+                onChange={(event) => setAssignToMe(event.target.checked)}
+                className="h-4 w-4"
+              />
+              Assign cho {prefill.defaults.assigneeName}
+            </label>
+
+            <p className="rounded bg-slate-50 p-3 text-xs text-slate-500">
+              Description copy nguyên ADF từ {ideaKey}
+              {prefill.defaults.descriptionAdf ? '' : ' — idea này description rỗng, ticket sẽ không có mô tả'}. Ảnh
+              inline sẽ được tải từ {ideaKey} và đính kèm lại vào ticket mới, trong mô tả hiện dưới dạng link
+              tới file đã copy (Jira không cho dùng chung media id giữa hai project nên không render inline được).
+            </p>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={onClose}
+                className="rounded border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Huỷ
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={submitting}
+                className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {submitting ? 'Đang tạo...' : 'Tạo ticket PL'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export default function RoadmapPage() {
   const [activeSegment, setActiveSegment] = useState<SegmentKey>('lending');
   const [issues, setIssues] = useState<RoadmapIssue[]>([]);
+  /** Số sprint đang chạy (PL) — Ready for delivery chỉ hiện khi target sprint >= số này + 1. */
+  const [currentSprint, setCurrentSprint] = useState(0);
   const [loading, setLoading] = useState(false);
+  /** Idea đang mở modal tạo ticket PL. */
+  const [creatingPlFor, setCreatingPlFor] = useState<string | null>(null);
+  /** PL vừa tạo trong phiên này — hiện ngay mà không cần reload cả trang. */
+  const [freshPlKeys, setFreshPlKeys] = useState<Record<string, string>>({});
+  /** Idea đang mở panel AI. */
+  const [aiFor, setAiFor] = useState<RoadmapIssue | null>(null);
 
   const activeSegmentMeta = useMemo(
     () => SEGMENTS.find((segment) => segment.key === activeSegment) || SEGMENTS[0],
@@ -152,6 +427,11 @@ export default function RoadmapPage() {
     };
 
     for (const issue of issues) {
+      if (issueStatus(issue) === READY_FOR_DELIVERY) {
+        const target = sprintNumberOf(issue.fields.customfield_10631?.value);
+        // chưa biết sprint hiện tại thì giữ lại, để không nuốt mất dữ liệu
+        if (currentSprint > 0 && target < currentSprint + 1) continue;
+      }
       const roadmapValue = issue.fields.customfield_10222?.value || '';
       const groupKey = ROADMAP_ORDER.includes(roadmapValue as typeof ROADMAP_ORDER[number])
         ? roadmapValue
@@ -165,7 +445,7 @@ export default function RoadmapPage() {
     }
 
     return map;
-  }, [issues]);
+  }, [issues, currentSprint]);
 
   const sortedSprintKeys = (group: string): string[] =>
     Object.keys(groupedIssues[group] || {}).sort((a, b) => sprintSortValue(a) - sprintSortValue(b));
@@ -230,6 +510,28 @@ export default function RoadmapPage() {
 
 
   useEffect(() => {
+    jiraAPI
+      .searchIssues({
+        jql: 'project = PL AND Sprint IN openSprints()',
+        maxResults: 50,
+        fields: ['summary'],
+      })
+      .then((res) => {
+        const issuesData = ((res.data.data as { issues?: any[] })?.issues) || [];
+        const counts = new Map<string, number>();
+        for (const issue of issuesData) {
+          for (const sprint of issue.fields?.normalizedSprints || []) {
+            if ((sprint.state || '').toLowerCase() !== 'active') continue;
+            counts.set(sprint.name, (counts.get(sprint.name) || 0) + 1);
+          }
+        }
+        const top = Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0];
+        setCurrentSprint(sprintNumberOf(top?.[0]));
+      })
+      .catch(() => setCurrentSprint(0));
+  }, []);
+
+  useEffect(() => {
     const fetchRoadmapIssues = async () => {
       try {
         setLoading(true);
@@ -243,7 +545,7 @@ export default function RoadmapPage() {
           const response = await jiraAPI.searchIssues({
             jql,
             maxResults: PAGE_SIZE,
-            fields: ['key', 'summary', 'issuelinks', 'customfield_10222', 'customfield_10631'],
+            fields: ['key', 'summary', 'status', 'issuelinks', 'customfield_10222', 'customfield_10631'],
             nextPageToken,
           });
 
@@ -274,6 +576,22 @@ export default function RoadmapPage() {
   return (
     <div className="space-y-6">
       <Toaster position="top-right" />
+
+      {aiFor && (
+        <TicketAIPanel
+          ideaKey={aiFor.key}
+          summary={aiFor.fields.summary || ''}
+          onClose={() => setAiFor(null)}
+        />
+      )}
+
+      {creatingPlFor && (
+        <CreatePlModal
+          ideaKey={creatingPlFor}
+          onClose={() => setCreatingPlFor(null)}
+          onCreated={(ideaKey, plKey) => setFreshPlKeys((prev) => ({ ...prev, [ideaKey]: plKey }))}
+        />
+      )}
 
       <div>
         <h1 className="text-4xl font-bold text-gray-900">Roadmap</h1>
@@ -395,6 +713,18 @@ export default function RoadmapPage() {
                                         [{issue.key}]
                                       </a>{' '}
                                       <span>{issue.fields.summary || '-'}</span>
+                                      {issueStatus(issue) === READY_FOR_DELIVERY && (
+                                        <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-700">
+                                          ready for delivery
+                                        </span>
+                                      )}
+                                      <button
+                                        onClick={() => setAiFor(issue)}
+                                        title="Chat AI + BRD của ticket này"
+                                        className="ml-2 rounded border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700 hover:bg-violet-100"
+                                      >
+                                        AI
+                                      </button>
                                     </div>
                                     {hasLinks ? (
                                       <div className="mt-1.5 space-y-0.5">
@@ -405,8 +735,25 @@ export default function RoadmapPage() {
                                           </a>
                                         ))}
                                       </div>
+                                    ) : freshPlKeys[issue.key] ? (
+                                      <a
+                                        href={getIssueBrowseUrl(freshPlKeys[issue.key])}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="mt-1.5 block text-sm text-blue-600 hover:text-blue-800"
+                                      >
+                                        {getIssueBrowseUrl(freshPlKeys[issue.key])}
+                                      </a>
                                     ) : (
-                                      <p className="mt-1 text-sm font-medium text-red-500">No linked work items</p>
+                                      <div className="mt-1 flex items-center gap-3">
+                                        <p className="text-sm font-medium text-red-500">No linked work items</p>
+                                        <button
+                                          onClick={() => setCreatingPlFor(issue.key)}
+                                          className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                                        >
+                                          + Tạo ticket PL
+                                        </button>
+                                      </div>
                                     )}
                                   </li>
                                 );

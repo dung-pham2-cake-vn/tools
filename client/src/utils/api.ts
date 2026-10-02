@@ -52,6 +52,7 @@ export const supportAPI = {
   getSvkTickets: () => apiClient.get('/support/svk/tickets'),
   getSvkHistory: () => apiClient.get('/support/svk/history'),
   scanSvk: () => apiClient.post('/support/svk/scan'),
+  svkScanRecipe: () => apiClient.get('/support/svk/scan-recipe'),
   svkAiStatus: () => apiClient.get('/support/svk/ai-status'),
   svkAiRunAll: (force = false) => apiClient.post(`/support/svk/ai-run?force=${force}`),
   svkAiRunOne: (key: string) => apiClient.post(`/support/svk/tickets/${key}/ai`),
@@ -214,6 +215,40 @@ export interface TechDebtCreateResult {
 }
 
 // Jira API
+export interface DeliveryIssuePrefill {
+  idea: { key: string; summary: string; descriptionAdf: any; sprintLabel: string };
+  projectKey: string;
+  boardId: number;
+  issueTypes: Array<{ id: string; name: string }>;
+  sprints: Array<{ id: number; name: string; state: string }>;
+  fixVersions: Array<{ id: string; name: string }>;
+  existingDeliveryKeys: string[];
+  defaults: {
+    issueTypeId: string;
+    summary: string;
+    descriptionAdf: any;
+    sprintId: number | null;
+    fixVersionIds: string[];
+    priorityName: string;
+    labels: string[];
+    assigneeAccountId: string;
+    assigneeName: string;
+  };
+}
+
+export interface DeliveryIssueCreatePayload {
+  ideaKey: string;
+  projectKey?: string;
+  issueTypeId: string;
+  summary: string;
+  descriptionAdf?: any;
+  sprintId?: number | null;
+  fixVersionIds?: string[];
+  priorityName?: string;
+  labels?: string[];
+  assigneeAccountId?: string;
+}
+
 export const jiraAPI = {
   getIssue: (issueKey: string) => apiClient.get(`/jira/issue/${issueKey}`),
   searchIssues: (params: {
@@ -263,4 +298,45 @@ export const jiraAPI = {
     apiClient.get(`/jira/projects/${projectKeyOrId}/issue-types`),
   setIssueType: (issueKey: string, issueTypeId: string) =>
     apiClient.put(`/jira/issue/${issueKey}/issue-type`, { issueTypeId }),
+  prepareDeliveryIssue: (ideaKey: string) =>
+    apiClient.get('/jira/delivery-issue/prepare', { params: { ideaKey } }),
+  createDeliveryIssue: (payload: DeliveryIssueCreatePayload) =>
+    apiClient.post('/jira/delivery-issue', payload),
+};
+
+export interface BrdLinkCandidate {
+  url: string;
+  source: 'description' | 'comment';
+  author: string;
+  likelyBrd: boolean;
+}
+
+export interface BrdDoc {
+  _id: string;
+  ideaKey: string;
+  filename: string;
+  sourceUrl: string;
+  pdfSize: number;
+  text: string;
+  converter: string;
+  importedAt: string;
+}
+
+export interface TicketChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+}
+
+export const ticketAIAPI = {
+  getBrdLinks: (ideaKey: string) => apiClient.get(`/ticket-ai/${ideaKey}/brd/links`),
+  listBrd: (ideaKey: string) => apiClient.get(`/ticket-ai/${ideaKey}/brd`),
+  uploadBrd: (ideaKey: string, payload: { filename: string; contentBase64: string; sourceUrl?: string }) =>
+    apiClient.post(`/ticket-ai/${ideaKey}/brd`, payload),
+  brdPdfUrl: (ideaKey: string, brdId: string) => `${API_BASE_URL}/ticket-ai/${ideaKey}/brd/${brdId}/pdf`,
+  deleteBrd: (ideaKey: string, brdId: string) => apiClient.delete(`/ticket-ai/${ideaKey}/brd/${brdId}`),
+  getChat: (ideaKey: string) => apiClient.get(`/ticket-ai/${ideaKey}/chat`),
+  sendChat: (ideaKey: string, body: { message?: string; preset?: string }) =>
+    apiClient.post(`/ticket-ai/${ideaKey}/chat`, body),
+  resetChat: (ideaKey: string) => apiClient.delete(`/ticket-ai/${ideaKey}/chat`),
 };

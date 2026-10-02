@@ -11,6 +11,7 @@ import {
   startPendingAiJob,
   getAiJobState,
   runAiForTicket,
+  getScanRecipe,
 } from '../services/SvkService';
 
 export const getSvkTickets = async (_req: Request, res: Response) => {
@@ -145,6 +146,10 @@ export const reloadTicket = async (req: Request, res: Response) => {
     console.error('Error reloading ticket:', error);
     res.status(500).json({ message: 'Reload failed', error: error?.message });
   }
+};
+
+export const svkScanRecipe = async (_req: Request, res: Response) => {
+  res.status(200).json(getScanRecipe());
 };
 
 export const proxyAttachment = async (req: Request, res: Response) => {

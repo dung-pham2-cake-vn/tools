@@ -39,6 +39,12 @@ lending_manage/
 `.env` bị gitignore ở mọi độ sâu. Trong đó có Jira API token thật —
 không commit, không in giá trị ra output. Chi tiết dùng token: `tools/CLAUDE.md`.
 
+## Viết ticket Jira
+
+Khi được nhờ soạn ticket PL: đọc `lendkb/workspace/kb/_meta/quy-tac-viet-ticket.md`
+trước. Đó là style viết ticket rút từ 2.355 ticket PL của dung.pham2 — công thức
+đặt title, khung Context/Acceptance Criteria, quy ước bảng spec API, label/component.
+
 ## Lịch sử
 
 `lendkb/` trước là repo git riêng, đã gộp vào đây và bỏ lịch sử cũ.

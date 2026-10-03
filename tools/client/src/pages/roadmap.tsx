@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import { jiraAPI, type DeliveryIssuePrefill } from '@/utils/api';
-import TicketAIPanel from '@/components/TicketAIPanel';
 
 type SegmentKey = 'lending' | 'plos' | 'los';
 
@@ -410,8 +409,8 @@ export default function RoadmapPage() {
   const [creatingPlFor, setCreatingPlFor] = useState<string | null>(null);
   /** PL vừa tạo trong phiên này — hiện ngay mà không cần reload cả trang. */
   const [freshPlKeys, setFreshPlKeys] = useState<Record<string, string>>({});
-  /** Idea đang mở panel AI. */
-  const [aiFor, setAiFor] = useState<RoadmapIssue | null>(null);
+  /** JQL gập lại mặc định, bật khi cần đối chiếu. */
+  const [jqlOpen, setJqlOpen] = useState(false);
 
   const activeSegmentMeta = useMemo(
     () => SEGMENTS.find((segment) => segment.key === activeSegment) || SEGMENTS[0],
@@ -574,16 +573,8 @@ export default function RoadmapPage() {
   }, [activeSegment]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <Toaster position="top-right" />
-
-      {aiFor && (
-        <TicketAIPanel
-          ideaKey={aiFor.key}
-          summary={aiFor.fields.summary || ''}
-          onClose={() => setAiFor(null)}
-        />
-      )}
 
       {creatingPlFor && (
         <CreatePlModal
@@ -593,183 +584,155 @@ export default function RoadmapPage() {
         />
       )}
 
-      <div>
-        <h1 className="text-4xl font-bold text-gray-900">Roadmap</h1>
-        <p className="mt-2 text-sm text-gray-600">Track Product Roadmap tickets by segment</p>
-      </div>
+      <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 pb-2">
+        {SEGMENTS.map((segment) => {
+          const isActive = segment.key === activeSegment;
 
-      <div className="rounded-lg bg-white p-2 shadow-md">
-        <div className="grid grid-cols-3 gap-2">
-          {SEGMENTS.map((segment) => {
-            const isActive = segment.key === activeSegment;
+          return (
+            <button
+              key={segment.key}
+              onClick={() => setActiveSegment(segment.key)}
+              className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
+                isActive ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {segment.label}
+            </button>
+          );
+        })}
 
-            return (
-              <button
-                key={segment.key}
-                onClick={() => setActiveSegment(segment.key)}
-                className={`rounded-lg px-4 py-3 text-sm font-semibold transition-colors ${
-                  isActive ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                {segment.label}
-              </button>
-            );
-          })}
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={handleCopyTickets}
+            disabled={loading || issues.length === 0}
+            className="rounded border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Copy ({issues.length})
+          </button>
+          <a
+            href={activeSegmentMeta.boardUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded border border-blue-200 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+          >
+            Board ↗
+          </a>
+          <button
+            onClick={() => setJqlOpen((open) => !open)}
+            className="rounded border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-50"
+          >
+            JQL {jqlOpen ? '▴' : '▾'}
+          </button>
         </div>
       </div>
 
-      <>
-        <div className="rounded-lg bg-white p-6 shadow-md">
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-sm font-semibold text-gray-900">{activeSegmentMeta.label} JQL</p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleCopyTickets}
-                disabled={loading || issues.length === 0}
-                className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Copy danh sách ({issues.length})
-              </button>
-              <a
-                href={activeSegmentMeta.boardUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-              >
-                Mở board {activeSegmentMeta.label} ↗
-              </a>
-            </div>
-          </div>
-          <pre className="mt-3 whitespace-pre-wrap font-mono text-xs text-gray-600">{getSegmentJql(activeSegment)}</pre>
-        </div>
+      {jqlOpen && (
+        <pre className="whitespace-pre-wrap rounded border border-slate-200 bg-slate-50 p-3 font-mono text-[11px] text-gray-600">
+          {getSegmentJql(activeSegment)}
+        </pre>
+      )}
 
-        <div className="rounded-lg bg-white p-5 shadow-md">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">Total Tickets</p>
-              <p className="mt-2 text-2xl font-bold text-gray-900">{issues.length}</p>
-            </div>
-            <div className="rounded-full bg-yellow-100 px-4 py-2 text-sm font-semibold text-yellow-800">
-              Impact
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-lg bg-white p-6 shadow-md">
-          <div className="mb-4">
-            <h2 className="text-2xl font-bold text-gray-900">{activeSegmentMeta.label} Tickets</h2>
-            <p className="mt-1 text-sm text-gray-600">Danh sach Product Roadmap tickets cho segment {activeSegmentMeta.label}</p>
-          </div>
-
-          {loading ? (
-            <div className="py-10 text-center text-gray-500">Loading roadmap tickets...</div>
-          ) : issues.length === 0 ? (
-            <div className="py-10 text-center text-gray-500">Không tìm thấy ticket nào</div>
-          ) : (
-            <div className="space-y-8">
-              {([...ROADMAP_ORDER, '__other__'] as const).map((group) => {
+      {loading ? (
+        <div className="py-10 text-center text-sm text-gray-500">Đang tải roadmap tickets...</div>
+      ) : issues.length === 0 ? (
+        <div className="py-10 text-center text-sm text-gray-500">Không tìm thấy ticket nào</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse border border-gray-200 text-sm">
+            <thead>
+              <tr className="bg-slate-100 text-left text-xs uppercase text-slate-500">
+                <th className="w-[88px] border border-gray-200 px-2 py-1.5 font-semibold">Ticket</th>
+                <th className="border border-gray-200 px-2 py-1.5 font-semibold">Summary</th>
+                <th className="w-[300px] border border-gray-200 px-2 py-1.5 font-semibold">Linked work item</th>
+              </tr>
+            </thead>
+            <tbody>
+              {([...ROADMAP_ORDER, '__other__'] as const).flatMap((group) => {
                 const sprintKeys = sortedSprintKeys(group);
-                if (!sprintKeys.length) return null;
+                if (!sprintKeys.length) return [];
                 const groupLabel = group === '__other__' ? 'Khác / Chưa set' : group;
-                const groupTotal = sprintKeys.reduce(
-                  (total, sprintKey) => total + groupedIssues[group][sprintKey].length,
-                  0
-                );
-                return (
-                  <div key={group}>
-                    <div className="mb-3 flex items-center gap-2">
-                      <span className={`rounded-full px-3 py-1 text-sm font-bold ${roadmapBadgeClass(group)}`}>
-                        {groupLabel}
-                      </span>
-                      <span className="text-xs text-gray-400">{groupTotal} tickets</span>
-                    </div>
 
-                    <div className="space-y-6 pl-1">
-                      {sprintKeys.map((sprintKey) => {
-                        const sprintIssues = groupedIssues[group][sprintKey];
-                        return (
-                          <div key={`${group}-${sprintKey}`}>
-                            <div className="mb-2 flex items-center gap-2">
-                              <span className={`rounded px-2 py-0.5 text-xs font-bold ${roadmapBadgeClass(group)}`}>
-                                {groupLabel} · {sprintKey}
+                return sprintKeys.flatMap((sprintKey) => {
+                  const sprintIssues = groupedIssues[group][sprintKey];
+
+                  return [
+                    <tr key={`${group}-${sprintKey}-head`}>
+                      <td colSpan={3} className="border border-gray-200 bg-slate-50 px-2 py-1">
+                        <span className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${roadmapBadgeClass(group)}`}>
+                          {groupLabel}
+                        </span>
+                        <span className="ml-2 text-xs text-gray-500">
+                          {sprintKey} · {sprintIssues.length}
+                        </span>
+                      </td>
+                    </tr>,
+                    ...sprintIssues.map((issue) => {
+                      const linkedWorkItemUrls = extractLinkedIssueUrls(issue.fields.issuelinks);
+                      const freshKey = freshPlKeys[issue.key];
+
+                      return (
+                        <tr key={issue.id} className="align-top hover:bg-slate-50">
+                          <td className="border border-gray-200 px-2 py-1.5">
+                            <a
+                              href={getIssueBrowseUrl(issue.key)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-semibold text-blue-600 hover:text-blue-800"
+                            >
+                              {issue.key}
+                            </a>
+                          </td>
+                          <td className="border border-gray-200 px-2 py-1.5">
+                            {issue.fields.summary || '-'}
+                            {issueStatus(issue) === READY_FOR_DELIVERY && (
+                              <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-700">
+                                ready
                               </span>
-                              <span className="text-xs text-gray-400">{sprintIssues.length} tickets</span>
-                            </div>
-                            <ol className="space-y-4 border-l-2 border-slate-100 pl-4">
-                              {sprintIssues.map((issue) => {
-                                const linkedWorkItemUrls = extractLinkedIssueUrls(issue.fields.issuelinks);
-                                const hasLinks = linkedWorkItemUrls.length > 0;
-                                return (
-                                  <li key={issue.id} className="border-b border-slate-100 pb-4 last:border-b-0 last:pb-0">
-                                    <div className="text-gray-900">
-                                      <span className="mr-1">🟡</span>{' '}
-                                      <span className="font-semibold">[{activeSegmentMeta.prefix}]</span>{' '}
-                                      <a
-                                        href={getIssueBrowseUrl(issue.key)}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="font-semibold text-blue-600 hover:text-blue-800"
-                                      >
-                                        [{issue.key}]
-                                      </a>{' '}
-                                      <span>{issue.fields.summary || '-'}</span>
-                                      {issueStatus(issue) === READY_FOR_DELIVERY && (
-                                        <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-700">
-                                          ready for delivery
-                                        </span>
-                                      )}
-                                      <button
-                                        onClick={() => setAiFor(issue)}
-                                        title="Chat AI + BRD của ticket này"
-                                        className="ml-2 rounded border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700 hover:bg-violet-100"
-                                      >
-                                        AI
-                                      </button>
-                                    </div>
-                                    {hasLinks ? (
-                                      <div className="mt-1.5 space-y-0.5">
-                                        {linkedWorkItemUrls.map((url) => (
-                                          <a key={url} href={url} target="_blank" rel="noreferrer"
-                                            className="block text-sm text-blue-600 hover:text-blue-800">
-                                            {url}
-                                          </a>
-                                        ))}
-                                      </div>
-                                    ) : freshPlKeys[issue.key] ? (
-                                      <a
-                                        href={getIssueBrowseUrl(freshPlKeys[issue.key])}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="mt-1.5 block text-sm text-blue-600 hover:text-blue-800"
-                                      >
-                                        {getIssueBrowseUrl(freshPlKeys[issue.key])}
-                                      </a>
-                                    ) : (
-                                      <div className="mt-1 flex items-center gap-3">
-                                        <p className="text-sm font-medium text-red-500">No linked work items</p>
-                                        <button
-                                          onClick={() => setCreatingPlFor(issue.key)}
-                                          className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-                                        >
-                                          + Tạo ticket PL
-                                        </button>
-                                      </div>
-                                    )}
-                                  </li>
-                                );
-                              })}
-                            </ol>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
+                            )}
+                          </td>
+                          <td className="border border-gray-200 px-2 py-1.5">
+                            {linkedWorkItemUrls.length > 0 ? (
+                              <div className="space-y-0.5">
+                                {linkedWorkItemUrls.map((url) => (
+                                  <a
+                                    key={url}
+                                    href={url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="block break-all text-xs text-blue-600 hover:text-blue-800"
+                                  >
+                                    {url.split('/browse/')[1] || url}
+                                  </a>
+                                ))}
+                              </div>
+                            ) : freshKey ? (
+                              <a
+                                href={getIssueBrowseUrl(freshKey)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-xs text-blue-600 hover:text-blue-800"
+                              >
+                                {freshKey}
+                              </a>
+                            ) : (
+                              <button
+                                onClick={() => setCreatingPlFor(issue.key)}
+                                className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                              >
+                                + Tạo ticket PL
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    }),
+                  ];
+                });
               })}
-            </div>
-          )}
+            </tbody>
+          </table>
         </div>
-      </>
+      )}
     </div>
   );
 }

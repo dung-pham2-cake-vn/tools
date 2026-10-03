@@ -18,6 +18,8 @@ export default function AIChatPage() {
   const [conversations, setConversations] = useState<AIConversationSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
+  /** Gập khung danh sách để lấy chỗ cho hội thoại; nhớ lại giữa các lần mở. */
+  const [collapsed, setCollapsed] = useState(false);
   const selectedId = typeof router.query.c === 'string' ? router.query.c : '';
 
   const select = useCallback(
@@ -39,6 +41,26 @@ export default function AIChatPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    try {
+      setCollapsed(window.localStorage.getItem('ai-chat-sidebar-collapsed') === '1');
+    } catch {
+      // Safari chặn storage ở chế độ riêng tư -> cứ để mở
+    }
+  }, []);
+
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem('ai-chat-sidebar-collapsed', next ? '1' : '0');
+      } catch {
+        // không lưu được thì thôi, chỉ mất trạng thái sau khi reload
+      }
+      return next;
+    });
+  }, []);
 
   const createNew = useCallback(
     async (ticketKeys: string[] = []) => {
@@ -101,15 +123,42 @@ export default function AIChatPage() {
     <div className="-m-8 flex h-screen">
       <Toaster position="top-right" />
 
-      <aside className="flex w-80 shrink-0 flex-col border-r border-gray-200 bg-white">
+      {collapsed && (
+        <div className="flex w-12 shrink-0 flex-col items-center gap-2 border-r border-gray-200 bg-white py-3">
+          <button
+            onClick={toggleCollapsed}
+            title="Mở khung Chat AI"
+            className="rounded px-2 py-1 text-lg text-gray-500 hover:bg-gray-100"
+          >
+            »
+          </button>
+          <button
+            onClick={() => createNew()}
+            title="Hội thoại mới"
+            className="rounded bg-blue-600 px-2 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+          >
+            +
+          </button>
+          <span className="mt-1 text-[10px] text-gray-400">{conversations.length}</span>
+        </div>
+      )}
+
+      <aside className={`${collapsed ? 'hidden' : 'flex'} w-80 shrink-0 flex-col border-r border-gray-200 bg-white`}>
         <div className="space-y-2 border-b border-gray-200 p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
             <h1 className="text-lg font-bold text-gray-900">💬 Chat AI</h1>
             <button
               onClick={() => createNew()}
-              className="rounded bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+              className="ml-auto rounded bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700"
             >
               + Hội thoại mới
+            </button>
+            <button
+              onClick={toggleCollapsed}
+              title="Thu gọn khung Chat AI"
+              className="rounded px-1.5 py-1 text-lg leading-none text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            >
+              «
             </button>
           </div>
           <input

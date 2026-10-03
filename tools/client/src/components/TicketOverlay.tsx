@@ -4,7 +4,14 @@ import Link from 'next/link';
 import AdfRenderer from '@/components/AdfRenderer';
 import { JiraStatusPill, JiraTypeTag } from '@/components/JiraBadges';
 import Markdown from '@/components/Markdown';
-import { jiraAPI, ticketNoteAPI, TICKET_NOTE_CHANGED_EVENT } from '@/utils/api';
+import {
+  jiraAPI,
+  ticketAIAPI,
+  ticketNoteAPI,
+  TICKET_NOTE_CHANGED_EVENT,
+  type BrdDoc,
+  type BrdLinkCandidate,
+} from '@/utils/api';
 
 const JIRA_BASE = 'https://cakedigitalbank.atlassian.net';
 /** Link ticket Jira: .../browse/PL-123 (bỏ qua query/hash). */
@@ -180,6 +187,177 @@ function TicketNoteSection({ ticketKey }: { ticketKey: string }) {
   );
 }
 
+/** Tên file đoán từ URL SharePoint (?file=...) để hiện cho dễ nhận. */
+function fileNameFromUrl(url: string): string {
+  try {
+    const fromQuery = new URL(url).searchParams.get('file');
+    if (fromQuery) return decodeURIComponent(fromQuery);
+  } catch {
+    // url méo -> rơi xuống nhánh dưới
+  }
+  return url.length > 70 ? `${url.slice(0, 67)}...` : url;
+}
+
+/** BRD của ticket: link tìm thấy trong mô tả/comment, bản PDF đã tải, thời gian tải, tải lại. */
+function TicketBrdSection({ ticketKey }: { ticketKey: string }) {
+  const [links, setLinks] = useState<BrdLinkCandidate[]>([]);
+  const [docs, setDocs] = useState<BrdDoc[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  /** url đang tải về — khoá nút và hiện trạng thái. */
+  const [busyUrl, setBusyUrl] = useState('');
+  const [error, setError] = useState('');
+
+  const load = useCallback(
+    async (scan = false) => {
+      const [linkRes, docRes] = await Promise.all([
+        ticketAIAPI.getBrdLinks(ticketKey, scan),
+        ticketAIAPI.listBrd(ticketKey),
+      ]);
+      setLinks(linkRes.data.data?.links || linkRes.data.data || []);
+      setDocs(docRes.data.data || []);
+    },
+    [ticketKey]
+  );
+
+  useEffect(() => {
+    setLoaded(false);
+    load()
+      .catch(() => undefined)
+      .finally(() => setLoaded(true));
+  }, [load]);
+
+  const rescan = async () => {
+    setScanning(true);
+    setError('');
+    try {
+      await load(true);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Quét link thất bại');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const download = async (url: string) => {
+    setBusyUrl(url);
+    setError('');
+    try {
+      await ticketAIAPI.importBrdFromUrl(ticketKey, url);
+      await load();
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Tải BRD thất bại');
+    } finally {
+      setBusyUrl('');
+    }
+  };
+
+  const docByUrl = new Map(docs.filter((doc) => doc.sourceUrl).map((doc) => [doc.sourceUrl, doc]));
+  const brdLinks = links.filter((link) => link.likelyBrd);
+  const orphanDocs = docs.filter((doc) => !doc.sourceUrl || !links.some((link) => link.url === doc.sourceUrl));
+
+  if (loaded && brdLinks.length === 0 && orphanDocs.length === 0) {
+    return (
+      <section>
+        <div className="mb-1.5 flex items-center gap-2">
+          <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500">📄 BRD</h3>
+          <button
+            onClick={rescan}
+            disabled={scanning}
+            className="ml-auto text-[11px] text-blue-600 hover:underline disabled:opacity-50"
+          >
+            {scanning ? 'Đang quét...' : 'Quét lại link'}
+          </button>
+        </div>
+        <p className="text-xs italic text-gray-400">Không thấy link BRD nào trong mô tả hoặc comment.</p>
+        {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      </section>
+    );
+  }
+
+  const row = (url: string, doc: BrdDoc | undefined, key: string) => (
+    <li key={key} className="px-2 py-1.5 text-xs">
+      <div className="flex items-start gap-2">
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          {...{ [DIRECT_LINK_ATTR]: '' }}
+          title={url}
+          className="min-w-0 flex-1 truncate text-blue-600 hover:underline"
+        >
+          {doc?.filename || fileNameFromUrl(url)}
+        </a>
+        {doc ? (
+          <>
+            <a
+              href={ticketAIAPI.brdPdfUrl(ticketKey, doc._id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              {...{ [DIRECT_LINK_ATTR]: '' }}
+              className="shrink-0 rounded border border-gray-300 px-1.5 py-0.5 font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              PDF
+            </a>
+            <button
+              onClick={() => download(url)}
+              disabled={!!busyUrl}
+              title="Tải lại từ SharePoint"
+              className="shrink-0 rounded border border-blue-200 px-1.5 py-0.5 font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+            >
+              {busyUrl === url ? 'Đang tải...' : 'Tải lại'}
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={() => download(url)}
+            disabled={!!busyUrl}
+            className="shrink-0 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+          >
+            {busyUrl === url ? 'Đang tải...' : 'Tải PDF'}
+          </button>
+        )}
+      </div>
+      <p className="mt-0.5 text-[10px] text-gray-400">
+        {doc
+          ? `tải lúc ${fmtDate(doc.importedAt)} · ${(doc.pdfSize / 1024).toFixed(0)} KB · ${doc.text.length.toLocaleString()} ký tự`
+          : 'chưa tải — Word trên máy chạy backend sẽ mở link rồi xuất PDF'}
+      </p>
+    </li>
+  );
+
+  return (
+    <section>
+      <div className="mb-1.5 flex items-center gap-2">
+        <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500">
+          📄 BRD ({brdLinks.length + orphanDocs.length})
+        </h3>
+        <button
+          onClick={rescan}
+          disabled={scanning}
+          className="ml-auto text-[11px] text-blue-600 hover:underline disabled:opacity-50"
+        >
+          {scanning ? 'Đang quét...' : 'Quét lại link'}
+        </button>
+      </div>
+      {!loaded ? (
+        <p className="text-xs text-gray-400">Đang tải BRD...</p>
+      ) : (
+        <ul className="divide-y divide-gray-100 rounded border border-gray-100">
+          {brdLinks.map((link) => row(link.url, docByUrl.get(link.url), link.url))}
+          {orphanDocs.map((doc) => row(doc.sourceUrl || '', doc, doc._id))}
+        </ul>
+      )}
+      {busyUrl && (
+        <p className="mt-1 text-[11px] text-amber-700">
+          Word đang mở tài liệu và xuất PDF — mất khoảng 10–60 giây, đừng đóng cửa sổ Word.
+        </p>
+      )}
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+    </section>
+  );
+}
+
 function TicketPanel({
   ticketKey,
   canGoBack,
@@ -331,6 +509,8 @@ function TicketPanel({
             </dl>
 
             <TicketNoteSection ticketKey={ticketKey} />
+
+            <TicketBrdSection ticketKey={ticketKey} />
 
             <section>
               <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-gray-500">Mô tả</h3>

@@ -359,12 +359,14 @@ const AIChatThread: React.FC<AIChatThreadProps> = ({ conversationId, onChanged, 
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && draft.trim() && !sending) {
-                send({ message: draft });
-              }
+              if (event.key !== 'Enter' || event.shiftKey) return;
+              // IME tiếng Việt: Enter đang chốt chữ thì đừng cướp phím
+              if (event.nativeEvent.isComposing) return;
+              event.preventDefault();
+              if (draft.trim() && !sending) send({ message: draft });
             }}
             rows={2}
-            placeholder="Hỏi về ticket/BRD, hoặc nhờ “note lại vào PL-123: …” (⌘/Ctrl + Enter để gửi)"
+            placeholder="Hỏi về ticket/BRD, hoặc nhờ “note lại vào PL-123: …” (Enter để gửi, Shift + Enter xuống dòng)"
             className="flex-1 resize-none rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
           />
           <button

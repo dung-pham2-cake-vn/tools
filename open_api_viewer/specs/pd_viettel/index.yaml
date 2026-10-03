@@ -14,6 +14,7 @@ info:
     | 2026-09-16 | [VDS-CAKE] API SPEC SẢN PHẨM PAYDAY NATIVE | Bổ sung API `/get-onboarding-status`; `client-update` đổi 3 ảnh base64 sang `*_image_url` (đối tác host ảnh, Cake tải về); `check-profile` bổ sung input `metadata.non_viettel` và output `is_repeated`; `nfc_data` chốt required cho toàn bộ field bên trong |
     | 2026-09-17 | [VDS-CAKE] API SPEC SẢN PHẨM PAYDAY NATIVE | Bỏ API `/get-loan-code-from-loan-id` (tag `Legacy Support`); đổi cơ chế ký từ RSA 1024 bit sang **RSA 2048 bit**; `/partner-disburse-request` bỏ field `partner_disburse_status` |
     | 2026-09-18 | [VDS-CAKE] API SPEC SẢN PHẨM PAYDAY NATIVE | Đồng bộ nhóm API Cake → VDS theo tài liệu VDS-LP-PAYDAY-CAKE-001 v1.0: body bọc `timestamp` + `requestId` + `data{}` camelCase, response `code` dạng chuỗi (`000` = thành công), cơ chế ký riêng (sort key alphabet đệ quy, không nối `partner_key`), header `apikey`; `partner-disburse-request` bỏ `partner_reference_id`/`loan_insurance`, bổ sung `identityNumber`; `partner-disburse-status` bổ sung `PROCESSING`/`TIMEOUT` + `subStatus`; bổ sung API `/applications/status`, bảng mã lỗi VDS và sub-status `DIS00xx` |
+    | 2026-09-22 | [VDS-CAKE] API SPEC SẢN PHẨM PAYDAY NATIVE | Đồng bộ theo VDS-LP-PAYDAY-CAKE-001 v1.1: đổi `/applications/status` thành `/partner-get-status`; `/partner-update-status` — `loanCode` không bắt buộc khi `LOAN_REJECT`, `statusReasonCode` là chuỗi tự do không bắt buộc; chốt quy tắc chuẩn hoá chuỗi ký Cake → VDS (compact, UTF-8 không escape, giữ `null`, giữ kiểu số, sort key đệ quy); sửa `PARTNER_IP_ADDRESS` thành IP VDS gọi sang Cake; ghi chú VDS chỉ gọi `/disburse-update` khi có kết quả cuối (kể cả sau `TIMEOUT`); ghi chú các mã `DIS0001`/`DIS0017`/`DIS0022`/`DIS0023` không trả cho đối tác |
 
     ## Cơ chế xác thực (Signature)
 
@@ -29,11 +30,21 @@ info:
 
     ### Cake → VDS (nhóm `Cake → VDS` bên dưới)
     ```
-    body      = JSON body, sắp xếp key theo alphabet (đệ quy, áp dụng cả object lồng nhau)
-    signature = base64(SHA256withRSA(body, cakePrivateKey))
+    body      = toàn bộ body (timestamp, requestId, data), chuẩn hoá theo quy tắc dưới
+    signature = base64(SHA256withRSA(body, cakePrivateKey))   // PKCS#1 v1.5, Base64 chuẩn
     ```
     **Không** nối `partner_key` vào body. Khóa RSA 2048 bit trở lên, private key PKCS#8 / public key X.509.
     VDS verify bằng `CAKE_PUBLIC_KEY`.
+
+    **Quy tắc chuẩn hoá chuỗi ký:**
+    - Sắp xếp key của mọi object theo thứ tự ký tự, đệ quy ở mọi cấp; phần tử trong mảng giữ nguyên thứ tự.
+    - JSON compact: không khoảng trắng, không xuống dòng.
+    - UTF-8 nguyên dạng, **không** escape `\uXXXX`; chỉ escape theo chuẩn JSON: `"`, `\`, ký tự điều khiển.
+    - Field `null` giữ nguyên trong chuỗi ký (`"bankCode":null`). Không muốn ký field nào thì không gửi field đó.
+    - Số giữ nguyên kiểu như trong body: `9500000` là số, `"9500000"` là chuỗi. Số tiền truyền số nguyên, không dùng số thập phân/số mũ.
+    - Body gửi đi có thể ở định dạng JSON bất kỳ — VDS tự chuẩn hoá body nhận được theo cùng quy tắc rồi mới kiểm tra chữ ký.
+
+    Ví dụ đầy đủ (cặp khoá test, chuỗi ký, chữ ký): mục 7.3 tài liệu VDS-LP-PAYDAY-CAKE-001 v1.1.
 
     ## Môi trường
 
@@ -48,7 +59,7 @@ info:
     | PARTNER_PUBLIC_KEY | *(Partner cấp, file riêng)* | Cake dùng để verify Partner-signed payloads |
     | PARTNER_API_URL | `https://staging1.viettelmoney.vn/lending/lender/public/v1/CAKE_PAYDAY/` | Base URL Cake gọi sang VDS (callback + truy vấn) |
     | VDS_API_KEY | *(VDS cấp)* | Header `apikey` khi Cake gọi VDS. Môi trường SIT không yêu cầu |
-    | PARTNER_IP_ADDRESS | `34.87.136.147` *(Cake auto)* | Cake whitelist |
+    | PARTNER_IP_ADDRESS | `171.255.192.33` | IP VDS gọi sang Cake — Cake whitelist. Chiều Cake gọi VDS chỉ cần domain |
 
     ### PROD
     | Key | Value | Mô tả |
@@ -152,6 +163,7 @@ info:
     ### VDS — sub-status giao dịch giải ngân thất bại/timeout
     Trả ở `data.subStatus` khi `data.status = FAILED`.
     Trạng thái phát sinh **không** nằm trong danh sách này: không gọi lại API giải ngân.
+    Các mã `DIS0001`, `DIS0017`, `DIS0022`, `DIS0023` VDS không trả cho đối tác nên không liệt kê.
 
     | Code | Nội dung | Hành động |
     |------|----------|-----------|
@@ -232,8 +244,10 @@ components:
       required: true
       description: |
         Chữ ký cho request **Cake → VDS** (khác cơ chế chiều Partner → Cake):
-        sắp xếp key JSON body theo alphabet (đệ quy) → SHA256withRSA bằng private key của Cake → base64.
+        chuẩn hoá body (sort key đệ quy, compact, UTF-8 không escape, giữ `null`, giữ kiểu số) →
+        SHA256withRSA (PKCS#1 v1.5) bằng private key của Cake → base64 chuẩn.
         Không nối `partner_key` vào body. VDS verify bằng `CAKE_PUBLIC_KEY`.
+        Chi tiết quy tắc: mục *Cơ chế xác thực (Signature)*.
       schema:
         type: string
 
@@ -1498,7 +1512,7 @@ components:
                   description: Tên tài khoản
                   example: "NGUYEN VAN A"
 
-    ApplicationStatusRequest:
+    PartnerGetStatusRequest:
       allOf:
         - $ref: "#/components/schemas/VdsRequestEnvelope"
         - type: object
@@ -1518,7 +1532,7 @@ components:
                   description: Số GTTT
                   example: "001090012345"
 
-    ApplicationStatusResponse:
+    PartnerGetStatusResponse:
       allOf:
         - $ref: "#/components/schemas/VdsBaseResponse"
         - type: object
@@ -1557,7 +1571,6 @@ components:
               type: object
               required:
                 - partnerReferenceId
-                - loanCode
                 - status
               properties:
                 partnerReferenceId:
@@ -1566,7 +1579,9 @@ components:
                   example: "01JAQ7Z8M4K2N5P6R7S8T9V0W1"
                 loanCode:
                   type: string
-                  description: Mã khoản vay phía Cake, sinh từ API loan-register
+                  description: |
+                    Mã khoản vay phía Cake, sinh từ API loan-register.
+                    **Bắt buộc** với mọi status trừ `LOAN_REJECT` (hồ sơ bị từ chối trước bước loan-register nên chưa có `loanCode`).
                   example: "u8123123Sjsdb"
                 phoneNumber:
                   type: string
@@ -1592,7 +1607,7 @@ components:
                     - LOAN_CLOSE
                 statusReasonCode:
                   type: string
-                  description: "Lý do thay đổi trạng thái. **Bắt buộc** khi `status = LOAN_REJECT`"
+                  description: "Lý do thay đổi trạng thái. Không bắt buộc ở mọi status. Chuỗi tự do do Cake định nghĩa; VDS chỉ lưu để tra cứu, không kiểm tra giá trị"
 
     PartnerUpdateStatusResponse:
       allOf:
@@ -2099,6 +2114,10 @@ paths:
         **Lưu ý:** Nếu Cake đã gửi partner-disburse-request và đối tác đã giải ngân
         nhưng gọi disburse-update thất bại, Cake sẽ gọi lại partner-disburse-request.
         Khi đó đối tác **KHÔNG giải ngân lại** mà chỉ gọi lại disburse-update.
+
+        **VDS (Viettel Payday):** chỉ gọi khi giao dịch giải ngân đã có **kết quả cuối** —
+        `partner_disburse_status = 1` (thành công) hoặc `2` (thất bại). Không gửi trạng thái trung gian.
+        Sau `TIMEOUT`, VDS gọi API này khi đối soát xong.
       operationId: disburseUpdate
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
@@ -2147,7 +2166,7 @@ paths:
         **Thành công:** VDS trả `code = "000"`. Mã khác → Cake retry (rule retry chốt sau).
         Dedupe phía VDS theo `requestId`, nên Cake giữ nguyên `requestId` khi retry.
 
-        **Signature:** sort key alphabet đệ quy → SHA256withRSA bằng private key Cake → VDS verify bằng `CAKE_PUBLIC_KEY`.
+        **Signature:** chuẩn hoá body rồi SHA256withRSA bằng private key Cake → VDS verify bằng `CAKE_PUBLIC_KEY` (quy tắc ở mục *Cơ chế xác thực*).
       operationId: partnerUpdateStatus
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
@@ -2190,7 +2209,7 @@ paths:
                     message: "Xác thực chữ ký số thất bại"
                     data: null
 
-  /applications/status:
+  /partner-get-status:
     post:
       tags: [ Cake → VDS ]
       summary: Cake truy vấn trạng thái khoản vay trên hệ thống VDS
@@ -2198,10 +2217,10 @@ paths:
         **Chiều: Cake → VDS**
 
         Truy vấn trạng thái khoản vay phía VDS.
-        Full URL: `{PARTNER_API_URL}applications/status`
+        Full URL: `{PARTNER_API_URL}partner-get-status`
 
         `data.status` trả về là trạng thái nội bộ của VDS, **chưa** map sang `LOAN_*` của Cake.
-      operationId: applicationsStatus
+      operationId: partnerGetStatus
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
         - $ref: "#/components/parameters/VdsSignatureHeader"
@@ -2211,7 +2230,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ApplicationStatusRequest"
+              $ref: "#/components/schemas/PartnerGetStatusRequest"
             example:
               timestamp: "2026-09-14T10:16:30+07:00"
               requestId: "a8f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9"
@@ -2224,7 +2243,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApplicationStatusResponse"
+                $ref: "#/components/schemas/PartnerGetStatusResponse"
               example:
                 code: "000"
                 message: "Thành công"
@@ -2300,7 +2319,7 @@ paths:
         | `SUCCESS` | Đã giải ngân thành công | Chuyển khoản vay sang LOAN_ACTIVE |
         | `FAILED` | Giải ngân thất bại | Xem `subStatus` để quyết định (bảng `DIS00xx`) |
         | `PROCESSING` | Đang xử lý | Truy vấn lại sau 15 phút nếu chưa nhận kết quả |
-        | `TIMEOUT` | Quá thời gian, chờ đối soát | Không tạo yêu cầu mới, chờ VDS báo kết quả cuối |
+        | `TIMEOUT` | Quá thời gian, chờ đối soát | Không tạo yêu cầu mới. Khi có kết quả cuối, VDS gọi `/disburse-update` của Cake (`partner_disburse_status` = 1/2) |
       operationId: partnerDisburseStatus
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
@@ -2397,7 +2416,7 @@ tags:
       Khác nhóm Phase 1–4 ở ba điểm:
       1. **Body** bọc `timestamp` + `requestId` + `data{}`, field đặt tên camelCase.
       2. **Response** dùng mã của VDS: `code` là chuỗi, `"000"` = thành công (không có `success`, không có `response_id`).
-      3. **Signature** sort key alphabet đệ quy rồi SHA256withRSA, **không** nối `partner_key`. Thêm header `apikey` = `VDS_API_KEY` (SIT không yêu cầu).
+      3. **Signature** chuẩn hoá body (sort key đệ quy, compact, UTF-8, giữ `null`) rồi SHA256withRSA, **không** nối `partner_key`. Thêm header `apikey` = `VDS_API_KEY` (SIT không yêu cầu).
 
       `timestamp` hiệu lực 5 phút; lệch quá VDS trả `416`. `requestId` là UUID, VDS dùng để idempotency.
 

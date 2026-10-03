@@ -14,9 +14,12 @@ import { atlassianConfigured, createAtlassianServer } from './atlassian.js';
 const atlassianServer = createAtlassianServer();
 
 const BASE_PROMPT = [
-  'You are answering over Telegram, so replies are rendered as plain text in a chat bubble.',
-  'Keep answers short and skip preamble. Use at most light Markdown (bold, inline code, fenced code blocks).',
-  'Do not use headers, tables, or nested bullet lists — they render badly on mobile.',
+  'You are answering over Telegram. Write normal Markdown: a converter turns it into',
+  'Telegram HTML before sending, so **bold**, *italic*, `code`, ```fenced blocks```,',
+  '[links](url), > quotes, bullet lists and small tables all render correctly.',
+  'Keep answers short and skip preamble. Nest bullets at most one level — deeper nesting',
+  'renders flat. Keep tables narrow (2-4 columns, short cells): they become a fixed-width',
+  'block, and a wide one wraps badly on a phone. Headings become bold text, so use them sparingly.',
   `You are sandboxed to ${WORKSPACE_DIR}. You have no shell access; do not offer to run commands.`,
   atlassianConfigured
     ? [

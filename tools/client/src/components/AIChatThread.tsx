@@ -13,6 +13,10 @@ export const CHAT_PRESETS: Array<{ key: string; label: string }> = [
   { key: 'risks', label: 'Rủi ro' },
 ];
 
+const CHAT_PRESET_LABELS: Record<string, string> = Object.fromEntries(
+  CHAT_PRESETS.map((preset) => [preset.key, preset.label])
+);
+
 interface TicketInfo {
   key: string;
   summary: string;
@@ -136,6 +140,8 @@ const AIChatThread: React.FC<AIChatThreadProps> = ({ conversationId, onChanged, 
   const [tickets, setTickets] = useState<Record<string, TicketInfo>>({});
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  /** Tin vừa gửi, hiện tạm cuối khung trong lúc chờ AI trả lời. */
+  const [pending, setPending] = useState('');
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -172,7 +178,7 @@ const AIChatThread: React.FC<AIChatThreadProps> = ({ conversationId, onChanged, 
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [conversation?.messages.length, sending]);
+  }, [conversation?.messages.length, sending, pending]);
 
   if (!conversation) return <p className="p-6 text-center text-sm text-gray-400">Đang tải hội thoại...</p>;
 
@@ -198,6 +204,10 @@ const AIChatThread: React.FC<AIChatThreadProps> = ({ conversationId, onChanged, 
   };
 
   const send = async (body: { message?: string; preset?: string }) => {
+    // hiện ngay tin của mình rồi mới gọi API — khỏi phải chờ AI trả lời mới thấy
+    const echoed = body.preset ? CHAT_PRESET_LABELS[body.preset] || body.preset : String(body.message || '').trim();
+    setPending(echoed);
+    setDraft('');
     setSending(true);
     try {
       const res = await aiChatAPI.send(conversation._id, body);
@@ -209,10 +219,12 @@ const AIChatThread: React.FC<AIChatThreadProps> = ({ conversationId, onChanged, 
         toast.success(`Đã ghi note vào ${noted.join(', ')}`);
         noted.forEach((key) => window.dispatchEvent(new CustomEvent(TICKET_NOTE_CHANGED_EVENT, { detail: key })));
       }
-      setDraft('');
     } catch (error: any) {
       toast.error(error?.response?.data?.error || error?.message || 'AI lỗi');
+      // gửi hỏng thì trả chữ về ô nhập để không mất công gõ lại
+      if (!body.preset) setDraft((current) => current || echoed);
     } finally {
+      setPending('');
       setSending(false);
     }
   };
@@ -312,7 +324,7 @@ const AIChatThread: React.FC<AIChatThreadProps> = ({ conversationId, onChanged, 
       </div>
 
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
-        {conversation.messages.length === 0 ? (
+        {conversation.messages.length === 0 && !pending ? (
           <p className="py-8 text-center text-sm text-gray-400">
             Chưa có tin nhắn. Hỏi gì đó hoặc bấm một preset ở trên.
             {conversation.ticketKeys.length === 0 && ' Đính kèm ticket để AI đọc mô tả + BRD của ticket.'}
@@ -332,6 +344,11 @@ const AIChatThread: React.FC<AIChatThreadProps> = ({ conversationId, onChanged, 
               </div>
             )
           ))
+        )}
+        {pending && (
+          <div className="ml-8 whitespace-pre-wrap rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-900 opacity-70">
+            {pending}
+          </div>
         )}
         {sending && <p className="text-center text-xs text-gray-400">AI đang trả lời...</p>}
       </div>

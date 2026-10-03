@@ -1,18 +1,80 @@
+import { toTelegramHtml } from './markdown.js';
+
 const TG_LIMIT = 4096;
+// Giới hạn 4096 của Telegram tính trên HTML đã sinh, không phải Markdown gốc.
+// HTML luôn dài hơn (escape + thẻ) và tỉ lệ phình phụ thuộc nội dung, nên đo
+// trực tiếp thay vì đoán bằng một hệ số cố định.
+const HTML_BUDGET = TG_LIMIT - 120;
 const EDIT_INTERVAL_MS = 1600;
 
-export function chunk(text, size = TG_LIMIT) {
+/**
+ * Cắt Markdown thành các phần mà bản HTML tương ứng vừa một tin nhắn Telegram.
+ * Cắt theo dòng để code block và đoạn văn không bị đứt giữa chừng.
+ */
+export function chunk(text) {
+  const lines = String(text).split('\n');
   const out = [];
-  let rest = text;
-  while (rest.length > size) {
-    // Prefer to break on a newline so code blocks and paragraphs stay intact.
-    let cut = rest.lastIndexOf('\n', size);
-    if (cut < size * 0.5) cut = size;
-    out.push(rest.slice(0, cut));
-    rest = rest.slice(cut);
+  let cur = '';
+
+  const fits = (s) => toTelegramHtml(s).length <= HTML_BUDGET;
+
+  for (let line of lines) {
+    // Một dòng đơn lẻ đã quá dài: cắt cứng theo ký tự.
+    while (!fits(line)) {
+      let lo = 1;
+      let hi = line.length;
+      while (lo < hi) {
+        const mid = Math.ceil((lo + hi) / 2);
+        if (fits(line.slice(0, mid))) lo = mid;
+        else hi = mid - 1;
+      }
+      if (cur) {
+        out.push(cur);
+        cur = '';
+      }
+      out.push(line.slice(0, lo));
+      line = line.slice(lo);
+    }
+    const next = cur ? `${cur}\n${line}` : line;
+    if (fits(next)) {
+      cur = next;
+    } else {
+      if (cur) out.push(cur);
+      cur = line;
+    }
   }
-  if (rest.length) out.push(rest);
-  return out;
+  if (cur) out.push(cur);
+  return out.length ? out : [''];
+}
+
+function isParseError(err) {
+  const d = err?.description || err?.message || '';
+  return /can't parse entities|unsupported start tag|unclosed|entities/i.test(d);
+}
+
+/**
+ * Gửi/sửa với parse_mode HTML, nếu Telegram từ chối HTML thì gửi lại chữ thuần.
+ * Thà mất định dạng còn hơn mất tin nhắn.
+ */
+async function withHtml(call, markdown) {
+  // HTML dài hơn Markdown gốc (escape + thẻ). Tỉ lệ phụ thuộc nội dung — một
+  // đoạn toàn chữ đậm có thể phình gần 3 lần — nên cắt dần cho tới khi vừa,
+  // và cắt trên bản Markdown để không bao giờ cắt đứt một thẻ HTML.
+  let src = markdown;
+  let html = toTelegramHtml(src);
+  while (html.length > TG_LIMIT && src.length > 200) {
+    const cut = Math.floor(src.length * Math.max(0.5, (TG_LIMIT / html.length) * 0.95));
+    src = src.slice(0, src.lastIndexOf('\n', cut) > cut * 0.5 ? src.lastIndexOf('\n', cut) : cut);
+    html = toTelegramHtml(src);
+  }
+  const body = html.length > TG_LIMIT ? html.slice(0, TG_LIMIT) : html;
+  try {
+    return await call(body, { parse_mode: 'HTML', link_preview_options: { is_disabled: true } });
+  } catch (err) {
+    if (!isParseError(err)) throw err;
+    console.error('[telegram] HTML bị từ chối, gửi lại chữ thuần:', err.description || err.message);
+    return call(src.slice(0, TG_LIMIT), {});
+  }
 }
 
 /**
@@ -63,6 +125,14 @@ export class LiveMessage {
     }, wait);
   }
 
+  edit(markdown) {
+    return withHtml(
+      (text, opts) =>
+        this.ctx.api.editMessageText(this.msg.chat.id, this.msg.message_id, text, opts),
+      markdown,
+    );
+  }
+
   async flush() {
     if (!this.msg) return;
     const next = this.compose();
@@ -70,7 +140,7 @@ export class LiveMessage {
     this.rendered = next;
     this.lastEdit = Date.now();
     try {
-      await this.ctx.api.editMessageText(this.msg.chat.id, this.msg.message_id, next);
+      await this.edit(next);
     } catch (err) {
       // 400 "message is not modified" and rate limits are both non-fatal here.
       if (!/not modified|too many requests/i.test(err.description || err.message || '')) {
@@ -90,14 +160,14 @@ export class LiveMessage {
     const parts = chunk(body);
 
     try {
-      await this.ctx.api.editMessageText(this.msg.chat.id, this.msg.message_id, parts[0]);
+      await this.edit(parts[0]);
     } catch (err) {
       if (!/not modified/i.test(err.description || err.message || '')) {
         console.error('[telegram] final edit failed:', err.description || err.message);
       }
     }
     for (const part of parts.slice(1)) {
-      await this.ctx.reply(part);
+      await withHtml((text, opts) => this.ctx.reply(text, opts), part);
     }
   }
 }

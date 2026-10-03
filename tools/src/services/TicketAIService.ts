@@ -413,6 +413,17 @@ export const deleteBrd = async (brdId: string) => TicketBrd.findByIdAndDelete(br
 // ── Context ticket cho chat AI ───────────────────────────────────────────────
 
 /** Ticket + BRD gói thành một khối context để model đọc. Dùng được cho mọi project (PR, PL, PLO, DOP, PKA...). */
+/**
+ * Đánh số từng dòng BRD trong prompt để AI trỏ được "chỗ nào trong BRD".
+ * Word trả về xuống dòng bằng \r nên phải tách cả ba kiểu.
+ */
+const numberBrdLines = (text: string): string =>
+  text
+    .slice(0, BRD_CHARS_IN_PROMPT)
+    .split(/\r\n|\r|\n/)
+    .map((line, index) => `[L${index + 1}] ${line}`)
+    .join('\n');
+
 export const buildTicketContext = async (ticketKey: string): Promise<string> => {
   const key = ticketKey.toUpperCase();
   const issue = await jiraService.getIssue(key);
@@ -446,17 +457,44 @@ export const buildTicketContext = async (ticketKey: string): Promise<string> => 
   if (note?.content.trim()) parts.push('', '## Note của người dùng (lưu trong tool)', note.content.trim());
 
   for (const brd of brds) {
-    parts.push('', `## BRD: ${brd.filename}`, String(brd.text || '').slice(0, BRD_CHARS_IN_PROMPT));
+    parts.push(
+      '',
+      `## BRD: ${brd.filename}`,
+      '(mỗi dòng có đánh số [Lxx] để trích dẫn vị trí; số này do tool thêm, không có trong file gốc)',
+      numberBrdLines(String(brd.text || ''))
+    );
   }
 
   return parts.join('\n');
 };
 
+/** Yêu cầu chung cho mọi preset: mọi nhận định phải chỉ được chỗ nào trong BRD. */
+const CITE_RULE = [
+  'Mỗi ý phải ghi rõ vị trí trong tài liệu theo đúng thứ tự: (1) tên file BRD,',
+  '(2) tiêu đề mục gần nhất phía trên chỗ đó, (3) số dòng [Lxx], (4) trích nguyên văn tối đa 15 từ để tìm bằng Ctrl+F.',
+  'Ví dụ: `BRD_Hau_kiem.docx · mục "3.2 Luồng hậu kiểm" · [L148] · "kết quả hậu kiểm ghi nhận realtime"`.',
+  'Điều BRD KHÔNG nói tới thì ghi `KHÔNG CÓ TRONG BRD` kèm mục đáng lẽ phải nằm ở đó, đừng bịa số dòng.',
+].join(' ');
+
 export const CHAT_PRESETS: Record<string, string> = {
-  analyze:
-    'Phân tích BRD này: mục tiêu, phạm vi, các luồng nghiệp vụ chính, hệ thống liên quan. Nêu rõ phần nào BRD chưa nói tới.',
-  gaps: 'Liệt kê các điểm mơ hồ, thiếu sót, mâu thuẫn trong BRD và mô tả ticket. Mỗi điểm kèm câu hỏi cần hỏi lại BA.',
-  acceptance:
-    'Viết acceptance criteria theo định dạng Given/When/Then cho ticket này, bám sát BRD. Gom nhóm theo luồng nghiệp vụ.',
-  risks: 'Nêu rủi ro triển khai, tác động tới hệ thống hiện tại và các case lỗi cần xử lý.',
+  analyze: [
+    'Phân tích BRD này: mục tiêu, phạm vi, các luồng nghiệp vụ chính, hệ thống liên quan.',
+    'Nêu rõ phần nào BRD chưa nói tới.',
+    CITE_RULE,
+  ].join(' '),
+  gaps: [
+    'Liệt kê các điểm mơ hồ, thiếu sót, mâu thuẫn trong BRD và mô tả ticket.',
+    'Trình bày dạng bảng gồm các cột: Vấn đề | Loại (mơ hồ / thiếu / mâu thuẫn) | Vị trí trong BRD | Câu hỏi cần hỏi lại BA.',
+    'Mâu thuẫn thì phải nêu đủ cả hai vị trí chọi nhau. Sắp xếp theo mức độ ảnh hưởng, nặng nhất lên đầu.',
+    CITE_RULE,
+  ].join(' '),
+  acceptance: [
+    'Viết acceptance criteria theo định dạng Given/When/Then cho ticket này, bám sát BRD.',
+    'Gom nhóm theo luồng nghiệp vụ. Mỗi nhóm ghi vị trí trong BRD mà nó bám vào.',
+    CITE_RULE,
+  ].join(' '),
+  risks: [
+    'Nêu rủi ro triển khai, tác động tới hệ thống hiện tại và các case lỗi cần xử lý.',
+    CITE_RULE,
+  ].join(' '),
 };

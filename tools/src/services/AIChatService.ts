@@ -3,6 +3,7 @@ import { TicketChat } from '../models/TicketChat';
 import { analyzeWithCustomPrompt } from './AIService';
 import { buildTicketContext, CHAT_PRESETS } from './TicketAIService';
 import { appendNote } from './TicketNoteService';
+import { buildKbIndexBlock, buildKbReadBlock, buildKbSearchBlock, kbAvailable } from './KbService';
 
 /** Số message gần nhất gửi kèm mỗi lượt chat. */
 const CHAT_HISTORY_LIMIT = 20;
@@ -34,6 +35,62 @@ const SYSTEM_RULES = [
   'Nội dung được nối vào cuối note hiện có. Không có ticket rõ ràng thì hỏi lại ticket nào, không tự đoán.',
   'Hệ thống tự hiện xác nhận đã ghi kèm nội dung note, nên ngoài khối NOTE đừng lặp lại nội dung đó; chỉ trả lời phần còn lại (nếu có).',
 ].join('\n');
+
+/** Thêm vào SYSTEM_RULES khi máy chạy backend có knowledge base lending. */
+const KB_RULES = [
+  'Bạn có mục lục knowledge base lending (KB) đính kèm. KB là CHỈ ĐỌC — bạn không ghi được vào đó.',
+  'Cần nội dung một file trong mục lục thì trả lời DUY NHẤT một khối, không kèm chữ nào khác:',
+  '<<<KB_READ',
+  'kb/duong/dan/file.md',
+  'kb-po/file-khac.md',
+  '>>>',
+  'Không biết file nào chứa thông tin thì tìm trước, cũng trả lời DUY NHẤT một khối:',
+  '<<<KB_SEARCH',
+  'từ khoá',
+  '>>>',
+  'Hệ thống sẽ đưa nội dung/kết quả rồi hỏi lại bạn. Tối đa 2 lượt lấy dữ liệu cho mỗi câu hỏi,',
+  'sau đó phải trả lời bằng những gì đang có. Khi dùng thông tin từ KB, ghi rõ đường dẫn file làm nguồn.',
+  'Chỉ dùng KB khi câu hỏi thực sự cần kiến thức sản phẩm/nghiệp vụ; hỏi về ticket đính kèm thì trả lời thẳng.',
+].join('\n');
+
+const KB_READ_RE = /<<<KB_READ\s*\n([\s\S]*?)\n?>>>/;
+const KB_SEARCH_RE = /<<<KB_SEARCH\s*\n([\s\S]*?)\n?>>>/;
+/** Số lượt model được xin thêm dữ liệu KB trước khi buộc phải trả lời. */
+const KB_MAX_ROUNDS = 2;
+
+const splitLines = (block: string) => block.split('\n').map((line) => line.trim()).filter(Boolean);
+
+/**
+ * Model xin đọc/tìm KB thì nạp dữ liệu rồi hỏi lại, tối đa KB_MAX_ROUNDS lượt.
+ * Chỉ đọc — không có nhánh nào ghi xuống KB.
+ */
+const answerWithKb = async (basePrompt: string): Promise<string> => {
+  let prompt = basePrompt;
+
+  for (let round = 0; round <= KB_MAX_ROUNDS; round += 1) {
+    const answer = await analyzeWithCustomPrompt(prompt);
+    const readMatch = answer.match(KB_READ_RE);
+    const searchMatch = answer.match(KB_SEARCH_RE);
+    if (!readMatch && !searchMatch) return answer;
+
+    if (round === KB_MAX_ROUNDS) {
+      // hết lượt: ép trả lời bằng dữ liệu đang có, không nạp thêm
+      prompt = [prompt, '', 'Hết lượt tra KB. Trả lời ngay bằng dữ liệu đang có, không dùng khối KB_READ/KB_SEARCH nữa.', 'Trợ lý:'].join('\n');
+      continue;
+    }
+
+    const fetched = [
+      readMatch ? buildKbReadBlock(splitLines(readMatch[1])) : '',
+      searchMatch ? buildKbSearchBlock(splitLines(searchMatch[1])) : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    prompt = [prompt, '', fetched, 'Trợ lý:'].join('\n');
+  }
+
+  return analyzeWithCustomPrompt(prompt);
+};
 
 const NOTE_BLOCK_RE = /<<<NOTE\s+([A-Za-z][A-Za-z0-9]+-\d+)\s*\n([\s\S]*?)\n?>>>/g;
 
@@ -133,9 +190,12 @@ export const sendMessage = async (id: string, body: { message?: string; preset?:
   if (!conversation) throw new Error('Không tìm thấy hội thoại');
 
   const history = conversation.messages.slice(-CHAT_HISTORY_LIMIT);
+  const useKb = kbAvailable();
   const prompt = [
     SYSTEM_RULES,
+    ...(useKb ? ['', KB_RULES] : []),
     '',
+    useKb ? buildKbIndexBlock() : '',
     await buildContext(conversation.ticketKeys),
     ...(history.length
       ? ['Lịch sử hội thoại:', ...history.map((item) => `${item.role === 'user' ? 'Người dùng' : 'Trợ lý'}: ${item.content}`), '']
@@ -144,7 +204,7 @@ export const sendMessage = async (id: string, body: { message?: string; preset?:
     'Trợ lý:',
   ].join('\n');
 
-  const answer = await applyNoteBlocks(await analyzeWithCustomPrompt(prompt));
+  const answer = await applyNoteBlocks(useKb ? await answerWithKb(prompt) : await analyzeWithCustomPrompt(prompt));
 
   conversation.messages.push({ role: 'user', content: message, createdAt: new Date() });
   conversation.messages.push({ role: 'assistant', content: answer, createdAt: new Date() });

@@ -1,0 +1,82 @@
+[
+ {
+  "key": "SVK-11736",
+  "rt": "Lending Repayment",
+  "status": "Waiting for support",
+  "created": "2026-10-01",
+  "comments": 2,
+  "title": "Viettel_Cashloan - gãy giải ngân CAKECLVIETTEL223823594414144 và CAKECLVIETTEL223912245416448\t - case: 2268615"
+ },
+ {
+  "key": "SVK-11731",
+  "rt": "Lending Disburse",
+  "status": "Waiting for support",
+  "created": "2026-10-01",
+  "comments": 2,
+  "title": "VIETTEL CASHLOAN - UPDATE TRẠNG THÁI GIẢI NGÂN KHOẢN VAY LỖI"
+ },
+ {
+  "key": "SVK-11730",
+  "rt": "Lending Disburse",
+  "status": "Waiting for support",
+  "created": "2026-09-30",
+  "comments": 3,
+  "title": "VNP - Gãy giải ngân -   04 khoản vay - 30-09-2026"
+ },
+ {
+  "key": "SVK-11729",
+  "rt": "Lending Disburse",
+  "status": "Waiting for support",
+  "created": "2026-09-30",
+  "comments": 2,
+  "title": "ZLP - Gãy giải ngân -   06 khoản vay - 30-09-2026"
+ },
+ {
+  "key": "SVK-11728",
+  "rt": "Lending Payment Installment",
+  "status": "Waiting for support",
+  "created": "2026-09-30",
+  "comments": 3,
+  "title": "Nhờ kiểm tra giao dịch Timeout VDS ngày 29.09.2026"
+ },
+ {
+  "key": "SVK-11719",
+  "rt": "Lending Repayment",
+  "status": "Waiting for support",
+  "created": "2026-09-30",
+  "comments": 2,
+  "title": "ZLP_cashloan - gãy thanh toán - CAKECLZLP176659221319936- phone: [SĐT]- loan id 12899573 - loan code:  zDFNGJfPdpfdBGlKEDza"
+ },
+ {
+  "key": "SVK-11718",
+  "rt": "Lending Repayment",
+  "status": "In Progress",
+  "created": "2026-09-30",
+  "comments": 3,
+  "title": "CAKE_payday - gãy thanh toán - CAKEPD215394731682176 - phone: [SĐT]- loan id 16893510"
+ },
+ {
+  "key": "SVK-11716",
+  "rt": "Lending Disburse",
+  "status": "Waiting for support",
+  "created": "2026-09-30",
+  "comments": 2,
+  "title": "ZLP_cashloan - gãy giải ngân - CAKECLZLP224083377442624- phone: [SĐT]- loan id: 17816908"
+ },
+ {
+  "key": "SVK-11715",
+  "rt": "Lending Repayment",
+  "status": "Waiting for support",
+  "created": "2026-09-30",
+  "comments": 2,
+  "title": "CAKE_payday - gãy thanh toán - CAKEPD213433216941888 - phone: [SĐT] - loan id"
+ },
+ {
+  "key": "SVK-11711",
+  "rt": "Lending Disburse",
+  "status": "Waiting for support",
+  "created": "2026-09-29",
+  "comments": 2,
+  "title": "Viettel Payday gãy giải ngân - CAKEPDVIETTEL1746062325032 - loan id: 17752482 - phone: [SĐT]"
+ }
+]

@@ -1,0 +1,51 @@
+{
+  "name": "tools-management-system",
+  "version": "1.0.0",
+  "description": "Comprehensive tools management system with Jira integration, task/story point management, sprint management, and roadmap management",
+  "main": "dist/server.js",
+  "scripts": {
+    "kill-dev": "bash scripts/kill-dev.sh",
+    "predev": "npm run kill-dev",
+    "dev": "NODE_EXTRA_CA_CERTS=${NODE_EXTRA_CA_CERTS:-certs/cloudflare-gateway-ca.pem} ts-node-dev --respawn --transpile-only src/server.ts",
+    "dev:backend": "NODE_EXTRA_CA_CERTS=${NODE_EXTRA_CA_CERTS:-certs/cloudflare-gateway-ca.pem} ts-node-dev --respawn --transpile-only src/server.ts",
+    "predev:all": "npm run kill-dev",
+    "dev:all": "concurrently \"npm run dev\" \"cd client && npm run dev\"",
+    "build": "tsc",
+    "start": "NODE_EXTRA_CA_CERTS=${NODE_EXTRA_CA_CERTS:-certs/cloudflare-gateway-ca.pem} node dist/server.js",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write src",
+    "specs:index": "node ../open_api_viewer/build-specs-index.mjs",
+    "viewer": "node ../open_api_viewer/build-specs-index.mjs && python3 -m http.server 8777 --directory ../open_api_viewer"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1",
+    "axios": "^1.4.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "deep-diff": "^1.0.2",
+    "dotenv": "^16.0.3",
+    "express": "^4.22.2",
+    "joi": "^17.9.2",
+    "js-yaml": "^4.1.1",
+    "jsonwebtoken": "^9.0.0",
+    "mongoose": "^7.0.0",
+    "morgan": "^1.10.0",
+    "pdf-parse": "^2.4.5",
+    "pdfkit": "^0.20.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.13",
+    "@types/express": "^4.17.17",
+    "@types/morgan": "^1.9.5",
+    "@types/node": "^20.3.1",
+    "@types/pdfkit": "^0.17.6",
+    "@typescript-eslint/eslint-plugin": "^5.59.11",
+    "@typescript-eslint/parser": "^5.59.11",
+    "concurrently": "^9.2.1",
+    "eslint": "^8.44.0",
+    "prettier": "^2.8.8",
+    "ts-node": "^10.9.1",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.1.3"
+  }
+}

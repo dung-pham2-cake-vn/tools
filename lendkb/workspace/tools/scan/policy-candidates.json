@@ -1,0 +1,4175 @@
+{
+  "Viettel_Cashloan": [
+    {
+      "key": "PL-13808",
+      "resolved": "2026-08-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[All Product]  Sản phẩm luồng D.O.P: Điều chỉnh trường thông tin trên Hợp Đồng "
+    },
+    {
+      "key": "PL-13802",
+      "resolved": "2026-08-03",
+      "status": "Released",
+      "tables": 2,
+      "title": "VDS CashLoan - Remove Validate score cutoff theo product code"
+    },
+    {
+      "key": "PL-12415",
+      "resolved": "2026-06-12",
+      "status": "Released",
+      "tables": 0,
+      "title": "Cashloan — Migrate termination fee calculation and GL from LMS/Mambu to ICE"
+    },
+    {
+      "key": "PL-11886",
+      "resolved": "2026-03-12",
+      "status": "Released",
+      "tables": 2,
+      "title": "[VDS_cashloan] - Điều chỉnh max request limit"
+    },
+    {
+      "key": "PL-11720",
+      "resolved": "2026-02-10",
+      "status": "Released",
+      "tables": 2,
+      "title": "[Viettel_Cashloan] - Sim ngoại mạng - Lãi suất không theo Risk group"
+    },
+    {
+      "key": "PL-11668",
+      "resolved": "2026-02-06",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Lending] Điều chỉnh giá trị prepayment 20260202"
+    },
+    {
+      "key": "PL-11045",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 4,
+      "title": "[Viettel_cashloan][NONVT] - Điều chỉnh API check-profile và client-create"
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11312",
+      "resolved": "2026-01-20",
+      "status": "Released",
+      "tables": 4,
+      "title": "[Viettel_Cashloan] Điều chỉnh luồng nhận diện user segment"
+    },
+    {
+      "key": "PL-11381",
+      "resolved": "2025-12-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "[E-Contract] - Update field API SubmitContract"
+    },
+    {
+      "key": "PL-11219",
+      "resolved": "2025-12-23",
+      "status": "Released",
+      "tables": 9,
+      "title": "[VPO_cl_pension] - Create precheck"
+    },
+    {
+      "key": "PL-10841",
+      "resolved": "2025-12-15",
+      "status": "Released",
+      "tables": 13,
+      "title": "[Precheck] - Migrate 2 sản phẩm payroll sang Precheck v2"
+    },
+    {
+      "key": "PL-11143",
+      "resolved": "2025-11-27",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VNHUB_cashloan] - Điều chỉnh Precheck"
+    },
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    },
+    {
+      "key": "PL-8963",
+      "resolved": "2025-05-27",
+      "status": "Released",
+      "tables": 8,
+      "title": "[VDS-CL] - Adjust the max limitation loan VDS Cashloan - 10:30, 23/05/2025"
+    },
+    {
+      "key": "PL-7709",
+      "resolved": "2025-03-27",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VDS-O2O][APP] - Loan listing"
+    },
+    {
+      "key": "PL-7714",
+      "resolved": "2025-03-27",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VDS-O2O][APP] - Payment transaction history"
+    },
+    {
+      "key": "PL-7319",
+      "resolved": "2024-12-31",
+      "status": "Released",
+      "tables": 42,
+      "title": "[VDS][API] - Additional partner_cake_score to API: client-create to all VDS product"
+    },
+    {
+      "key": "PL-6313",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update app display for Write-off accounts"
+    },
+    {
+      "key": "PL-6885",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update APIs value for Write-off accounts"
+    },
+    {
+      "key": "PL-6446",
+      "resolved": "2024-11-28",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VNPOST-CL][APP] - Loan listing"
+    },
+    {
+      "key": "PL-5632",
+      "resolved": "2024-10-08",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VNP-CL][APP] - Loan listing"
+    },
+    {
+      "key": "PL-5917",
+      "resolved": "2024-10-04",
+      "status": "Released",
+      "tables": 15,
+      "title": "[Lending][Gateway] - Define các mã lỗi NFC trả về từ Semi-onboarding"
+    },
+    {
+      "key": "PL-5968",
+      "resolved": "2024-10-02",
+      "status": "Released",
+      "tables": 4,
+      "title": "[VDS-XSUS] Thay đổi luồng hoàn trả"
+    },
+    {
+      "key": "PL-5032",
+      "resolved": "2024-09-09",
+      "status": "Released",
+      "tables": 7,
+      "title": "[VNP-PL][APP] - Loan listing"
+    },
+    {
+      "key": "PL-5182",
+      "resolved": "2024-08-13",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VDS-CL] - Update template contract"
+    },
+    {
+      "key": "PL-5240",
+      "resolved": "2024-07-31",
+      "status": "Released",
+      "tables": 4,
+      "title": "[Cashloan][Core] Bỏ điều kiện tất toán trước hạn"
+    },
+    {
+      "key": "PL-4876",
+      "resolved": "2024-07-05",
+      "status": "Released",
+      "tables": 30,
+      "title": "[VDS-ALL] - Điều chỉnh ngưỡng Fraud Score"
+    }
+  ],
+  "VT_Cashloan_S": [
+    {
+      "key": "PL-13808",
+      "resolved": "2026-08-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[All Product]  Sản phẩm luồng D.O.P: Điều chỉnh trường thông tin trên Hợp Đồng "
+    },
+    {
+      "key": "PL-12415",
+      "resolved": "2026-06-12",
+      "status": "Released",
+      "tables": 0,
+      "title": "Cashloan — Migrate termination fee calculation and GL from LMS/Mambu to ICE"
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-10841",
+      "resolved": "2025-12-15",
+      "status": "Released",
+      "tables": 13,
+      "title": "[Precheck] - Migrate 2 sản phẩm payroll sang Precheck v2"
+    },
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    },
+    {
+      "key": "PL-7319",
+      "resolved": "2024-12-31",
+      "status": "Released",
+      "tables": 42,
+      "title": "[VDS][API] - Additional partner_cake_score to API: client-create to all VDS product"
+    },
+    {
+      "key": "PL-6313",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update app display for Write-off accounts"
+    },
+    {
+      "key": "PL-6885",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update APIs value for Write-off accounts"
+    },
+    {
+      "key": "PL-5240",
+      "resolved": "2024-07-31",
+      "status": "Released",
+      "tables": 4,
+      "title": "[Cashloan][Core] Bỏ điều kiện tất toán trước hạn"
+    }
+  ],
+  "PD_Viettel": [
+    {
+      "key": "PL-13808",
+      "resolved": "2026-08-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[All Product]  Sản phẩm luồng D.O.P: Điều chỉnh trường thông tin trên Hợp Đồng "
+    },
+    {
+      "key": "PL-12708",
+      "resolved": "2026-06-11",
+      "status": "Released",
+      "tables": 0,
+      "title": "[CL-PD] Điều chỉnh điều kiện thu nhập kê khai tối thiểu từ 5 triệu"
+    },
+    {
+      "key": "PL-12076",
+      "resolved": "2026-04-22",
+      "status": "Released",
+      "tables": 4,
+      "title": "[PD_viettel] Nhận diện và định tuyến khách hàng non-Viettel SIM sang product code NONVTPD"
+    },
+    {
+      "key": "PL-11856",
+      "resolved": "2026-02-25",
+      "status": "Released",
+      "tables": 0,
+      "title": "PD_viettel - Điều chỉnh UI màn hình thông báo kí HĐTD thành công"
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11219",
+      "resolved": "2025-12-23",
+      "status": "Released",
+      "tables": 9,
+      "title": "[VPO_cl_pension] - Create precheck"
+    },
+    {
+      "key": "PL-10841",
+      "resolved": "2025-12-15",
+      "status": "Released",
+      "tables": 13,
+      "title": "[Precheck] - Migrate 2 sản phẩm payroll sang Precheck v2"
+    },
+    {
+      "key": "PL-11143",
+      "resolved": "2025-11-27",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VNHUB_cashloan] - Điều chỉnh Precheck"
+    },
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    },
+    {
+      "key": "PL-8010",
+      "resolved": "2025-03-19",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Payday] Điều chỉnh số tiền giải ngân"
+    },
+    {
+      "key": "PL-5832",
+      "resolved": "2024-11-27",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Lending][DOP] - Onboarding ETB reKYC internal"
+    }
+  ],
+  "VT_Payday_S": [
+    {
+      "key": "PL-13808",
+      "resolved": "2026-08-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[All Product]  Sản phẩm luồng D.O.P: Điều chỉnh trường thông tin trên Hợp Đồng "
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11219",
+      "resolved": "2025-12-23",
+      "status": "Released",
+      "tables": 9,
+      "title": "[VPO_cl_pension] - Create precheck"
+    },
+    {
+      "key": "PL-10841",
+      "resolved": "2025-12-15",
+      "status": "Released",
+      "tables": 13,
+      "title": "[Precheck] - Migrate 2 sản phẩm payroll sang Precheck v2"
+    },
+    {
+      "key": "PL-11143",
+      "resolved": "2025-11-27",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VNHUB_cashloan] - Điều chỉnh Precheck"
+    },
+    {
+      "key": "PL-10167",
+      "resolved": "2025-10-14",
+      "status": "Released",
+      "tables": 0,
+      "title": "[PD][CORE] - ICE - EOD + Interest"
+    },
+    {
+      "key": "PL-9851",
+      "resolved": "2025-10-13",
+      "status": "Released",
+      "tables": 5,
+      "title": "[ZLP-PD][API] get-loan-detail"
+    },
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    },
+    {
+      "key": "PL-7319",
+      "resolved": "2024-12-31",
+      "status": "Released",
+      "tables": 42,
+      "title": "[VDS][API] - Additional partner_cake_score to API: client-create to all VDS product"
+    }
+  ],
+  "VDS_paylater": [
+    {
+      "key": "PL-13947",
+      "resolved": "2026-09-03",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Giải ngân liên ngân hàng] - Điều chỉnh danh sách ngân hàng nhận giải ngân"
+    },
+    {
+      "key": "PL-12573",
+      "resolved": "2026-06-22",
+      "status": "Released",
+      "tables": 0,
+      "title": "VDS_paylater - CashWithdraw config GL"
+    },
+    {
+      "key": "PL-12280",
+      "resolved": "2026-06-19",
+      "status": "Done",
+      "tables": 5,
+      "title": "VDS_paylater - Installment - chuyển đổi trả góp"
+    },
+    {
+      "key": "PL-12972",
+      "resolved": "2026-06-19",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VDS paylater] Add config cho phép thanh toán mảng education"
+    },
+    {
+      "key": "PL-11947",
+      "resolved": "2026-06-08",
+      "status": "Released",
+      "tables": 5,
+      "title": "[VDS_paylater][API] repayment-van"
+    },
+    {
+      "key": "PL-11948",
+      "resolved": "2026-06-08",
+      "status": "Released",
+      "tables": 3,
+      "title": " [VDS_paylater][API] repayment-status"
+    },
+    {
+      "key": "PL-12553",
+      "resolved": "2026-05-28",
+      "status": "Released",
+      "tables": 22,
+      "title": "VDS_paylater - API CashWithdraw"
+    },
+    {
+      "key": "PL-12591",
+      "resolved": "2026-05-26",
+      "status": "Released",
+      "tables": 9,
+      "title": "[VDS PL] CĐTG - Lấy danh sách giao dịch & gói trả góp"
+    },
+    {
+      "key": "PL-12592",
+      "resolved": "2026-05-26",
+      "status": "Released",
+      "tables": 9,
+      "title": "[VDS PL] CĐTG - Khởi tạo yêu cầu chuyển đổi trả góp"
+    },
+    {
+      "key": "PL-12593",
+      "resolved": "2026-05-26",
+      "status": "Released",
+      "tables": 10,
+      "title": "[VDS PL] CĐTG - Hạ tầng Challenge OTP (challenge-get-otp & challenge-verify-otp)"
+    },
+    {
+      "key": "PL-12594",
+      "resolved": "2026-05-26",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VDS PL] CĐTG - Xác nhận chuyển đổi trả góp"
+    },
+    {
+      "key": "PL-12595",
+      "resolved": "2026-05-26",
+      "status": "Released",
+      "tables": 7,
+      "title": "[VDS PL] CĐTG - Tra cứu khoản trả góp"
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11381",
+      "resolved": "2025-12-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "[E-Contract] - Update field API SubmitContract"
+    },
+    {
+      "key": "PL-10519",
+      "resolved": "2025-11-13",
+      "status": "Done",
+      "tables": 6,
+      "title": "[VDS_paylater] - Thêm product_code PLVT_03 trên VDS_paylater"
+    },
+    {
+      "key": "PL-10178",
+      "resolved": "2025-11-12",
+      "status": "Done",
+      "tables": 12,
+      "title": "[VDS_paylater_epass][API] - Onboarding Process & APIs Integration"
+    },
+    {
+      "key": "PL-10491",
+      "resolved": "2025-11-12",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VDS_paylater_epass][API partner] vds-loan-update"
+    },
+    {
+      "key": "PL-10184",
+      "resolved": "2025-11-11",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VDS_paylater_epass][API] client-update"
+    },
+    {
+      "key": "PL-10202",
+      "resolved": "2025-11-11",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VDS_paylater_epass][API partner] vds-ekyc-update"
+    },
+    {
+      "key": "PL-10520",
+      "resolved": "2025-11-06",
+      "status": "Released",
+      "tables": 7,
+      "title": "[VDS_paylater][API] - Điều chỉnh API client_create thêm PLVT_03"
+    },
+    {
+      "key": "PL-10179",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VDS_paylater_epass][API] data-config"
+    },
+    {
+      "key": "PL-10182",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 7,
+      "title": "[VDS_paylater_epass][API] client-create"
+    },
+    {
+      "key": "PL-10186",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VDS_paylater_epass][API] loan-register"
+    },
+    {
+      "key": "PL-10190",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 5,
+      "title": "[VDS_paylater_epass][API] get-otp | verify-esign"
+    },
+    {
+      "key": "PL-10191",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 4,
+      "title": "[VDS_paylater_epass][API] get-loan-detail"
+    },
+    {
+      "key": "PL-10193",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 5,
+      "title": "[VDS_paylater_epass][API] Termination APIs"
+    },
+    {
+      "key": "PL-10194",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 23,
+      "title": "[VDS_paylater_epass][API] Payments"
+    },
+    {
+      "key": "PL-10218",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VDS_paylater_epass][App] Sign & Loan management"
+    },
+    {
+      "key": "PL-10219",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VDS_paylater_epass][App] Payment transaction history"
+    },
+    {
+      "key": "PL-10220",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VDS_paylater_epass][Portal] Allow process CakeTask on Cake portal"
+    },
+    {
+      "key": "PL-10076",
+      "resolved": "2025-09-22",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Many Paylater] - Điều chỉnh MAD về 5%"
+    },
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    },
+    {
+      "key": "PL-9680",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 0,
+      "title": "MWG - PayLater - QTV - Tạo phí sub hàng tháng khi có dư nợ"
+    },
+    {
+      "key": "PL-9514",
+      "resolved": "2025-07-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "VDS PayLater - Thêm phần lãi vào scheme hiện tại và đổi cơ chế thu phí chậm trả"
+    },
+    {
+      "key": "PL-9423",
+      "resolved": "2025-07-10",
+      "status": "Released",
+      "tables": 0,
+      "title": "[CORE-PL] - Update logic terminate "
+    },
+    {
+      "key": "PL-4662",
+      "resolved": "2025-06-10",
+      "status": "Released",
+      "tables": 6,
+      "title": "[CAK-PL][Portal] - Lock/unlock Paylater from KYC detail screen"
+    },
+    {
+      "key": "PL-8376",
+      "resolved": "2025-05-08",
+      "status": "Released",
+      "tables": 5,
+      "title": "[MWG-PL][QTV][API external] - API generate-webview/payment-request"
+    },
+    {
+      "key": "PL-7319",
+      "resolved": "2024-12-31",
+      "status": "Released",
+      "tables": 42,
+      "title": "[VDS][API] - Additional partner_cake_score to API: client-create to all VDS product"
+    },
+    {
+      "key": "PL-6313",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update app display for Write-off accounts"
+    },
+    {
+      "key": "PL-6885",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update APIs value for Write-off accounts"
+    },
+    {
+      "key": "PL-6865",
+      "resolved": "2024-12-17",
+      "status": "Released",
+      "tables": 9,
+      "title": "[MWG-PL] Loan details + Repayment"
+    },
+    {
+      "key": "PL-6661",
+      "resolved": "2024-11-18",
+      "status": "Released",
+      "tables": 7,
+      "title": "[Lending][ALL] - Thay đổi template HĐTD cho Savis"
+    },
+    {
+      "key": "PL-5211",
+      "resolved": "2024-11-04",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Paylater] Thay đổi phí lateFee"
+    },
+    {
+      "key": "PL-5835",
+      "resolved": "2024-10-10",
+      "status": "Released",
+      "tables": 0,
+      "title": "[FPT-PL][Partner API] Integrate với Partner loan update"
+    },
+    {
+      "key": "PL-5927",
+      "resolved": "2024-10-10",
+      "status": "Released",
+      "tables": 9,
+      "title": "[FPT-PL] Loan details + Repayment"
+    },
+    {
+      "key": "PL-5673",
+      "resolved": "2024-10-08",
+      "status": "Released",
+      "tables": 11,
+      "title": "[FPT-PL] Onboarding API"
+    }
+  ],
+  "CAKE_payday": [
+    {
+      "key": "PL-13516",
+      "resolved": "2026-07-27",
+      "status": "Released",
+      "tables": 0,
+      "title": "[CAKE] Điều chỉnh trường thông tin trên Hợp Đồng"
+    },
+    {
+      "key": "PL-12681",
+      "resolved": "2026-05-14",
+      "status": "Released",
+      "tables": 1,
+      "title": "[CAKE_payday] Tăng lãi suất sản phẩm"
+    },
+    {
+      "key": "PL-12305",
+      "resolved": "2026-05-11",
+      "status": "Released",
+      "tables": 2,
+      "title": "MWG_payday - API partner-update-status"
+    },
+    {
+      "key": "PL-12521",
+      "resolved": "2026-05-08",
+      "status": "Released",
+      "tables": 1,
+      "title": "[CAKE_payday] Điều chỉnh số tiền cho vay cho nhóm Repeated"
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11381",
+      "resolved": "2025-12-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "[E-Contract] - Update field API SubmitContract"
+    },
+    {
+      "key": "PL-11219",
+      "resolved": "2025-12-23",
+      "status": "Released",
+      "tables": 9,
+      "title": "[VPO_cl_pension] - Create precheck"
+    },
+    {
+      "key": "PL-10841",
+      "resolved": "2025-12-15",
+      "status": "Released",
+      "tables": 13,
+      "title": "[Precheck] - Migrate 2 sản phẩm payroll sang Precheck v2"
+    },
+    {
+      "key": "PL-11143",
+      "resolved": "2025-11-27",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VNHUB_cashloan] - Điều chỉnh Precheck"
+    },
+    {
+      "key": "PL-10175",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Cake-PD] - Điều chỉnh validate lỗi trường hôn nhân và địa chỉ"
+    },
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    },
+    {
+      "key": "PL-9550",
+      "resolved": "2025-08-19",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VNPay-PD][App] - Loan mngt"
+    },
+    {
+      "key": "PL-9071",
+      "resolved": "2025-07-14",
+      "status": "Released",
+      "tables": 6,
+      "title": "[Cake-PD] - ETB onboarding on app Cake"
+    },
+    {
+      "key": "PL-9105",
+      "resolved": "2025-07-11",
+      "status": "Released",
+      "tables": 5,
+      "title": "[Cake-PD][App] - Payment transaction history"
+    },
+    {
+      "key": "PL-9074",
+      "resolved": "2025-07-07",
+      "status": "Released",
+      "tables": 5,
+      "title": "[Cake-PD] - Loan list screen"
+    },
+    {
+      "key": "PL-9138",
+      "resolved": "2025-07-07",
+      "status": "Released",
+      "tables": 3,
+      "title": "[Cake-PD] - Precheck"
+    }
+  ],
+  "CAKE_overdraft": [
+    {
+      "key": "PL-12807",
+      "resolved": "2026-09-03",
+      "status": "Done",
+      "tables": 5,
+      "title": "[ODTD_v2] Sản phẩm Cake overdraft v2"
+    },
+    {
+      "key": "PL-12061",
+      "resolved": "2026-07-03",
+      "status": "Released",
+      "tables": 4,
+      "title": "[VPB Integration] Expose API trả về thông tin dư nợ và hạn mức theo CCCD"
+    },
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    },
+    {
+      "key": "PL-5673",
+      "resolved": "2024-10-08",
+      "status": "Released",
+      "tables": 11,
+      "title": "[FPT-PL] Onboarding API"
+    }
+  ],
+  "CAKE_overdraft_TD": [
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    }
+  ],
+  "CAKE_cl_affiliate": [
+    {
+      "key": "PL-12415",
+      "resolved": "2026-06-12",
+      "status": "Released",
+      "tables": 0,
+      "title": "Cashloan — Migrate termination fee calculation and GL from LMS/Mambu to ICE"
+    },
+    {
+      "key": "PL-12163",
+      "resolved": "2026-05-08",
+      "status": "Released",
+      "tables": 3,
+      "title": "[CAKE_cl_affiliate][CORE] Repayment"
+    },
+    {
+      "key": "PL-12175",
+      "resolved": "2026-05-05",
+      "status": "Released",
+      "tables": 3,
+      "title": "[CAKE_cl_affiliate][App] Repayment transaction history"
+    },
+    {
+      "key": "PL-12047",
+      "resolved": "2026-04-25",
+      "status": "Released",
+      "tables": 10,
+      "title": "[CAKE_cl_affiliate][Config] Product rule"
+    },
+    {
+      "key": "PL-12167",
+      "resolved": "2026-04-22",
+      "status": "Released",
+      "tables": 4,
+      "title": "[CAKE_cl_affiliate][App] Loan management"
+    },
+    {
+      "key": "PL-12171",
+      "resolved": "2026-04-22",
+      "status": "Released",
+      "tables": 3,
+      "title": "[CAKE_cl_affiliate][App] Terminate loan"
+    },
+    {
+      "key": "PL-12177",
+      "resolved": "2026-04-22",
+      "status": "Released",
+      "tables": 3,
+      "title": "[CAKE_cl_affiliate][Portal] Allow process CakeTask on Cake portal"
+    }
+  ],
+  "VNP_cashloan": [
+    {
+      "key": "PL-14264",
+      "resolved": "2026-09-15",
+      "status": "Released",
+      "tables": 2,
+      "title": "VNP_cashloan Điều chỉnh lãi suất cho vay"
+    },
+    {
+      "key": "PL-13808",
+      "resolved": "2026-08-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[All Product]  Sản phẩm luồng D.O.P: Điều chỉnh trường thông tin trên Hợp Đồng "
+    },
+    {
+      "key": "PL-12415",
+      "resolved": "2026-06-12",
+      "status": "Released",
+      "tables": 0,
+      "title": "Cashloan — Migrate termination fee calculation and GL from LMS/Mambu to ICE"
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11381",
+      "resolved": "2025-12-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "[E-Contract] - Update field API SubmitContract"
+    },
+    {
+      "key": "PL-11219",
+      "resolved": "2025-12-23",
+      "status": "Released",
+      "tables": 9,
+      "title": "[VPO_cl_pension] - Create precheck"
+    },
+    {
+      "key": "PL-10841",
+      "resolved": "2025-12-15",
+      "status": "Released",
+      "tables": 13,
+      "title": "[Precheck] - Migrate 2 sản phẩm payroll sang Precheck v2"
+    },
+    {
+      "key": "PL-11143",
+      "resolved": "2025-11-27",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VNHUB_cashloan] - Điều chỉnh Precheck"
+    },
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    },
+    {
+      "key": "PL-7711",
+      "resolved": "2025-03-27",
+      "status": "Released",
+      "tables": 20,
+      "title": "[VDS-O2O][APP] - Loan detail & repayment infomation"
+    },
+    {
+      "key": "PL-6313",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update app display for Write-off accounts"
+    },
+    {
+      "key": "PL-6885",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update APIs value for Write-off accounts"
+    },
+    {
+      "key": "PL-7050",
+      "resolved": "2024-12-03",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VNP] - Điều chỉnh nội dung SMS khi phê duyệt và giải ngân"
+    },
+    {
+      "key": "PL-6879",
+      "resolved": "2024-12-02",
+      "status": "Released",
+      "tables": 6,
+      "title": "[Lending][ALL] - Thay đổi template HĐTD cho Savis - bổ sung"
+    },
+    {
+      "key": "PL-5832",
+      "resolved": "2024-11-27",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Lending][DOP] - Onboarding ETB reKYC internal"
+    },
+    {
+      "key": "PL-6729",
+      "resolved": "2024-11-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Lending] - Create & Store \\\"Form cam kết của khách hàng\\\" cho các MWG-CL, VDS PD, VNP-CL, VDS-CL, VDS-Bikeloan"
+    },
+    {
+      "key": "PL-5633",
+      "resolved": "2024-10-08",
+      "status": "Released",
+      "tables": 20,
+      "title": "[VNP-CL][APP] - Loan detail & repayment infomation"
+    },
+    {
+      "key": "PL-5637",
+      "resolved": "2024-10-08",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VNP-CL][PORTAL] - Config display image in the Image center"
+    },
+    {
+      "key": "PL-5638",
+      "resolved": "2024-10-08",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VNP-CL][PORTAL] - Config recording eKYC log in the Profile detail"
+    },
+    {
+      "key": "PL-5959",
+      "resolved": "2024-10-08",
+      "status": "Released",
+      "tables": 6,
+      "title": "[VNP-CL][API] - API Terminate on Vnpay"
+    },
+    {
+      "key": "PL-5038",
+      "resolved": "2024-09-09",
+      "status": "Released",
+      "tables": 13,
+      "title": "[VNP-PL][APP] - Loan detail & repayment information"
+    }
+  ],
+  "VNP_paylater": [
+    {
+      "key": "PL-13092",
+      "resolved": "2026-07-07",
+      "status": "Released",
+      "tables": 2,
+      "title": "VNP_paylater Config TKĐBTT nhận giải ngân tương ứng với service code"
+    },
+    {
+      "key": "PL-12595",
+      "resolved": "2026-05-26",
+      "status": "Released",
+      "tables": 7,
+      "title": "[VDS PL] CĐTG - Tra cứu khoản trả góp"
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-7520",
+      "resolved": "2026-01-07",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VNPay-PL] - Điều chỉnh trả về lỗi khi có network error"
+    },
+    {
+      "key": "PL-11381",
+      "resolved": "2025-12-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "[E-Contract] - Update field API SubmitContract"
+    },
+    {
+      "key": "PL-11007",
+      "resolved": "2025-12-24",
+      "status": "Released",
+      "tables": 9,
+      "title": "[VNP_paylater][Installment] - API get-installment-transactions"
+    },
+    {
+      "key": "PL-11009",
+      "resolved": "2025-12-24",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VNP_paylater][Installment] - API get-installment-eligible"
+    },
+    {
+      "key": "PL-11011",
+      "resolved": "2025-12-24",
+      "status": "Released",
+      "tables": 5,
+      "title": "[VNP_paylater][Installment] - API get-installment-offering-list"
+    },
+    {
+      "key": "PL-11013",
+      "resolved": "2025-12-24",
+      "status": "Released",
+      "tables": 12,
+      "title": "[VNP_paylater][Installment] - API installment-request"
+    },
+    {
+      "key": "PL-11015",
+      "resolved": "2025-12-24",
+      "status": "Released",
+      "tables": 12,
+      "title": "[VNP_paylater][Installment] - API challenge-get-otp"
+    },
+    {
+      "key": "PL-11017",
+      "resolved": "2025-12-24",
+      "status": "Released",
+      "tables": 6,
+      "title": "[VNP_paylater][Installment] - API challenge-verify-otp"
+    },
+    {
+      "key": "PL-11019",
+      "resolved": "2025-12-24",
+      "status": "Released",
+      "tables": 10,
+      "title": "[VNP_paylater][Installment] - API installment-confirm"
+    },
+    {
+      "key": "PL-10539",
+      "resolved": "2025-11-21",
+      "status": "Released",
+      "tables": 7,
+      "title": "[Core][Paylater] - Cơ chế lưu lịch sử trả góp"
+    },
+    {
+      "key": "PL-10076",
+      "resolved": "2025-09-22",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Many Paylater] - Điều chỉnh MAD về 5%"
+    },
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    },
+    {
+      "key": "PL-9680",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 0,
+      "title": "MWG - PayLater - QTV - Tạo phí sub hàng tháng khi có dư nợ"
+    },
+    {
+      "key": "PL-9423",
+      "resolved": "2025-07-10",
+      "status": "Released",
+      "tables": 0,
+      "title": "[CORE-PL] - Update logic terminate "
+    },
+    {
+      "key": "PL-4662",
+      "resolved": "2025-06-10",
+      "status": "Released",
+      "tables": 6,
+      "title": "[CAK-PL][Portal] - Lock/unlock Paylater from KYC detail screen"
+    },
+    {
+      "key": "PL-6313",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update app display for Write-off accounts"
+    },
+    {
+      "key": "PL-6885",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update APIs value for Write-off accounts"
+    },
+    {
+      "key": "PL-6879",
+      "resolved": "2024-12-02",
+      "status": "Released",
+      "tables": 6,
+      "title": "[Lending][ALL] - Thay đổi template HĐTD cho Savis - bổ sung"
+    },
+    {
+      "key": "PL-5832",
+      "resolved": "2024-11-27",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Lending][DOP] - Onboarding ETB reKYC internal"
+    },
+    {
+      "key": "PL-5656",
+      "resolved": "2024-10-08",
+      "status": "Released",
+      "tables": 7,
+      "title": "[VNP-CL][API] - Callback update status from LMS to Vnpay"
+    },
+    {
+      "key": "PL-5673",
+      "resolved": "2024-10-08",
+      "status": "Released",
+      "tables": 11,
+      "title": "[FPT-PL] Onboarding API"
+    },
+    {
+      "key": "PL-4642",
+      "resolved": "2024-09-11",
+      "status": "Done",
+      "tables": 4,
+      "title": "[Lending][VNP-PL] - [PORTAL] - [MOBILE APP] Portal & Cake app for VNP Paylater"
+    },
+    {
+      "key": "PL-4946",
+      "resolved": "2024-09-09",
+      "status": "Released",
+      "tables": 4,
+      "title": "[VNP-PL][API] - Repayment request"
+    },
+    {
+      "key": "PL-4947",
+      "resolved": "2024-09-09",
+      "status": "Released",
+      "tables": 9,
+      "title": "[VNP-PL][API] - Loan information"
+    },
+    {
+      "key": "PL-4948",
+      "resolved": "2024-09-09",
+      "status": "Released",
+      "tables": 7,
+      "title": "[VNP-PL][API] - Services payment update & revert"
+    },
+    {
+      "key": "PL-4952",
+      "resolved": "2024-09-09",
+      "status": "Released",
+      "tables": 5,
+      "title": "[VNP-PL][API] - Services payment process"
+    },
+    {
+      "key": "PL-4955",
+      "resolved": "2024-09-09",
+      "status": "Released",
+      "tables": 5,
+      "title": "[VNP-PL][API] - Create eSign contract"
+    },
+    {
+      "key": "PL-5011",
+      "resolved": "2024-09-09",
+      "status": "Released",
+      "tables": 13,
+      "title": "[VNP-PL][DOP] - NTB Onboarding Process"
+    },
+    {
+      "key": "PL-5032",
+      "resolved": "2024-09-09",
+      "status": "Released",
+      "tables": 7,
+      "title": "[VNP-PL][APP] - Loan listing"
+    },
+    {
+      "key": "PL-5038",
+      "resolved": "2024-09-09",
+      "status": "Released",
+      "tables": 13,
+      "title": "[VNP-PL][APP] - Loan detail & repayment information"
+    },
+    {
+      "key": "PL-5044",
+      "resolved": "2024-09-09",
+      "status": "Released",
+      "tables": 7,
+      "title": "[VNP-PL][APP] - Repayment and Transaction history"
+    },
+    {
+      "key": "PL-5052",
+      "resolved": "2024-09-09",
+      "status": "Released",
+      "tables": 13,
+      "title": "[VNP-PL][DOP] - ETB Onboarding Process"
+    },
+    {
+      "key": "PL-5054",
+      "resolved": "2024-09-09",
+      "status": "Released",
+      "tables": 4,
+      "title": "[VNP-PL][API] - Create API allow DOP to get status on LMS"
+    },
+    {
+      "key": "PL-5069",
+      "resolved": "2024-09-09",
+      "status": "Released",
+      "tables": 4,
+      "title": "[VNP-PL][API] - Create API allow VNP to get statement"
+    },
+    {
+      "key": "PL-5359",
+      "resolved": "2024-09-09",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VNP-PL][Core] - Disbursement with Interest"
+    },
+    {
+      "key": "PL-5363",
+      "resolved": "2024-09-09",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VNP-PL][Core] - Monthly + Late fee"
+    },
+    {
+      "key": "PL-5414",
+      "resolved": "2024-09-09",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VNP-PL][Core] - Interest calculation"
+    },
+    {
+      "key": "PL-4963",
+      "resolved": "2024-09-06",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VNP-PL][Portal] - Config display image in the Image center"
+    },
+    {
+      "key": "PL-4964",
+      "resolved": "2024-09-06",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VNP-PL][Portal] - Config recording eKYC log in the Profile detail"
+    },
+    {
+      "key": "PL-5041",
+      "resolved": "2024-09-06",
+      "status": "Released",
+      "tables": 9,
+      "title": "[VNP-PL][APP] - Terminate contract"
+    },
+    {
+      "key": "PL-5067",
+      "resolved": "2024-09-06",
+      "status": "Released",
+      "tables": 4,
+      "title": "[VNP-PL][API] - Create API allow VNP to get transaction history"
+    }
+  ],
+  "VNP_payday": [
+    {
+      "key": "PL-13808",
+      "resolved": "2026-08-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[All Product]  Sản phẩm luồng D.O.P: Điều chỉnh trường thông tin trên Hợp Đồng "
+    },
+    {
+      "key": "PL-12708",
+      "resolved": "2026-06-11",
+      "status": "Released",
+      "tables": 0,
+      "title": "[CL-PD] Điều chỉnh điều kiện thu nhập kê khai tối thiểu từ 5 triệu"
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11381",
+      "resolved": "2025-12-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "[E-Contract] - Update field API SubmitContract"
+    },
+    {
+      "key": "PL-11219",
+      "resolved": "2025-12-23",
+      "status": "Released",
+      "tables": 9,
+      "title": "[VPO_cl_pension] - Create precheck"
+    },
+    {
+      "key": "PL-10841",
+      "resolved": "2025-12-15",
+      "status": "Released",
+      "tables": 13,
+      "title": "[Precheck] - Migrate 2 sản phẩm payroll sang Precheck v2"
+    },
+    {
+      "key": "PL-11271",
+      "resolved": "2025-12-10",
+      "status": "Released",
+      "tables": 2,
+      "title": "[VNP_payday] - Điều chỉnh requested amount của sản phẩm"
+    },
+    {
+      "key": "PL-11143",
+      "resolved": "2025-11-27",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VNHUB_cashloan] - Điều chỉnh Precheck"
+    },
+    {
+      "key": "PL-9851",
+      "resolved": "2025-10-13",
+      "status": "Released",
+      "tables": 5,
+      "title": "[ZLP-PD][API] get-loan-detail"
+    },
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    }
+  ],
+  "Be_Cashloan": [
+    {
+      "key": "PL-14078",
+      "resolved": "2026-09-15",
+      "status": "Released",
+      "tables": 0,
+      "title": "Be_Cashloan Điều chỉnh UI trên luồng ký HĐ"
+    },
+    {
+      "key": "PL-13946",
+      "resolved": "2026-09-03",
+      "status": "Released",
+      "tables": 12,
+      "title": "Be_Cashloan - Đổi các product_code sang be score v2"
+    },
+    {
+      "key": "PL-13808",
+      "resolved": "2026-08-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[All Product]  Sản phẩm luồng D.O.P: Điều chỉnh trường thông tin trên Hợp Đồng "
+    },
+    {
+      "key": "PL-12758",
+      "resolved": "2026-06-24",
+      "status": "Released",
+      "tables": 14,
+      "title": "Product management tool"
+    },
+    {
+      "key": "PL-12415",
+      "resolved": "2026-06-12",
+      "status": "Released",
+      "tables": 0,
+      "title": "Cashloan — Migrate termination fee calculation and GL from LMS/Mambu to ICE"
+    },
+    {
+      "key": "PL-12708",
+      "resolved": "2026-06-11",
+      "status": "Released",
+      "tables": 0,
+      "title": "[CL-PD] Điều chỉnh điều kiện thu nhập kê khai tối thiểu từ 5 triệu"
+    },
+    {
+      "key": "PL-12827",
+      "resolved": "2026-06-01",
+      "status": "Released",
+      "tables": 0,
+      "title": "BE_cashloan Config Điều chỉnh requested amount"
+    },
+    {
+      "key": "PL-11886",
+      "resolved": "2026-03-12",
+      "status": "Released",
+      "tables": 2,
+      "title": "[VDS_cashloan] - Điều chỉnh max request limit"
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11381",
+      "resolved": "2025-12-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "[E-Contract] - Update field API SubmitContract"
+    },
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    },
+    {
+      "key": "PL-9170",
+      "resolved": "2025-07-22",
+      "status": "Released",
+      "tables": 2,
+      "title": "All Product - Đổi Scheme tất toán (8% trươc 3 tháng và 5% sau 3 tháng)"
+    },
+    {
+      "key": "PL-6313",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update app display for Write-off accounts"
+    },
+    {
+      "key": "PL-6885",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update APIs value for Write-off accounts"
+    },
+    {
+      "key": "PL-6879",
+      "resolved": "2024-12-02",
+      "status": "Released",
+      "tables": 6,
+      "title": "[Lending][ALL] - Thay đổi template HĐTD cho Savis - bổ sung"
+    },
+    {
+      "key": "PL-5832",
+      "resolved": "2024-11-27",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Lending][DOP] - Onboarding ETB reKYC internal"
+    },
+    {
+      "key": "PL-6485",
+      "resolved": "2024-11-07",
+      "status": "Released",
+      "tables": 1,
+      "title": "[DOP] - Check box mua bảo hiểm OPES"
+    },
+    {
+      "key": "PL-6490",
+      "resolved": "2024-11-01",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Lending] - Create & Store \\\"Form cam kết của khách hàng\\\" cho CakeCL, BeCL, VDS LP, NGS CL"
+    },
+    {
+      "key": "PL-6405",
+      "resolved": "2024-10-29",
+      "status": "Released",
+      "tables": 3,
+      "title": "[Lending][DOP] - Điều chỉnh hiển thị mã lỗi generic "
+    },
+    {
+      "key": "PL-5762",
+      "resolved": "2024-10-16",
+      "status": "Done",
+      "tables": 0,
+      "title": "[CAK-EC] - Update E-contract template 21/08/2024"
+    },
+    {
+      "key": "PL-5646",
+      "resolved": "2024-10-08",
+      "status": "Released",
+      "tables": 9,
+      "title": "[VNP-CL][DOP] - NTB Onboarding process"
+    },
+    {
+      "key": "PL-5842",
+      "resolved": "2024-10-08",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VNP-CL][API] - DOP Vnpay intergration pre-check"
+    },
+    {
+      "key": "PL-5873",
+      "resolved": "2024-10-08",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][DOP] - Bổ sung warning message sản phảm bảo hiểm"
+    },
+    {
+      "key": "PL-5807",
+      "resolved": "2024-10-02",
+      "status": "Released",
+      "tables": 1,
+      "title": "[VDS-XSUS] Điều chỉnh rule deduplicate tại check-profile"
+    },
+    {
+      "key": "PL-5426",
+      "resolved": "2024-09-09",
+      "status": "Released",
+      "tables": 1,
+      "title": "[BE-CL] - Pre-check information and product policy"
+    },
+    {
+      "key": "PL-5233",
+      "resolved": "2024-09-04",
+      "status": "Released",
+      "tables": 1,
+      "title": "[DOP] - Luồng bán chéo bảo hiểm tín dụng"
+    },
+    {
+      "key": "PL-5184",
+      "resolved": "2024-08-13",
+      "status": "Released",
+      "tables": 0,
+      "title": "[BE-CL] - Update contract template"
+    },
+    {
+      "key": "PL-5229",
+      "resolved": "2024-08-02",
+      "status": "Released",
+      "tables": 0,
+      "title": "[CL-ALL][DOP] - Thay đổi đường dẫn T&C bảo hiểm"
+    },
+    {
+      "key": "PL-5240",
+      "resolved": "2024-07-31",
+      "status": "Released",
+      "tables": 4,
+      "title": "[Cashloan][Core] Bỏ điều kiện tất toán trước hạn"
+    }
+  ],
+  "BE_payday": [
+    {
+      "key": "PL-13808",
+      "resolved": "2026-08-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[All Product]  Sản phẩm luồng D.O.P: Điều chỉnh trường thông tin trên Hợp Đồng "
+    },
+    {
+      "key": "PL-12940",
+      "resolved": "2026-07-24",
+      "status": "Done",
+      "tables": 13,
+      "title": "BE_payday - Vay ngắn ngày BeGroup"
+    },
+    {
+      "key": "PL-13050",
+      "resolved": "2026-07-07",
+      "status": "Released",
+      "tables": 19,
+      "title": "BE_payday - Setup product code và cấu hình tài chính"
+    },
+    {
+      "key": "PL-13053",
+      "resolved": "2026-07-07",
+      "status": "Released",
+      "tables": 6,
+      "title": "BE_payday - API generate-webview/onboarding"
+    },
+    {
+      "key": "PL-13055",
+      "resolved": "2026-07-07",
+      "status": "Released",
+      "tables": 10,
+      "title": "BE_payday - Onboarding: OTP, eKYC & Submit loan"
+    },
+    {
+      "key": "PL-13051",
+      "resolved": "2026-07-06",
+      "status": "Released",
+      "tables": 4,
+      "title": "BE_payday - Disbursement + GL"
+    },
+    {
+      "key": "PL-13074",
+      "resolved": "2026-07-04",
+      "status": "Released",
+      "tables": 5,
+      "title": "BE_payday - API get-loan-detail"
+    },
+    {
+      "key": "PL-13064",
+      "resolved": "2026-07-03",
+      "status": "Released",
+      "tables": 6,
+      "title": "BE_payday - API partner-update-status"
+    },
+    {
+      "key": "PL-13066",
+      "resolved": "2026-07-03",
+      "status": "Released",
+      "tables": 3,
+      "title": "BE_payday - Portal CakeTask processing"
+    }
+  ],
+  "BE_paylater": [
+    {
+      "key": "PL-12911",
+      "resolved": "2026-07-09",
+      "status": "Released",
+      "tables": 4,
+      "title": "MWG_paylater - Giới hạn giao dịch rút tiền mặt"
+    },
+    {
+      "key": "PL-12759",
+      "resolved": "2026-06-12",
+      "status": "Released",
+      "tables": 3,
+      "title": "[BE_paylater][LMS] - Bổ sung thêm flag nhận diện segment và dữ liệu về driver"
+    },
+    {
+      "key": "PL-12595",
+      "resolved": "2026-05-26",
+      "status": "Released",
+      "tables": 7,
+      "title": "[VDS PL] CĐTG - Tra cứu khoản trả góp"
+    },
+    {
+      "key": "PL-11749",
+      "resolved": "2026-03-25",
+      "status": "Released",
+      "tables": 9,
+      "title": "[BE_paylater][API] get-installment-detail"
+    },
+    {
+      "key": "PL-11739",
+      "resolved": "2026-03-24",
+      "status": "Released",
+      "tables": 0,
+      "title": "[product_id] Installment - Config policy"
+    },
+    {
+      "key": "PL-11741",
+      "resolved": "2026-03-24",
+      "status": "Released",
+      "tables": 3,
+      "title": "[BE_paylater][API] get-installment-eligible"
+    },
+    {
+      "key": "PL-11743",
+      "resolved": "2026-03-24",
+      "status": "Released",
+      "tables": 5,
+      "title": "[BE_paylater][API] get-installment-offering-list"
+    },
+    {
+      "key": "PL-11745",
+      "resolved": "2026-03-24",
+      "status": "Released",
+      "tables": 10,
+      "title": "[BE_paylater][API] installment-request"
+    },
+    {
+      "key": "PL-11747",
+      "resolved": "2026-03-24",
+      "status": "Released",
+      "tables": 7,
+      "title": "[BE_paylater][API] installment-confirm"
+    },
+    {
+      "key": "PL-11751",
+      "resolved": "2026-03-24",
+      "status": "Released",
+      "tables": 8,
+      "title": "[BE_paylater][API] get-installment-transactions"
+    },
+    {
+      "key": "PL-11803",
+      "resolved": "2026-03-24",
+      "status": "Released",
+      "tables": 12,
+      "title": "[BE_paylater][API] challenge-get-otp"
+    },
+    {
+      "key": "PL-11805",
+      "resolved": "2026-03-24",
+      "status": "Released",
+      "tables": 6,
+      "title": "[BE_installment][API] challenge-verify-otp"
+    },
+    {
+      "key": "PL-11539",
+      "resolved": "2026-03-02",
+      "status": "Released",
+      "tables": 4,
+      "title": "[BE_paylater] Thanh toán dư nợ qua mã QR VAN"
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11381",
+      "resolved": "2025-12-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "[E-Contract] - Update field API SubmitContract"
+    },
+    {
+      "key": "PL-11009",
+      "resolved": "2025-12-24",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VNP_paylater][Installment] - API get-installment-eligible"
+    },
+    {
+      "key": "PL-11077",
+      "resolved": "2025-12-10",
+      "status": "Released",
+      "tables": 1,
+      "title": "[BE][PL] - Update API payment-request"
+    },
+    {
+      "key": "PL-11078",
+      "resolved": "2025-12-10",
+      "status": "Released",
+      "tables": 1,
+      "title": "[BE][PL] - Update API payment-confirm"
+    },
+    {
+      "key": "PL-11079",
+      "resolved": "2025-12-10",
+      "status": "Released",
+      "tables": 4,
+      "title": "[BE][PL] - Add API challenge-get-otp"
+    },
+    {
+      "key": "PL-11080",
+      "resolved": "2025-12-10",
+      "status": "Released",
+      "tables": 4,
+      "title": "[BE][PL] - Add API challenge-verify-otp"
+    },
+    {
+      "key": "PL-10076",
+      "resolved": "2025-09-22",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Many Paylater] - Điều chỉnh MAD về 5%"
+    },
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    },
+    {
+      "key": "PL-9680",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 0,
+      "title": "MWG - PayLater - QTV - Tạo phí sub hàng tháng khi có dư nợ"
+    },
+    {
+      "key": "PL-9423",
+      "resolved": "2025-07-10",
+      "status": "Released",
+      "tables": 0,
+      "title": "[CORE-PL] - Update logic terminate "
+    },
+    {
+      "key": "PL-4662",
+      "resolved": "2025-06-10",
+      "status": "Released",
+      "tables": 6,
+      "title": "[CAK-PL][Portal] - Lock/unlock Paylater from KYC detail screen"
+    },
+    {
+      "key": "PL-8826",
+      "resolved": "2025-05-15",
+      "status": "Released",
+      "tables": 3,
+      "title": "[PL] Điều chỉnh config MIN + monthlyfee của các sản phẩm BE,VNP, FPT"
+    },
+    {
+      "key": "PL-8499",
+      "resolved": "2025-05-05",
+      "status": "Released",
+      "tables": 1,
+      "title": "[BE][PL] - Điều chỉnh config product policy + precheck"
+    },
+    {
+      "key": "PL-8019",
+      "resolved": "2025-03-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Be-PL] - Điều chỉnh thời gian cho phép refund giao dịch thành 90 ngày"
+    },
+    {
+      "key": "PL-6313",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update app display for Write-off accounts"
+    },
+    {
+      "key": "PL-6885",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update APIs value for Write-off accounts"
+    },
+    {
+      "key": "PL-5832",
+      "resolved": "2024-11-27",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Lending][DOP] - Onboarding ETB reKYC internal"
+    },
+    {
+      "key": "PL-6468",
+      "resolved": "2024-11-26",
+      "status": "Released",
+      "tables": 3,
+      "title": "[BE-PL][API] - Payment request & payment confirm API"
+    },
+    {
+      "key": "PL-6469",
+      "resolved": "2024-11-26",
+      "status": "Released",
+      "tables": 6,
+      "title": "[BE-PL][API] - Service payment update & revert"
+    },
+    {
+      "key": "PL-6711",
+      "resolved": "2024-11-26",
+      "status": "Released",
+      "tables": 3,
+      "title": "[BE-PL][API] - Callback update status from LMS via gateway"
+    },
+    {
+      "key": "PL-6661",
+      "resolved": "2024-11-18",
+      "status": "Released",
+      "tables": 7,
+      "title": "[Lending][ALL] - Thay đổi template HĐTD cho Savis"
+    },
+    {
+      "key": "PL-6839",
+      "resolved": "2024-11-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[BE][Paylater] Tăng hạn mức phê duyệt sản phẩm Be Paylater"
+    },
+    {
+      "key": "PL-5211",
+      "resolved": "2024-11-04",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Paylater] Thay đổi phí lateFee"
+    },
+    {
+      "key": "PL-6405",
+      "resolved": "2024-10-29",
+      "status": "Released",
+      "tables": 3,
+      "title": "[Lending][DOP] - Điều chỉnh hiển thị mã lỗi generic "
+    },
+    {
+      "key": "PL-5249",
+      "resolved": "2024-08-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Paylater] - Cơ chế cập nhật lãi suất cho nhiều tài khoản"
+    }
+  ],
+  "MISA_cashloan": [
+    {
+      "key": "PL-13947",
+      "resolved": "2026-09-03",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Giải ngân liên ngân hàng] - Điều chỉnh danh sách ngân hàng nhận giải ngân"
+    },
+    {
+      "key": "PL-13604",
+      "resolved": "2026-08-31",
+      "status": "Released",
+      "tables": 7,
+      "title": "Fiza payday - API Repayment VAN"
+    },
+    {
+      "key": "PL-13808",
+      "resolved": "2026-08-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[All Product]  Sản phẩm luồng D.O.P: Điều chỉnh trường thông tin trên Hợp Đồng "
+    },
+    {
+      "key": "PL-12415",
+      "resolved": "2026-06-12",
+      "status": "Released",
+      "tables": 0,
+      "title": "Cashloan — Migrate termination fee calculation and GL from LMS/Mambu to ICE"
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11381",
+      "resolved": "2025-12-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "[E-Contract] - Update field API SubmitContract"
+    },
+    {
+      "key": "PL-10360",
+      "resolved": "2025-11-24",
+      "status": "Released",
+      "tables": 1,
+      "title": "[MISA_cashloan][API] data-config"
+    },
+    {
+      "key": "PL-10362",
+      "resolved": "2025-11-24",
+      "status": "Released",
+      "tables": 4,
+      "title": "[MISA_cashloan][API] check-profile"
+    },
+    {
+      "key": "PL-10363",
+      "resolved": "2025-11-24",
+      "status": "Released",
+      "tables": 8,
+      "title": "[MISA_cashloan][API] client-create"
+    },
+    {
+      "key": "PL-10365",
+      "resolved": "2025-11-24",
+      "status": "Released",
+      "tables": 4,
+      "title": "[MISA_cashloan][API] client-update"
+    },
+    {
+      "key": "PL-10367",
+      "resolved": "2025-11-24",
+      "status": "Released",
+      "tables": 4,
+      "title": "[MISA_cashloan][API] loan-register"
+    },
+    {
+      "key": "PL-10369",
+      "resolved": "2025-11-24",
+      "status": "Released",
+      "tables": 3,
+      "title": "[MISA_cashloan][API] get-status"
+    },
+    {
+      "key": "PL-10371",
+      "resolved": "2025-11-24",
+      "status": "Released",
+      "tables": 10,
+      "title": "[MISA_cashloan][API] get-loan-detail"
+    },
+    {
+      "key": "PL-10373",
+      "resolved": "2025-11-24",
+      "status": "Released",
+      "tables": 2,
+      "title": "[MISA_cashloan][API partner] partner-update-status"
+    },
+    {
+      "key": "PL-10379",
+      "resolved": "2025-11-24",
+      "status": "Released",
+      "tables": 3,
+      "title": "[MISA_cashloan][API] get-esign"
+    },
+    {
+      "key": "PL-10381",
+      "resolved": "2025-11-24",
+      "status": "Released",
+      "tables": 3,
+      "title": "[MISA_cashloan][API] contract-cancel"
+    },
+    {
+      "key": "PL-10383",
+      "resolved": "2025-11-24",
+      "status": "Released",
+      "tables": 3,
+      "title": "[MISA_cashloan][API] get-otp"
+    },
+    {
+      "key": "PL-10385",
+      "resolved": "2025-11-24",
+      "status": "Released",
+      "tables": 5,
+      "title": "[MISA_cashloan][API] verify-esign"
+    },
+    {
+      "key": "PL-10389",
+      "resolved": "2025-11-24",
+      "status": "Released",
+      "tables": 4,
+      "title": "[MISA_cashloan][API] repayment-van"
+    },
+    {
+      "key": "PL-10391",
+      "resolved": "2025-11-24",
+      "status": "Released",
+      "tables": 3,
+      "title": "[MISA_cashloan][API] repayment-status"
+    },
+    {
+      "key": "PL-10574",
+      "resolved": "2025-11-24",
+      "status": "Released",
+      "tables": 12,
+      "title": "[MISA_cashloan][API] challenge-get-otp"
+    },
+    {
+      "key": "PL-10576",
+      "resolved": "2025-11-24",
+      "status": "Released",
+      "tables": 6,
+      "title": "[MISA_cashloan][API] challenge-verify-otp"
+    },
+    {
+      "key": "PL-10649",
+      "resolved": "2025-11-24",
+      "status": "Released",
+      "tables": 7,
+      "title": "[MISA_cashloan][App] Sign & Loan management"
+    },
+    {
+      "key": "PL-10651",
+      "resolved": "2025-11-24",
+      "status": "Released",
+      "tables": 3,
+      "title": "[MISA_cashloan][App] Repayment transaction history"
+    }
+  ],
+  "MWG_cashloan": [
+    {
+      "key": "PL-13808",
+      "resolved": "2026-08-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[All Product]  Sản phẩm luồng D.O.P: Điều chỉnh trường thông tin trên Hợp Đồng "
+    },
+    {
+      "key": "PL-13234",
+      "resolved": "2026-07-06",
+      "status": "Released",
+      "tables": 1,
+      "title": "MWG_cashloan - Điều chỉnh nội dung SMS đến KH sau khi phê duyệt và giải ngân"
+    },
+    {
+      "key": "PL-12415",
+      "resolved": "2026-06-12",
+      "status": "Released",
+      "tables": 0,
+      "title": "Cashloan — Migrate termination fee calculation and GL from LMS/Mambu to ICE"
+    },
+    {
+      "key": "PL-12228",
+      "resolved": "2026-04-08",
+      "status": "Released",
+      "tables": 1,
+      "title": "[MWG_cl_online][API partner] partner-update-status"
+    },
+    {
+      "key": "PL-12086",
+      "resolved": "2026-04-07",
+      "status": "Released",
+      "tables": 1,
+      "title": "[MWG_cashloan] - Điều chỉnh phí bảo hiểm cho nhóm Salary Segment từ 5% - 7%"
+    },
+    {
+      "key": "PL-11952",
+      "resolved": "2026-03-25",
+      "status": "Released",
+      "tables": 3,
+      "title": "[MWG_cl_online][Web] Webview Repayment VAN"
+    },
+    {
+      "key": "PL-11494",
+      "resolved": "2026-02-04",
+      "status": "Released",
+      "tables": 12,
+      "title": "[MWG-CL] - POS Salary segment"
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11381",
+      "resolved": "2025-12-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "[E-Contract] - Update field API SubmitContract"
+    },
+    {
+      "key": "PL-11435",
+      "resolved": "2025-12-29",
+      "status": "Released",
+      "tables": 0,
+      "title": "[MWG_cashloan][API partner] partner-status-update filter QTV"
+    },
+    {
+      "key": "PL-11060",
+      "resolved": "2025-12-10",
+      "status": "Released",
+      "tables": 1,
+      "title": "[MWG_cashloan][API partner] partner-status-update"
+    },
+    {
+      "key": "PL-10554",
+      "resolved": "2025-10-28",
+      "status": "Released",
+      "tables": 0,
+      "title": "[MWG-CL] - Nâng hạn mức MWG-CL lên 50 triệu"
+    },
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9956",
+      "resolved": "2025-09-04",
+      "status": "Released",
+      "tables": 4,
+      "title": "[Cashloan] - Điều chỉnh giới hạn số tiền và thời hạn vay"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    },
+    {
+      "key": "PL-9170",
+      "resolved": "2025-07-22",
+      "status": "Released",
+      "tables": 2,
+      "title": "All Product - Đổi Scheme tất toán (8% trươc 3 tháng và 5% sau 3 tháng)"
+    },
+    {
+      "key": "PL-6313",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update app display for Write-off accounts"
+    },
+    {
+      "key": "PL-6885",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update APIs value for Write-off accounts"
+    },
+    {
+      "key": "PL-5832",
+      "resolved": "2024-11-27",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Lending][DOP] - Onboarding ETB reKYC internal"
+    },
+    {
+      "key": "PL-6661",
+      "resolved": "2024-11-18",
+      "status": "Released",
+      "tables": 7,
+      "title": "[Lending][ALL] - Thay đổi template HĐTD cho Savis"
+    },
+    {
+      "key": "PL-6729",
+      "resolved": "2024-11-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Lending] - Create & Store \\\"Form cam kết của khách hàng\\\" cho các MWG-CL, VDS PD, VNP-CL, VDS-CL, VDS-Bikeloan"
+    },
+    {
+      "key": "PL-6485",
+      "resolved": "2024-11-07",
+      "status": "Released",
+      "tables": 1,
+      "title": "[DOP] - Check box mua bảo hiểm OPES"
+    },
+    {
+      "key": "PL-6405",
+      "resolved": "2024-10-29",
+      "status": "Released",
+      "tables": 3,
+      "title": "[Lending][DOP] - Điều chỉnh hiển thị mã lỗi generic "
+    }
+  ],
+  "MWG_cl_online": [
+    {
+      "key": "PL-13947",
+      "resolved": "2026-09-03",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Giải ngân liên ngân hàng] - Điều chỉnh danh sách ngân hàng nhận giải ngân"
+    },
+    {
+      "key": "PL-13808",
+      "resolved": "2026-08-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[All Product]  Sản phẩm luồng D.O.P: Điều chỉnh trường thông tin trên Hợp Đồng "
+    },
+    {
+      "key": "PL-12415",
+      "resolved": "2026-06-12",
+      "status": "Released",
+      "tables": 0,
+      "title": "Cashloan — Migrate termination fee calculation and GL from LMS/Mambu to ICE"
+    },
+    {
+      "key": "PL-12228",
+      "resolved": "2026-04-08",
+      "status": "Released",
+      "tables": 1,
+      "title": "[MWG_cl_online][API partner] partner-update-status"
+    },
+    {
+      "key": "PL-12230",
+      "resolved": "2026-04-06",
+      "status": "Released",
+      "tables": 5,
+      "title": "[MWG_cl_online][API] get-status"
+    },
+    {
+      "key": "PL-11810",
+      "resolved": "2026-03-28",
+      "status": "Released",
+      "tables": 13,
+      "title": "[MWG_cl_online][DOP] Onboarding DOP"
+    },
+    {
+      "key": "PL-11952",
+      "resolved": "2026-03-25",
+      "status": "Released",
+      "tables": 3,
+      "title": "[MWG_cl_online][Web] Webview Repayment VAN"
+    },
+    {
+      "key": "PL-11813",
+      "resolved": "2026-03-24",
+      "status": "Released",
+      "tables": 5,
+      "title": "[MWG_cl_online][API] generate-webview/onboarding"
+    },
+    {
+      "key": "PL-11837",
+      "resolved": "2026-03-24",
+      "status": "Released",
+      "tables": 3,
+      "title": "[MWG_cl_online][App] Terminate loan"
+    },
+    {
+      "key": "PL-11841",
+      "resolved": "2026-03-24",
+      "status": "Released",
+      "tables": 3,
+      "title": "[MWG_cl_online][App] Repayment transaction history"
+    },
+    {
+      "key": "PL-11843",
+      "resolved": "2026-03-24",
+      "status": "Released",
+      "tables": 3,
+      "title": "[MWG_cl_online][Portal] Allow process CakeTask on Cake portal"
+    },
+    {
+      "key": "PL-11924",
+      "resolved": "2026-03-24",
+      "status": "Released",
+      "tables": 4,
+      "title": "[MWG_cl_online][API] generate-webview/loan-detail"
+    }
+  ],
+  "MWG_paylater": [
+    {
+      "key": "PL-13947",
+      "resolved": "2026-09-03",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Giải ngân liên ngân hàng] - Điều chỉnh danh sách ngân hàng nhận giải ngân"
+    },
+    {
+      "key": "PL-14106",
+      "resolved": "2026-08-25",
+      "status": "Released",
+      "tables": 5,
+      "title": "MWG Paylater - Điều chỉnh số tiền đề nghị từ 40tr lên 60tr cho nhóm có partner_score_2 >= 3300"
+    },
+    {
+      "key": "PL-12920",
+      "resolved": "2026-08-19",
+      "status": "Released",
+      "tables": 13,
+      "title": "MWG_paylater - Thay đổi cho output của api get-loan-details"
+    },
+    {
+      "key": "PL-12911",
+      "resolved": "2026-07-09",
+      "status": "Released",
+      "tables": 4,
+      "title": "MWG_paylater - Giới hạn giao dịch rút tiền mặt"
+    },
+    {
+      "key": "PL-12338",
+      "resolved": "2026-06-23",
+      "status": "Released",
+      "tables": 3,
+      "title": "[Lending Pulse] - MVP2 enrich fields"
+    },
+    {
+      "key": "PL-12573",
+      "resolved": "2026-06-22",
+      "status": "Released",
+      "tables": 0,
+      "title": "VDS_paylater - CashWithdraw config GL"
+    },
+    {
+      "key": "PL-11535",
+      "resolved": "2026-04-22",
+      "status": "Released",
+      "tables": 0,
+      "title": "[MWG_paylater] CashWithdraw - Config rule"
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11496",
+      "resolved": "2026-01-19",
+      "status": "Released",
+      "tables": 2,
+      "title": "[MWG_paylater] Điều chỉnh loan management view"
+    },
+    {
+      "key": "PL-11330",
+      "resolved": "2026-01-06",
+      "status": "Released",
+      "tables": 4,
+      "title": "[MWG_paylater] - Điều chỉnh loan management view"
+    },
+    {
+      "key": "PL-11381",
+      "resolved": "2025-12-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "[E-Contract] - Update field API SubmitContract"
+    },
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    },
+    {
+      "key": "PL-9680",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 0,
+      "title": "MWG - PayLater - QTV - Tạo phí sub hàng tháng khi có dư nợ"
+    },
+    {
+      "key": "PL-9708",
+      "resolved": "2025-08-18",
+      "status": "Released",
+      "tables": 3,
+      "title": "[PL][CORE] - ICE - API response"
+    },
+    {
+      "key": "PL-9071",
+      "resolved": "2025-07-14",
+      "status": "Released",
+      "tables": 6,
+      "title": "[Cake-PD] - ETB onboarding on app Cake"
+    },
+    {
+      "key": "PL-9423",
+      "resolved": "2025-07-10",
+      "status": "Released",
+      "tables": 0,
+      "title": "[CORE-PL] - Update logic terminate "
+    },
+    {
+      "key": "PL-9061",
+      "resolved": "2025-06-24",
+      "status": "Released",
+      "tables": 0,
+      "title": "[DOP] - Điều chỉnh HĐTD"
+    },
+    {
+      "key": "PL-9064",
+      "resolved": "2025-06-23",
+      "status": "Released",
+      "tables": 3,
+      "title": "[MWG-PL][QTV] - QR repayment using VAN"
+    },
+    {
+      "key": "PL-9086",
+      "resolved": "2025-06-13",
+      "status": "Released",
+      "tables": 0,
+      "title": "[MWG-PL][QTV] - Điều chỉnh nhận diện thương hiệu"
+    },
+    {
+      "key": "PL-4662",
+      "resolved": "2025-06-10",
+      "status": "Released",
+      "tables": 6,
+      "title": "[CAK-PL][Portal] - Lock/unlock Paylater from KYC detail screen"
+    },
+    {
+      "key": "PL-7863",
+      "resolved": "2025-03-07",
+      "status": "Released",
+      "tables": 0,
+      "title": "[CAKE-CL][MWG-PL] Điều chỉnh session expired time to 3 days"
+    },
+    {
+      "key": "PL-7891",
+      "resolved": "2025-02-13",
+      "status": "Released",
+      "tables": 0,
+      "title": "[MWG-PL] - Limit hạn mức giao dịch quét QR payment <= 3M "
+    },
+    {
+      "key": "PL-6811",
+      "resolved": "2025-02-12",
+      "status": "Done",
+      "tables": 0,
+      "title": "[MWG-PL] Core bank config"
+    },
+    {
+      "key": "PL-6813",
+      "resolved": "2024-12-25",
+      "status": "Done",
+      "tables": 0,
+      "title": "[MWG-PL] Portal Config "
+    },
+    {
+      "key": "PL-7315",
+      "resolved": "2024-12-24",
+      "status": "Released",
+      "tables": 37,
+      "title": "[MWG-PL] Add configuration for whitelisting partner_service_code on STG"
+    },
+    {
+      "key": "PL-6313",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update app display for Write-off accounts"
+    },
+    {
+      "key": "PL-6885",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update APIs value for Write-off accounts"
+    },
+    {
+      "key": "PL-6838",
+      "resolved": "2024-12-17",
+      "status": "Released",
+      "tables": 2,
+      "title": "[MWG-PL][API] - Pre-check information & product policy"
+    },
+    {
+      "key": "PL-6843",
+      "resolved": "2024-12-17",
+      "status": "Released",
+      "tables": 11,
+      "title": "[MWG-PL] ETB onboarding user"
+    },
+    {
+      "key": "PL-6850",
+      "resolved": "2024-12-17",
+      "status": "Released",
+      "tables": 0,
+      "title": "[MWG-PL][PORTAL] - Config display image in the Image center"
+    },
+    {
+      "key": "PL-6851",
+      "resolved": "2024-12-17",
+      "status": "Released",
+      "tables": 0,
+      "title": "[MWG-PL][PORTAL] - Config recording eKYC log in the Profile detail"
+    },
+    {
+      "key": "PL-6865",
+      "resolved": "2024-12-17",
+      "status": "Released",
+      "tables": 9,
+      "title": "[MWG-PL] Loan details + Repayment"
+    },
+    {
+      "key": "PL-6873",
+      "resolved": "2024-12-17",
+      "status": "Released",
+      "tables": 22,
+      "title": "[MWG-PL] Scan QR to pay for MWG order"
+    },
+    {
+      "key": "PL-6882",
+      "resolved": "2024-12-17",
+      "status": "Released",
+      "tables": 3,
+      "title": "[MWG-PL][API] Get Loan Detail"
+    },
+    {
+      "key": "PL-6892",
+      "resolved": "2024-12-17",
+      "status": "Released",
+      "tables": 3,
+      "title": "[MWG-PL][API] Revert transaction"
+    },
+    {
+      "key": "PL-6936",
+      "resolved": "2024-12-17",
+      "status": "Released",
+      "tables": 0,
+      "title": "[MWG-PL][API] Update payment status"
+    },
+    {
+      "key": "PL-6956",
+      "resolved": "2024-12-17",
+      "status": "Released",
+      "tables": 0,
+      "title": "[MWG-PL][Core] GL Config"
+    },
+    {
+      "key": "PL-5832",
+      "resolved": "2024-11-27",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Lending][DOP] - Onboarding ETB reKYC internal"
+    }
+  ],
+  "MWG_payday": [
+    {
+      "key": "PL-13947",
+      "resolved": "2026-09-03",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Giải ngân liên ngân hàng] - Điều chỉnh danh sách ngân hàng nhận giải ngân"
+    },
+    {
+      "key": "PL-10318",
+      "resolved": "2026-08-22",
+      "status": "Done",
+      "tables": 9,
+      "title": "[KLP_cashloan] Triển khai sản phẩm Kalapa cashloan"
+    },
+    {
+      "key": "PL-13808",
+      "resolved": "2026-08-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[All Product]  Sản phẩm luồng D.O.P: Điều chỉnh trường thông tin trên Hợp Đồng "
+    },
+    {
+      "key": "PL-12919",
+      "resolved": "2026-06-10",
+      "status": "Released",
+      "tables": 0,
+      "title": "MWG_payday - Điều chỉnh tăng max request amount"
+    },
+    {
+      "key": "PL-12554",
+      "resolved": "2026-05-25",
+      "status": "Released",
+      "tables": 6,
+      "title": "MWG_payday - Portal allow process CakeTask on Cake portal"
+    },
+    {
+      "key": "PL-12256",
+      "resolved": "2026-05-11",
+      "status": "Released",
+      "tables": 1,
+      "title": "MWG_payday - [Setup] Tạo product code QTVPD01 và QTVPD02 trên hệ thống"
+    },
+    {
+      "key": "PL-12271",
+      "resolved": "2026-05-11",
+      "status": "Released",
+      "tables": 3,
+      "title": "MWG_payday - API generate-webview/onboarding"
+    },
+    {
+      "key": "PL-12276",
+      "resolved": "2026-05-11",
+      "status": "Released",
+      "tables": 4,
+      "title": "MWG_payday - API generate-webview/loan-detail"
+    },
+    {
+      "key": "PL-12303",
+      "resolved": "2026-05-11",
+      "status": "Released",
+      "tables": 5,
+      "title": "MWG_payday - API get-status"
+    },
+    {
+      "key": "PL-12305",
+      "resolved": "2026-05-11",
+      "status": "Released",
+      "tables": 2,
+      "title": "MWG_payday - API partner-update-status"
+    }
+  ],
+  "KLP_cashloan": [
+    {
+      "key": "PL-10318",
+      "resolved": "2026-08-22",
+      "status": "Done",
+      "tables": 9,
+      "title": "[KLP_cashloan] Triển khai sản phẩm Kalapa cashloan"
+    },
+    {
+      "key": "PL-13102",
+      "resolved": "2026-07-20",
+      "status": "Released",
+      "tables": 0,
+      "title": "Điều chỉnh màn hình kết thúc session vay trên DOP"
+    },
+    {
+      "key": "PL-12415",
+      "resolved": "2026-06-12",
+      "status": "Released",
+      "tables": 0,
+      "title": "Cashloan — Migrate termination fee calculation and GL from LMS/Mambu to ICE"
+    },
+    {
+      "key": "PL-12642",
+      "resolved": "2026-06-08",
+      "status": "Released",
+      "tables": 6,
+      "title": "KLP_cashloan - API generate-webview/onboarding"
+    },
+    {
+      "key": "PL-12654",
+      "resolved": "2026-06-08",
+      "status": "Released",
+      "tables": 4,
+      "title": "KLP_cashloan - API partner-update-status"
+    },
+    {
+      "key": "PL-12665",
+      "resolved": "2026-06-08",
+      "status": "Released",
+      "tables": 3,
+      "title": "KLP_cashloan - Repayment"
+    },
+    {
+      "key": "PL-12699",
+      "resolved": "2026-06-08",
+      "status": "Released",
+      "tables": 1,
+      "title": "KLP_cashloan - Terminate (Tất toán trước hạn)"
+    },
+    {
+      "key": "PL-12702",
+      "resolved": "2026-06-08",
+      "status": "Released",
+      "tables": 4,
+      "title": "KLP_cashloan - [Portal] Allow process CakeTask on Cake portal"
+    }
+  ],
+  "VPO_cashloan": [
+    {
+      "key": "PL-13808",
+      "resolved": "2026-08-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[All Product]  Sản phẩm luồng D.O.P: Điều chỉnh trường thông tin trên Hợp Đồng "
+    },
+    {
+      "key": "PL-12825",
+      "resolved": "2026-07-06",
+      "status": "Released",
+      "tables": 12,
+      "title": "[SaleApp] Precheck for API check-profile"
+    },
+    {
+      "key": "PL-12415",
+      "resolved": "2026-06-12",
+      "status": "Released",
+      "tables": 0,
+      "title": "Cashloan — Migrate termination fee calculation and GL from LMS/Mambu to ICE"
+    },
+    {
+      "key": "PL-12708",
+      "resolved": "2026-06-11",
+      "status": "Released",
+      "tables": 0,
+      "title": "[CL-PD] Điều chỉnh điều kiện thu nhập kê khai tối thiểu từ 5 triệu"
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11172",
+      "resolved": "2026-01-10",
+      "status": "Done",
+      "tables": 7,
+      "title": "[VPO_cl_pension] - Vay hưu trí"
+    },
+    {
+      "key": "PL-11381",
+      "resolved": "2025-12-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "[E-Contract] - Update field API SubmitContract"
+    },
+    {
+      "key": "PL-11252",
+      "resolved": "2025-12-23",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VPO_cashloan][DOP] Điều chỉnh optional sale_code"
+    },
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    },
+    {
+      "key": "PL-6451",
+      "resolved": "2024-11-28",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VNPOST-CL][Portal] - Config recording eKYC log in the profile detail"
+    },
+    {
+      "key": "PL-6452",
+      "resolved": "2024-11-28",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VNPOST-CL][Portal] - Config display image in the image center"
+    }
+  ],
+  "VPO_cl_pension": [
+    {
+      "key": "PL-13808",
+      "resolved": "2026-08-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[All Product]  Sản phẩm luồng D.O.P: Điều chỉnh trường thông tin trên Hợp Đồng "
+    },
+    {
+      "key": "PL-12825",
+      "resolved": "2026-07-06",
+      "status": "Released",
+      "tables": 12,
+      "title": "[SaleApp] Precheck for API check-profile"
+    },
+    {
+      "key": "PL-12918",
+      "resolved": "2026-07-06",
+      "status": "Released",
+      "tables": 2,
+      "title": "VPO_cl_pension - Điều chỉnh prefill và chặn ký hợp đồng"
+    },
+    {
+      "key": "PL-12415",
+      "resolved": "2026-06-12",
+      "status": "Released",
+      "tables": 0,
+      "title": "Cashloan — Migrate termination fee calculation and GL from LMS/Mambu to ICE"
+    },
+    {
+      "key": "PL-12708",
+      "resolved": "2026-06-11",
+      "status": "Released",
+      "tables": 0,
+      "title": "[CL-PD] Điều chỉnh điều kiện thu nhập kê khai tối thiểu từ 5 triệu"
+    },
+    {
+      "key": "PL-12894",
+      "resolved": "2026-06-08",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VPO_cl_pension][SalePortal] - Bỏ required loan amount ở API lưu hồ sơ offline"
+    },
+    {
+      "key": "PL-12435",
+      "resolved": "2026-05-14",
+      "status": "Released",
+      "tables": 9,
+      "title": "VPO_cl_pension - Config sản phẩm bảo hiểm và phí cho MVP 2.1"
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11557",
+      "resolved": "2026-01-14",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck][VPO_cl_pension] - Adhoc điều chỉnh rule precheck độ tuổi"
+    },
+    {
+      "key": "PL-11172",
+      "resolved": "2026-01-10",
+      "status": "Done",
+      "tables": 7,
+      "title": "[VPO_cl_pension] - Vay hưu trí"
+    },
+    {
+      "key": "PL-11204",
+      "resolved": "2025-12-23",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VPO_cl_pension][App] Terminate loan"
+    },
+    {
+      "key": "PL-11206",
+      "resolved": "2025-12-23",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VPO_cl_pension][App] Repayment transaction history"
+    },
+    {
+      "key": "PL-11219",
+      "resolved": "2025-12-23",
+      "status": "Released",
+      "tables": 9,
+      "title": "[VPO_cl_pension] - Create precheck"
+    },
+    {
+      "key": "PL-11252",
+      "resolved": "2025-12-23",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VPO_cashloan][DOP] Điều chỉnh optional sale_code"
+    },
+    {
+      "key": "PL-11057",
+      "resolved": "2025-12-22",
+      "status": "Released",
+      "tables": 4,
+      "title": "[VPO_cl_pension][SalePortal] - API lưu thông tin hồ sơ offline"
+    }
+  ],
+  "ZLP_cashloan": [
+    {
+      "key": "PL-13808",
+      "resolved": "2026-08-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[All Product]  Sản phẩm luồng D.O.P: Điều chỉnh trường thông tin trên Hợp Đồng "
+    },
+    {
+      "key": "PL-12758",
+      "resolved": "2026-06-24",
+      "status": "Released",
+      "tables": 14,
+      "title": "Product management tool"
+    },
+    {
+      "key": "PL-12415",
+      "resolved": "2026-06-12",
+      "status": "Released",
+      "tables": 0,
+      "title": "Cashloan — Migrate termination fee calculation and GL from LMS/Mambu to ICE"
+    },
+    {
+      "key": "PL-12533",
+      "resolved": "2026-05-08",
+      "status": "Released",
+      "tables": 4,
+      "title": "ZLP_cashloan - Điều chỉnh cho gói vay up to 70tr & 60 tháng"
+    },
+    {
+      "key": "PL-11623",
+      "resolved": "2026-03-25",
+      "status": "Released",
+      "tables": 7,
+      "title": "[CAKE_cashloan] Apply Upsell/Repeat"
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11312",
+      "resolved": "2026-01-20",
+      "status": "Released",
+      "tables": 4,
+      "title": "[Viettel_Cashloan] Điều chỉnh luồng nhận diện user segment"
+    },
+    {
+      "key": "PL-11490",
+      "resolved": "2026-01-19",
+      "status": "Released",
+      "tables": 3,
+      "title": "[ZLP_cashloan] Repeat/Upsell/Xsell và challenge_id"
+    },
+    {
+      "key": "PL-11381",
+      "resolved": "2025-12-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "[E-Contract] - Update field API SubmitContract"
+    },
+    {
+      "key": "PL-11219",
+      "resolved": "2025-12-23",
+      "status": "Released",
+      "tables": 9,
+      "title": "[VPO_cl_pension] - Create precheck"
+    },
+    {
+      "key": "PL-10841",
+      "resolved": "2025-12-15",
+      "status": "Released",
+      "tables": 13,
+      "title": "[Precheck] - Migrate 2 sản phẩm payroll sang Precheck v2"
+    },
+    {
+      "key": "PL-11065",
+      "resolved": "2025-11-27",
+      "status": "Released",
+      "tables": 0,
+      "title": "[ZLP-CL] - Điều chỉnh app ID khi gọi qua semi"
+    },
+    {
+      "key": "PL-11143",
+      "resolved": "2025-11-27",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VNHUB_cashloan] - Điều chỉnh Precheck"
+    },
+    {
+      "key": "PL-10335",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 4,
+      "title": "[ZLP-CL] - Bổ sung product_code vào API topup"
+    },
+    {
+      "key": "PL-10024",
+      "resolved": "2025-10-13",
+      "status": "Released",
+      "tables": 33,
+      "title": "[ZLP-CL] - Tách ekyc error code"
+    },
+    {
+      "key": "PL-9861",
+      "resolved": "2025-10-13",
+      "status": "Released",
+      "tables": 2,
+      "title": "[ZLP-PD][API partner] Update status"
+    },
+    {
+      "key": "PL-9960",
+      "resolved": "2025-09-29",
+      "status": "Released",
+      "tables": 5,
+      "title": "[ZLP-CL] - Cập nhật API check-profile thêm reject_code và reject_message"
+    },
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    },
+    {
+      "key": "PL-7441",
+      "resolved": "2025-03-18",
+      "status": "Released",
+      "tables": 5,
+      "title": "[ZLP-CL][API] Repayment-request | Repayment-confirm"
+    },
+    {
+      "key": "PL-7456",
+      "resolved": "2025-03-18",
+      "status": "Released",
+      "tables": 3,
+      "title": "[ZLP-CL][APP] Termination on Cake App"
+    },
+    {
+      "key": "PL-7462",
+      "resolved": "2025-03-18",
+      "status": "Released",
+      "tables": 4,
+      "title": "[ZLP-CL][APP] Repayment on Cake app"
+    },
+    {
+      "key": "PL-7466",
+      "resolved": "2025-03-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[ZLP-CL][PORTAL] Config display image in the Image center"
+    },
+    {
+      "key": "PL-7468",
+      "resolved": "2025-03-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[ZLP-CL][PORTAL] - Config recording eKYC log in the Profile detail"
+    }
+  ],
+  "ZLP_payday": [
+    {
+      "key": "PL-13590",
+      "resolved": "2026-09-03",
+      "status": "Released",
+      "tables": 3,
+      "title": "Fiza payday - API client-update"
+    },
+    {
+      "key": "PL-13592",
+      "resolved": "2026-08-31",
+      "status": "Released",
+      "tables": 4,
+      "title": "Fiza payday - API loan-register"
+    },
+    {
+      "key": "PL-13604",
+      "resolved": "2026-08-31",
+      "status": "Released",
+      "tables": 7,
+      "title": "Fiza payday - API Repayment VAN"
+    },
+    {
+      "key": "PL-13808",
+      "resolved": "2026-08-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[All Product]  Sản phẩm luồng D.O.P: Điều chỉnh trường thông tin trên Hợp Đồng "
+    },
+    {
+      "key": "PL-13637",
+      "resolved": "2026-07-23",
+      "status": "Released",
+      "tables": 1,
+      "title": "ZLP payday - Off rule check bảo hiểm"
+    },
+    {
+      "key": "PL-11620",
+      "resolved": "2026-02-04",
+      "status": "Released",
+      "tables": 1,
+      "title": "[ZLP_payday] validate KH mua bảo hiểm"
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11381",
+      "resolved": "2025-12-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "[E-Contract] - Update field API SubmitContract"
+    },
+    {
+      "key": "PL-10335",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 4,
+      "title": "[ZLP-CL] - Bổ sung product_code vào API topup"
+    },
+    {
+      "key": "PL-9980",
+      "resolved": "2025-10-13",
+      "status": "Released",
+      "tables": 4,
+      "title": "[ZLP-PD][App] Sign & Loan management"
+    }
+  ],
+  "MBF_cashloan": [
+    {
+      "key": "PL-13808",
+      "resolved": "2026-08-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[All Product]  Sản phẩm luồng D.O.P: Điều chỉnh trường thông tin trên Hợp Đồng "
+    },
+    {
+      "key": "PL-12974",
+      "resolved": "2026-07-20",
+      "status": "Released",
+      "tables": 17,
+      "title": "MBF_cashloan - Setup product code & cấu hình tài chính"
+    },
+    {
+      "key": "PL-12975",
+      "resolved": "2026-07-20",
+      "status": "Released",
+      "tables": 4,
+      "title": "MBF_cashloan - API generate-webview/onboarding"
+    },
+    {
+      "key": "PL-13264",
+      "resolved": "2026-07-20",
+      "status": "Released",
+      "tables": 14,
+      "title": "MBF_cashloan - Onboarding DOP"
+    },
+    {
+      "key": "PL-13266",
+      "resolved": "2026-07-20",
+      "status": "Released",
+      "tables": 4,
+      "title": "MBF_cashloan - API callback partner-update-status"
+    },
+    {
+      "key": "PL-13268",
+      "resolved": "2026-07-20",
+      "status": "Released",
+      "tables": 5,
+      "title": "MBF_cashloan - API generate-webview/loan-detail"
+    },
+    {
+      "key": "PL-13270",
+      "resolved": "2026-07-20",
+      "status": "Released",
+      "tables": 10,
+      "title": "MBF_cashloan - API get-loan-detail"
+    },
+    {
+      "key": "PL-13279",
+      "resolved": "2026-07-20",
+      "status": "Released",
+      "tables": 3,
+      "title": "MBF_cashloan - Core Repayment"
+    },
+    {
+      "key": "PL-13291",
+      "resolved": "2026-07-20",
+      "status": "Released",
+      "tables": 3,
+      "title": "MBF_cashloan - App Terminate loan"
+    },
+    {
+      "key": "PL-13293",
+      "resolved": "2026-07-20",
+      "status": "Released",
+      "tables": 5,
+      "title": "MBF_cashloan - App Transaction history"
+    }
+  ],
+  "FIZA_payday": [
+    {
+      "key": "PL-13602",
+      "resolved": "2026-09-07",
+      "status": "Released",
+      "tables": 2,
+      "title": "Fiza payday - API callback partner-status-update"
+    },
+    {
+      "key": "PL-13590",
+      "resolved": "2026-09-03",
+      "status": "Released",
+      "tables": 3,
+      "title": "Fiza payday - API client-update"
+    },
+    {
+      "key": "PL-13613",
+      "resolved": "2026-09-03",
+      "status": "Released",
+      "tables": 10,
+      "title": "Fiza payday - Precheck"
+    },
+    {
+      "key": "PL-13623",
+      "resolved": "2026-09-03",
+      "status": "Released",
+      "tables": 10,
+      "title": "Fiza payday - Portal cake task"
+    },
+    {
+      "key": "PL-13947",
+      "resolved": "2026-09-03",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Giải ngân liên ngân hàng] - Điều chỉnh danh sách ngân hàng nhận giải ngân"
+    },
+    {
+      "key": "PL-13998",
+      "resolved": "2026-09-03",
+      "status": "Released",
+      "tables": 16,
+      "title": "VDS_payday - Tổng hợp các APIs"
+    },
+    {
+      "key": "PL-13586",
+      "resolved": "2026-08-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "Fiza payday - API data-config"
+    },
+    {
+      "key": "PL-13588",
+      "resolved": "2026-08-31",
+      "status": "Released",
+      "tables": 9,
+      "title": "Fiza payday - API client-create"
+    },
+    {
+      "key": "PL-13592",
+      "resolved": "2026-08-31",
+      "status": "Released",
+      "tables": 4,
+      "title": "Fiza payday - API loan-register"
+    },
+    {
+      "key": "PL-13598",
+      "resolved": "2026-08-31",
+      "status": "Released",
+      "tables": 4,
+      "title": "Fiza payday - API get-otp | verify-esign"
+    },
+    {
+      "key": "PL-13600",
+      "resolved": "2026-08-31",
+      "status": "Released",
+      "tables": 6,
+      "title": "Fiza payday - API get-loan-detail"
+    },
+    {
+      "key": "PL-13604",
+      "resolved": "2026-08-31",
+      "status": "Released",
+      "tables": 7,
+      "title": "Fiza payday - API Repayment VAN"
+    },
+    {
+      "key": "PL-13619",
+      "resolved": "2026-08-31",
+      "status": "Released",
+      "tables": 3,
+      "title": "Fiza payday - App Cake sign & management & repayment"
+    },
+    {
+      "key": "PL-13621",
+      "resolved": "2026-08-31",
+      "status": "Released",
+      "tables": 5,
+      "title": "Fiza payday - App Cake Transaction history"
+    }
+  ],
+  "NGS_cashloan": [
+    {
+      "key": "PL-13808",
+      "resolved": "2026-08-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[All Product]  Sản phẩm luồng D.O.P: Điều chỉnh trường thông tin trên Hợp Đồng "
+    },
+    {
+      "key": "PL-12415",
+      "resolved": "2026-06-12",
+      "status": "Released",
+      "tables": 0,
+      "title": "Cashloan — Migrate termination fee calculation and GL from LMS/Mambu to ICE"
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11381",
+      "resolved": "2025-12-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "[E-Contract] - Update field API SubmitContract"
+    },
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    },
+    {
+      "key": "PL-6313",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update app display for Write-off accounts"
+    },
+    {
+      "key": "PL-6885",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update APIs value for Write-off accounts"
+    },
+    {
+      "key": "PL-5832",
+      "resolved": "2024-11-27",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Lending][DOP] - Onboarding ETB reKYC internal"
+    },
+    {
+      "key": "PL-6661",
+      "resolved": "2024-11-18",
+      "status": "Released",
+      "tables": 7,
+      "title": "[Lending][ALL] - Thay đổi template HĐTD cho Savis"
+    },
+    {
+      "key": "PL-6490",
+      "resolved": "2024-11-01",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Lending] - Create & Store \\\"Form cam kết của khách hàng\\\" cho CakeCL, BeCL, VDS LP, NGS CL"
+    },
+    {
+      "key": "PL-6405",
+      "resolved": "2024-10-29",
+      "status": "Released",
+      "tables": 3,
+      "title": "[Lending][DOP] - Điều chỉnh hiển thị mã lỗi generic "
+    },
+    {
+      "key": "PL-5842",
+      "resolved": "2024-10-08",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VNP-CL][API] - DOP Vnpay intergration pre-check"
+    },
+    {
+      "key": "PL-5873",
+      "resolved": "2024-10-08",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][DOP] - Bổ sung warning message sản phảm bảo hiểm"
+    },
+    {
+      "key": "PL-5807",
+      "resolved": "2024-10-02",
+      "status": "Released",
+      "tables": 1,
+      "title": "[VDS-XSUS] Điều chỉnh rule deduplicate tại check-profile"
+    },
+    {
+      "key": "PL-4943",
+      "resolved": "2024-09-09",
+      "status": "Released",
+      "tables": 4,
+      "title": "[VNP-PL][API] - Loan register API to DOP"
+    },
+    {
+      "key": "PL-5229",
+      "resolved": "2024-08-02",
+      "status": "Released",
+      "tables": 0,
+      "title": "[CL-ALL][DOP] - Thay đổi đường dẫn T&C bảo hiểm"
+    },
+    {
+      "key": "PL-5240",
+      "resolved": "2024-07-31",
+      "status": "Released",
+      "tables": 4,
+      "title": "[Cashloan][Core] Bỏ điều kiện tất toán trước hạn"
+    },
+    {
+      "key": "PL-4921",
+      "resolved": "2024-07-30",
+      "status": "Released",
+      "tables": 10,
+      "title": "[NGS-CL][DOP] - Điều chỉnh đặc điểm sản phẩm"
+    },
+    {
+      "key": "PL-4878",
+      "resolved": "2024-07-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[DOP] - Update OPES insurance web link for all DOP product"
+    }
+  ],
+  "FPT_paylater": [
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11381",
+      "resolved": "2025-12-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "[E-Contract] - Update field API SubmitContract"
+    },
+    {
+      "key": "PL-11009",
+      "resolved": "2025-12-24",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VNP_paylater][Installment] - API get-installment-eligible"
+    },
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    },
+    {
+      "key": "PL-9680",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 0,
+      "title": "MWG - PayLater - QTV - Tạo phí sub hàng tháng khi có dư nợ"
+    },
+    {
+      "key": "PL-9886",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Many Product] - Điều chỉnh UI & HĐTD do sai thông tin mục đích cấp tín dụng"
+    },
+    {
+      "key": "PL-9423",
+      "resolved": "2025-07-10",
+      "status": "Released",
+      "tables": 0,
+      "title": "[CORE-PL] - Update logic terminate "
+    },
+    {
+      "key": "PL-4662",
+      "resolved": "2025-06-10",
+      "status": "Released",
+      "tables": 6,
+      "title": "[CAK-PL][Portal] - Lock/unlock Paylater from KYC detail screen"
+    },
+    {
+      "key": "PL-8826",
+      "resolved": "2025-05-15",
+      "status": "Released",
+      "tables": 3,
+      "title": "[PL] Điều chỉnh config MIN + monthlyfee của các sản phẩm BE,VNP, FPT"
+    },
+    {
+      "key": "PL-7570",
+      "resolved": "2025-02-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[FPT-PL] Điều chỉnh cách tính phí chậm trả "
+    },
+    {
+      "key": "PL-6313",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update app display for Write-off accounts"
+    },
+    {
+      "key": "PL-6885",
+      "resolved": "2024-12-18",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Lending][Write-off] - Update APIs value for Write-off accounts"
+    },
+    {
+      "key": "PL-6879",
+      "resolved": "2024-12-02",
+      "status": "Released",
+      "tables": 6,
+      "title": "[Lending][ALL] - Thay đổi template HĐTD cho Savis - bổ sung"
+    },
+    {
+      "key": "PL-6405",
+      "resolved": "2024-10-29",
+      "status": "Released",
+      "tables": 3,
+      "title": "[Lending][DOP] - Điều chỉnh hiển thị mã lỗi generic "
+    },
+    {
+      "key": "PL-6516",
+      "resolved": "2024-10-28",
+      "status": "Released",
+      "tables": 0,
+      "title": "[FPT-PL] Change config thời gian được phép Revert"
+    },
+    {
+      "key": "PL-6518",
+      "resolved": "2024-10-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[FPT-PL] Change latefee level"
+    },
+    {
+      "key": "PL-5654",
+      "resolved": "2024-10-10",
+      "status": "Released",
+      "tables": 0,
+      "title": "[FPT-PL] Thu phí subscription fee"
+    },
+    {
+      "key": "PL-5657",
+      "resolved": "2024-10-10",
+      "status": "Released",
+      "tables": 0,
+      "title": "[FPT-PL] Thu phí phạt chậm thanh toán (latefee)"
+    },
+    {
+      "key": "PL-5659",
+      "resolved": "2024-10-10",
+      "status": "Released",
+      "tables": 4,
+      "title": "[FPT-PL] Không thu lãi/lãi phạt (interest/penalty)"
+    },
+    {
+      "key": "PL-5671",
+      "resolved": "2024-10-10",
+      "status": "Released",
+      "tables": 0,
+      "title": "[FPT-PL] Get config and get status API"
+    },
+    {
+      "key": "PL-5714",
+      "resolved": "2024-10-10",
+      "status": "Released",
+      "tables": 3,
+      "title": "[FPT-PL] Payment merch update and payment revert"
+    },
+    {
+      "key": "PL-5718",
+      "resolved": "2024-10-10",
+      "status": "Released",
+      "tables": 0,
+      "title": "[FPT-PL][Partner API] Integrate với Partner ekyc update"
+    },
+    {
+      "key": "PL-5835",
+      "resolved": "2024-10-10",
+      "status": "Released",
+      "tables": 0,
+      "title": "[FPT-PL][Partner API] Integrate với Partner loan update"
+    },
+    {
+      "key": "PL-5927",
+      "resolved": "2024-10-10",
+      "status": "Released",
+      "tables": 9,
+      "title": "[FPT-PL] Loan details + Repayment"
+    },
+    {
+      "key": "PL-5945",
+      "resolved": "2024-10-10",
+      "status": "Released",
+      "tables": 7,
+      "title": "[FPT-PL] Terminate"
+    },
+    {
+      "key": "PL-5948",
+      "resolved": "2024-10-10",
+      "status": "Released",
+      "tables": 5,
+      "title": "[FPT-PL] Transaction history"
+    },
+    {
+      "key": "PL-6037",
+      "resolved": "2024-10-10",
+      "status": "Released",
+      "tables": 0,
+      "title": "[FPT-PL] Config GL cho các luồng Giải ngân, Hoàn trả, Revert"
+    },
+    {
+      "key": "PL-5673",
+      "resolved": "2024-10-08",
+      "status": "Released",
+      "tables": 11,
+      "title": "[FPT-PL] Onboarding API"
+    },
+    {
+      "key": "PL-5925",
+      "resolved": "2024-10-08",
+      "status": "Released",
+      "tables": 3,
+      "title": "[FPT-PL] Loan Listing"
+    },
+    {
+      "key": "PL-5917",
+      "resolved": "2024-10-04",
+      "status": "Released",
+      "tables": 15,
+      "title": "[Lending][Gateway] - Define các mã lỗi NFC trả về từ Semi-onboarding"
+    }
+  ],
+  "VNHUB_cashloan": [
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11381",
+      "resolved": "2025-12-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "[E-Contract] - Update field API SubmitContract"
+    },
+    {
+      "key": "PL-11143",
+      "resolved": "2025-11-27",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VNHUB_cashloan] - Điều chỉnh Precheck"
+    },
+    {
+      "key": "PL-10590",
+      "resolved": "2025-11-11",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VNHUB_cashloan][API] data-config"
+    },
+    {
+      "key": "PL-10592",
+      "resolved": "2025-11-11",
+      "status": "Released",
+      "tables": 4,
+      "title": "[VNHUB_cashloan][API] check-profile"
+    },
+    {
+      "key": "PL-10594",
+      "resolved": "2025-11-11",
+      "status": "Released",
+      "tables": 15,
+      "title": "[VNHUB_cashloan][API] client-create"
+    },
+    {
+      "key": "PL-10596",
+      "resolved": "2025-11-11",
+      "status": "Released",
+      "tables": 4,
+      "title": "[VNHUB_cashloan][API] client-update"
+    },
+    {
+      "key": "PL-10598",
+      "resolved": "2025-11-11",
+      "status": "Released",
+      "tables": 4,
+      "title": "[VNHUB_cashloan][API] loan-register"
+    },
+    {
+      "key": "PL-10599",
+      "resolved": "2025-11-11",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VNHUB_cashloan][API] get-status"
+    },
+    {
+      "key": "PL-10601",
+      "resolved": "2025-11-11",
+      "status": "Released",
+      "tables": 10,
+      "title": "[VNHUB_cashloan][API] get-loan-detail"
+    },
+    {
+      "key": "PL-10604",
+      "resolved": "2025-11-11",
+      "status": "Released",
+      "tables": 2,
+      "title": "[VNHUB_cashloan][API partner] partner-update-status"
+    },
+    {
+      "key": "PL-10619",
+      "resolved": "2025-11-11",
+      "status": "Released",
+      "tables": 4,
+      "title": "[VNHUB_cashloan][App] Sign & Loan management"
+    },
+    {
+      "key": "PL-10621",
+      "resolved": "2025-11-11",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VNHUB_cashloan][App] Repayment transaction history"
+    }
+  ],
+  "VDS_paylater_epass": [
+    {
+      "key": "PL-11381",
+      "resolved": "2025-12-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "[E-Contract] - Update field API SubmitContract"
+    },
+    {
+      "key": "PL-10519",
+      "resolved": "2025-11-13",
+      "status": "Done",
+      "tables": 6,
+      "title": "[VDS_paylater] - Thêm product_code PLVT_03 trên VDS_paylater"
+    },
+    {
+      "key": "PL-10178",
+      "resolved": "2025-11-12",
+      "status": "Done",
+      "tables": 12,
+      "title": "[VDS_paylater_epass][API] - Onboarding Process & APIs Integration"
+    },
+    {
+      "key": "PL-10491",
+      "resolved": "2025-11-12",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VDS_paylater_epass][API partner] vds-loan-update"
+    },
+    {
+      "key": "PL-10184",
+      "resolved": "2025-11-11",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VDS_paylater_epass][API] client-update"
+    },
+    {
+      "key": "PL-10202",
+      "resolved": "2025-11-11",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VDS_paylater_epass][API partner] vds-ekyc-update"
+    },
+    {
+      "key": "PL-10179",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VDS_paylater_epass][API] data-config"
+    },
+    {
+      "key": "PL-10182",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 7,
+      "title": "[VDS_paylater_epass][API] client-create"
+    },
+    {
+      "key": "PL-10186",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VDS_paylater_epass][API] loan-register"
+    },
+    {
+      "key": "PL-10190",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 5,
+      "title": "[VDS_paylater_epass][API] get-otp | verify-esign"
+    },
+    {
+      "key": "PL-10191",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 4,
+      "title": "[VDS_paylater_epass][API] get-loan-detail"
+    },
+    {
+      "key": "PL-10193",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 5,
+      "title": "[VDS_paylater_epass][API] Termination APIs"
+    },
+    {
+      "key": "PL-10194",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 23,
+      "title": "[VDS_paylater_epass][API] Payments"
+    },
+    {
+      "key": "PL-10218",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VDS_paylater_epass][App] Sign & Loan management"
+    },
+    {
+      "key": "PL-10219",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VDS_paylater_epass][App] Payment transaction history"
+    },
+    {
+      "key": "PL-10220",
+      "resolved": "2025-10-27",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VDS_paylater_epass][Portal] Allow process CakeTask on Cake portal"
+    }
+  ],
+  "VTPO_cashloan": [
+    {
+      "key": "PL-13808",
+      "resolved": "2026-08-05",
+      "status": "Released",
+      "tables": 0,
+      "title": "[All Product]  Sản phẩm luồng D.O.P: Điều chỉnh trường thông tin trên Hợp Đồng "
+    },
+    {
+      "key": "PL-12415",
+      "resolved": "2026-06-12",
+      "status": "Released",
+      "tables": 0,
+      "title": "Cashloan — Migrate termination fee calculation and GL from LMS/Mambu to ICE"
+    },
+    {
+      "key": "PL-11439",
+      "resolved": "2026-01-21",
+      "status": "Released",
+      "tables": 0,
+      "title": "[Precheck] – Update product group cho rule dup_product_found all product"
+    },
+    {
+      "key": "PL-11381",
+      "resolved": "2025-12-31",
+      "status": "Released",
+      "tables": 0,
+      "title": "[E-Contract] - Update field API SubmitContract"
+    },
+    {
+      "key": "PL-10062",
+      "resolved": "2025-09-25",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VDS-O2O] - Điều chỉnh validate score tại API client-create"
+    },
+    {
+      "key": "PL-9747",
+      "resolved": "2025-09-12",
+      "status": "Released",
+      "tables": 8,
+      "title": "[Portal][CakeTask] - LendingSendStatusLoan"
+    },
+    {
+      "key": "PL-9660",
+      "resolved": "2025-09-03",
+      "status": "Released",
+      "tables": 9,
+      "title": "[Portal][CakeTask] - LendingCancelLoan"
+    },
+    {
+      "key": "PL-7714",
+      "resolved": "2025-03-27",
+      "status": "Released",
+      "tables": 3,
+      "title": "[VDS-O2O][APP] - Payment transaction history"
+    },
+    {
+      "key": "PL-7720",
+      "resolved": "2025-03-27",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VDS-O2O][PORTAL] - Config display image in the Image center"
+    },
+    {
+      "key": "PL-7723",
+      "resolved": "2025-03-27",
+      "status": "Released",
+      "tables": 0,
+      "title": "[VDS-O2O][PORTAL] - Config recording eKYC log in the Profile detail"
+    }
+  ]
+}

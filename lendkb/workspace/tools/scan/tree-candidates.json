@@ -1,0 +1,928 @@
+{
+ "VTPO_cashloan": [
+  {
+   "key": "PL-7711",
+   "type": "Story",
+   "resolved": "2025-03-27",
+   "rows": 4,
+   "title": "[VDS-O2O][APP] - Loan detail & repayment infomation"
+  },
+  {
+   "key": "PL-7717",
+   "type": "Story",
+   "resolved": "2025-03-27",
+   "rows": 4,
+   "title": "[VDS-O2O][APP] - Termination contract"
+  },
+  {
+   "key": "PL-7714",
+   "type": "Story",
+   "resolved": "2025-03-27",
+   "rows": 3,
+   "title": "[VDS-O2O][APP] - Payment transaction history"
+  },
+  {
+   "key": "PL-7773",
+   "type": "Story",
+   "resolved": "2025-03-27",
+   "rows": 3,
+   "title": "[VDS-O2O][API] - Termination APIs"
+  },
+  {
+   "key": "PL-7771",
+   "type": "Story",
+   "resolved": "2025-03-27",
+   "rows": 2,
+   "title": "[VDS-O2O][API] - API repayment-confirm"
+  },
+  {
+   "key": "PL-11366",
+   "type": "Story",
+   "resolved": "2026-01-05",
+   "rows": 1,
+   "title": "[Precheck] - Migrate sản phẩm BE Cashloan sang Precheck ver2"
+  },
+  {
+   "key": "PL-9031",
+   "type": "Story",
+   "resolved": "2025-06-16",
+   "rows": 1,
+   "title": "[VDS-O2O][API] - API terminate-review thêm mã lỗi tất toán kỳ cuối"
+  },
+  {
+   "key": "PL-7709",
+   "type": "Story",
+   "resolved": "2025-03-27",
+   "rows": 1,
+   "title": "[VDS-O2O][APP] - Loan listing"
+  },
+  {
+   "key": "PL-7742",
+   "type": "Story",
+   "resolved": "2025-03-27",
+   "rows": 1,
+   "title": "[VDS-O2O][API] - API check-profile"
+  },
+  {
+   "key": "PL-7908",
+   "type": "Story",
+   "resolved": "2025-03-27",
+   "rows": 1,
+   "title": "[VDS-O2O][API Partner] - API partner-status-update"
+  }
+ ],
+ "CAKE_overdraft_TD": [
+  {
+   "key": "PL-13257",
+   "type": "Story",
+   "resolved": "2026-08-19",
+   "rows": 10,
+   "title": "[CORE][OD-TD] Repayment — Scheduling, Deduction & Allocation"
+  },
+  {
+   "key": "PL-13138",
+   "type": "Story",
+   "resolved": "2026-08-04",
+   "rows": 10,
+   "title": "[OD-TD Ver2][Thế chấp] Chi tiết khoản vay"
+  },
+  {
+   "key": "PL-12803",
+   "type": "Story",
+   "resolved": "2026-07-20",
+   "rows": 10,
+   "title": "ODTD_v2 - [Setup] Thông số sản phẩm & configurable params"
+  },
+  {
+   "key": "PL-13258",
+   "type": "Story",
+   "resolved": "2026-08-19",
+   "rows": 6,
+   "title": "[CORE][OD-TD] Maturity — Auto-Collection & Post-Maturity GL"
+  },
+  {
+   "key": "PL-12807",
+   "type": "Initiative",
+   "resolved": "",
+   "rows": 6,
+   "title": "[ODTD_v2] Sản phẩm Cake overdraft v2"
+  },
+  {
+   "key": "PL-5673",
+   "type": "Story",
+   "resolved": "2024-10-08",
+   "rows": 5,
+   "title": "[FPT-PL] Onboarding API"
+  },
+  {
+   "key": "PL-12804",
+   "type": "Story",
+   "resolved": "2026-08-04",
+   "rows": 4,
+   "title": "ODTD_v2 - Onboarding flow (entry point → chọn sổ → selfie → nhập thông tin → confirm)"
+  },
+  {
+   "key": "PL-5571",
+   "type": "Story",
+   "resolved": "2024-09-25",
+   "rows": 3,
+   "title": "[Lending][CAK] - Sign contract on Cake App (All product)"
+  },
+  {
+   "key": "PL-13259",
+   "type": "Story",
+   "resolved": "2026-08-19",
+   "rows": 2,
+   "title": "[CORE][OD-TD] Early Termination — CASA Source (Option A)"
+  },
+  {
+   "key": "PL-12806",
+   "type": "Story",
+   "resolved": "2026-07-20",
+   "rows": 1,
+   "title": "ODTD_v2 - Submit LOS, Ký hợp đồng & Tạo hạn mức"
+  },
+  {
+   "key": "PL-13312",
+   "type": "Story",
+   "resolved": "2026-07-20",
+   "rows": 1,
+   "title": "ODTD_v2 - Hợp đồng"
+  },
+  {
+   "key": "PL-12825",
+   "type": "Story",
+   "resolved": "2026-07-06",
+   "rows": 1,
+   "title": "[SaleApp] Precheck for API check-profile"
+  }
+ ],
+ "MISA_cashloan": [
+  {
+   "key": "PL-10649",
+   "type": "Story",
+   "resolved": "2025-11-24",
+   "rows": 6,
+   "title": "[MISA_cashloan][App] Sign & Loan management"
+  },
+  {
+   "key": "PL-10371",
+   "type": "Story",
+   "resolved": "2025-11-24",
+   "rows": 4,
+   "title": "[MISA_cashloan][API] get-loan-detail"
+  },
+  {
+   "key": "PL-11366",
+   "type": "Story",
+   "resolved": "2026-01-05",
+   "rows": 1,
+   "title": "[Precheck] - Migrate sản phẩm BE Cashloan sang Precheck ver2"
+  },
+  {
+   "key": "PL-10363",
+   "type": "Story",
+   "resolved": "2025-11-24",
+   "rows": 1,
+   "title": "[MISA_cashloan][API] client-create"
+  },
+  {
+   "key": "PL-10373",
+   "type": "Story",
+   "resolved": "2025-11-24",
+   "rows": 1,
+   "title": "[MISA_cashloan][API partner] partner-update-status"
+  },
+  {
+   "key": "PL-10651",
+   "type": "Story",
+   "resolved": "2025-11-24",
+   "rows": 1,
+   "title": "[MISA_cashloan][App] Repayment transaction history"
+  }
+ ],
+ "VDS_paylater": [
+  {
+   "key": "PL-12553",
+   "type": "Story",
+   "resolved": "2026-05-28",
+   "rows": 6,
+   "title": "VDS_paylater - API CashWithdraw"
+  },
+  {
+   "key": "PL-10519",
+   "type": "Epic",
+   "resolved": "",
+   "rows": 4,
+   "title": "[VDS_paylater] - Thêm product_code PLVT_03 trên VDS_paylater"
+  },
+  {
+   "key": "PL-5571",
+   "type": "Story",
+   "resolved": "2024-09-25",
+   "rows": 3,
+   "title": "[Lending][CAK] - Sign contract on Cake App (All product)"
+  },
+  {
+   "key": "PL-10178",
+   "type": "Epic",
+   "resolved": "",
+   "rows": 3,
+   "title": "[VDS_paylater_epass][API] - Onboarding Process & APIs Integration"
+  },
+  {
+   "key": "PL-12591",
+   "type": "Story",
+   "resolved": "2026-05-26",
+   "rows": 2,
+   "title": "[VDS PL] CĐTG - Lấy danh sách giao dịch & gói trả góp"
+  },
+  {
+   "key": "PL-10193",
+   "type": "Story",
+   "resolved": "2025-10-27",
+   "rows": 2,
+   "title": "[VDS_paylater_epass][API] Termination APIs"
+  },
+  {
+   "key": "PL-12592",
+   "type": "Story",
+   "resolved": "2026-05-26",
+   "rows": 1,
+   "title": "[VDS PL] CĐTG - Khởi tạo yêu cầu chuyển đổi trả góp"
+  },
+  {
+   "key": "PL-11366",
+   "type": "Story",
+   "resolved": "2026-01-05",
+   "rows": 1,
+   "title": "[Precheck] - Migrate sản phẩm BE Cashloan sang Precheck ver2"
+  },
+  {
+   "key": "PL-10218",
+   "type": "Story",
+   "resolved": "2025-10-27",
+   "rows": 1,
+   "title": "[VDS_paylater_epass][App] Sign & Loan management"
+  },
+  {
+   "key": "PL-10219",
+   "type": "Story",
+   "resolved": "2025-10-27",
+   "rows": 1,
+   "title": "[VDS_paylater_epass][App] Payment transaction history"
+  }
+ ],
+ "VDS_paylater_epass": [
+  {
+   "key": "PL-10519",
+   "type": "Epic",
+   "resolved": "",
+   "rows": 4,
+   "title": "[VDS_paylater] - Thêm product_code PLVT_03 trên VDS_paylater"
+  },
+  {
+   "key": "PL-10178",
+   "type": "Epic",
+   "resolved": "",
+   "rows": 3,
+   "title": "[VDS_paylater_epass][API] - Onboarding Process & APIs Integration"
+  },
+  {
+   "key": "PL-10193",
+   "type": "Story",
+   "resolved": "2025-10-27",
+   "rows": 2,
+   "title": "[VDS_paylater_epass][API] Termination APIs"
+  },
+  {
+   "key": "PL-10218",
+   "type": "Story",
+   "resolved": "2025-10-27",
+   "rows": 1,
+   "title": "[VDS_paylater_epass][App] Sign & Loan management"
+  },
+  {
+   "key": "PL-10219",
+   "type": "Story",
+   "resolved": "2025-10-27",
+   "rows": 1,
+   "title": "[VDS_paylater_epass][App] Payment transaction history"
+  }
+ ],
+ "BE_paylater": [
+  {
+   "key": "PL-12553",
+   "type": "Story",
+   "resolved": "2026-05-28",
+   "rows": 6,
+   "title": "VDS_paylater - API CashWithdraw"
+  },
+  {
+   "key": "PL-5571",
+   "type": "Story",
+   "resolved": "2024-09-25",
+   "rows": 3,
+   "title": "[Lending][CAK] - Sign contract on Cake App (All product)"
+  },
+  {
+   "key": "PL-12759",
+   "type": "Story",
+   "resolved": "2026-06-12",
+   "rows": 2,
+   "title": "[BE_paylater][LMS] - Bổ sung thêm flag nhận diện segment và dữ liệu về driver"
+  },
+  {
+   "key": "PL-11749",
+   "type": "Story",
+   "resolved": "2026-03-25",
+   "rows": 2,
+   "title": "[BE_paylater][API] get-installment-detail"
+  },
+  {
+   "key": "PL-11743",
+   "type": "Story",
+   "resolved": "2026-03-24",
+   "rows": 2,
+   "title": "[BE_paylater][API] get-installment-offering-list"
+  },
+  {
+   "key": "PL-11751",
+   "type": "Story",
+   "resolved": "2026-03-24",
+   "rows": 2,
+   "title": "[BE_paylater][API] get-installment-transactions"
+  },
+  {
+   "key": "PL-11077",
+   "type": "Story",
+   "resolved": "2025-12-10",
+   "rows": 2,
+   "title": "[BE][PL] - Update API payment-request"
+  },
+  {
+   "key": "PL-11081",
+   "type": "Story",
+   "resolved": "2025-12-10",
+   "rows": 2,
+   "title": "[BE][PL] - Add API payment-offer"
+  },
+  {
+   "key": "PL-4615",
+   "type": "Story",
+   "resolved": "2024-06-26",
+   "rows": 2,
+   "title": "[BEG-PL][API] - Adjust Esign contract template"
+  },
+  {
+   "key": "PL-12911",
+   "type": "Story",
+   "resolved": "2026-07-09",
+   "rows": 1,
+   "title": "MWG_paylater - Giới hạn giao dịch rút tiền mặt"
+  },
+  {
+   "key": "PL-11745",
+   "type": "Story",
+   "resolved": "2026-03-24",
+   "rows": 1,
+   "title": "[BE_paylater][API] installment-request"
+  },
+  {
+   "key": "PL-11366",
+   "type": "Story",
+   "resolved": "2026-01-05",
+   "rows": 1,
+   "title": "[Precheck] - Migrate sản phẩm BE Cashloan sang Precheck ver2"
+  },
+  {
+   "key": "PL-10761",
+   "type": "Story",
+   "resolved": "2025-12-10",
+   "rows": 1,
+   "title": "[BE][PL] - Disburse rút tiền mặt"
+  },
+  {
+   "key": "PL-8499",
+   "type": "Story",
+   "resolved": "2025-05-05",
+   "rows": 1,
+   "title": "[BE][PL] - Điều chỉnh config product policy + precheck"
+  },
+  {
+   "key": "PL-5318",
+   "type": "Story",
+   "resolved": "2024-08-13",
+   "rows": 1,
+   "title": "[BE-PL][API] - Pre-check information"
+  }
+ ],
+ "VNP_paylater": [
+  {
+   "key": "PL-11013",
+   "type": "Story",
+   "resolved": "2025-12-24",
+   "rows": 4,
+   "title": "[VNP_paylater][Installment] - API installment-request"
+  },
+  {
+   "key": "PL-11007",
+   "type": "Story",
+   "resolved": "2025-12-24",
+   "rows": 3,
+   "title": "[VNP_paylater][Installment] - API get-installment-transactions"
+  },
+  {
+   "key": "PL-5571",
+   "type": "Story",
+   "resolved": "2024-09-25",
+   "rows": 3,
+   "title": "[Lending][CAK] - Sign contract on Cake App (All product)"
+  },
+  {
+   "key": "PL-4947",
+   "type": "Story",
+   "resolved": "2024-09-09",
+   "rows": 3,
+   "title": "[VNP-PL][API] - Loan information"
+  },
+  {
+   "key": "PL-11011",
+   "type": "Story",
+   "resolved": "2025-12-24",
+   "rows": 2,
+   "title": "[VNP_paylater][Installment] - API get-installment-offering-list"
+  },
+  {
+   "key": "PL-11019",
+   "type": "Story",
+   "resolved": "2025-12-24",
+   "rows": 2,
+   "title": "[VNP_paylater][Installment] - API installment-confirm"
+  },
+  {
+   "key": "PL-11366",
+   "type": "Story",
+   "resolved": "2026-01-05",
+   "rows": 1,
+   "title": "[Precheck] - Migrate sản phẩm BE Cashloan sang Precheck ver2"
+  },
+  {
+   "key": "PL-10539",
+   "type": "Story",
+   "resolved": "2025-11-21",
+   "rows": 1,
+   "title": "[Core][Paylater] - Cơ chế lưu lịch sử trả góp"
+  }
+ ],
+ "MWG_cl_online": [
+  {
+   "key": "PL-11837",
+   "type": "Story",
+   "resolved": "2026-03-24",
+   "rows": 5,
+   "title": "[MWG_cl_online][App] Terminate loan"
+  },
+  {
+   "key": "PL-11810",
+   "type": "Story",
+   "resolved": "2026-03-28",
+   "rows": 4,
+   "title": "[MWG_cl_online][DOP] Onboarding DOP"
+  },
+  {
+   "key": "PL-12309",
+   "type": "Story",
+   "resolved": "2026-05-11",
+   "rows": 1,
+   "title": "MWG_payday - Onboarding sign contract on app Cake"
+  },
+  {
+   "key": "PL-12302",
+   "type": "Story",
+   "resolved": "2026-05-11",
+   "rows": 1,
+   "title": "MWG_payday - Loan management on app QTV"
+  },
+  {
+   "key": "PL-12321",
+   "type": "Story",
+   "resolved": "2026-05-11",
+   "rows": 1,
+   "title": "MWG_payday - Loan management on app Cake"
+  },
+  {
+   "key": "PL-12228",
+   "type": "Story",
+   "resolved": "2026-04-08",
+   "rows": 1,
+   "title": "[MWG_cl_online][API partner] partner-update-status"
+  },
+  {
+   "key": "PL-12230",
+   "type": "Story",
+   "resolved": "2026-04-06",
+   "rows": 1,
+   "title": "[MWG_cl_online][API] get-status"
+  },
+  {
+   "key": "PL-11926",
+   "type": "Story",
+   "resolved": "2026-03-25",
+   "rows": 1,
+   "title": "[MWG_cl_online][Web] Webview Loan Detail"
+  },
+  {
+   "key": "PL-11831",
+   "type": "Story",
+   "resolved": "2026-03-24",
+   "rows": 1,
+   "title": "[MWG_cl_online][App] Sign Contract"
+  },
+  {
+   "key": "PL-11833",
+   "type": "Story",
+   "resolved": "2026-03-24",
+   "rows": 1,
+   "title": "[MWG_cl_online][App] Loan management"
+  },
+  {
+   "key": "PL-11841",
+   "type": "Story",
+   "resolved": "2026-03-24",
+   "rows": 1,
+   "title": "[MWG_cl_online][App] Repayment transaction history"
+  }
+ ],
+ "ZLP_payday": [
+  {
+   "key": "PL-9980",
+   "type": "Story",
+   "resolved": "2025-10-13",
+   "rows": 2,
+   "title": "[ZLP-PD][App] Sign & Loan management"
+  },
+  {
+   "key": "PL-11366",
+   "type": "Story",
+   "resolved": "2026-01-05",
+   "rows": 1,
+   "title": "[Precheck] - Migrate sản phẩm BE Cashloan sang Precheck ver2"
+  },
+  {
+   "key": "PL-10776",
+   "type": "Story",
+   "resolved": "2025-11-20",
+   "rows": 1,
+   "title": "[ZLP-PD][API partner] - Điều chỉnh API disburse request"
+  },
+  {
+   "key": "PL-10335",
+   "type": "Story",
+   "resolved": "2025-10-27",
+   "rows": 1,
+   "title": "[ZLP-CL] - Bổ sung product_code vào API topup"
+  },
+  {
+   "key": "PL-9859",
+   "type": "Story",
+   "resolved": "2025-10-13",
+   "rows": 1,
+   "title": "[ZLP-PD][API partner] Disburse request"
+  }
+ ],
+ "VPO_cashloan": [
+  {
+   "key": "PL-11204",
+   "type": "Story",
+   "resolved": "2025-12-23",
+   "rows": 5,
+   "title": "[VPO_cl_pension][App] Terminate loan"
+  },
+  {
+   "key": "PL-11172",
+   "type": "Initiative",
+   "resolved": "",
+   "rows": 5,
+   "title": "[VPO_cl_pension] - Vay hưu trí"
+  },
+  {
+   "key": "PL-11193",
+   "type": "Story",
+   "resolved": "2025-12-23",
+   "rows": 4,
+   "title": "[VPO_cl_pension][API] API Terminates"
+  },
+  {
+   "key": "PL-6435",
+   "type": "Story",
+   "resolved": "2024-11-28",
+   "rows": 4,
+   "title": "[VNPOST-CL][DOP] - ETB Onboarding Vnpost Cashloan"
+  },
+  {
+   "key": "PL-11557",
+   "type": "Story",
+   "resolved": "2026-01-14",
+   "rows": 2,
+   "title": "[Precheck][VPO_cl_pension] - Adhoc điều chỉnh rule precheck độ tuổi"
+  },
+  {
+   "key": "PL-12825",
+   "type": "Story",
+   "resolved": "2026-07-06",
+   "rows": 1,
+   "title": "[SaleApp] Precheck for API check-profile"
+  },
+  {
+   "key": "PL-11366",
+   "type": "Story",
+   "resolved": "2026-01-05",
+   "rows": 1,
+   "title": "[Precheck] - Migrate sản phẩm BE Cashloan sang Precheck ver2"
+  },
+  {
+   "key": "PL-11219",
+   "type": "Story",
+   "resolved": "2025-12-23",
+   "rows": 1,
+   "title": "[VPO_cl_pension] - Create precheck"
+  },
+  {
+   "key": "PL-11199",
+   "type": "Story",
+   "resolved": "2025-12-23",
+   "rows": 1,
+   "title": "[VPO_cl_pension][App] Sign Contract"
+  },
+  {
+   "key": "PL-11200",
+   "type": "Story",
+   "resolved": "2025-12-23",
+   "rows": 1,
+   "title": "[VPO_cl_pension][App] Loan management"
+  },
+  {
+   "key": "PL-11206",
+   "type": "Story",
+   "resolved": "2025-12-23",
+   "rows": 1,
+   "title": "[VPO_cl_pension][App] Repayment transaction history"
+  },
+  {
+   "key": "PL-7742",
+   "type": "Story",
+   "resolved": "2025-03-27",
+   "rows": 1,
+   "title": "[VDS-O2O][API] - API check-profile"
+  }
+ ],
+ "VNHUB_cashloan": [
+  {
+   "key": "PL-10601",
+   "type": "Story",
+   "resolved": "2025-11-11",
+   "rows": 4,
+   "title": "[VNHUB_cashloan][API] get-loan-detail"
+  },
+  {
+   "key": "PL-10619",
+   "type": "Story",
+   "resolved": "2025-11-11",
+   "rows": 2,
+   "title": "[VNHUB_cashloan][App] Sign & Loan management"
+  },
+  {
+   "key": "PL-10363",
+   "type": "Story",
+   "resolved": "2025-11-24",
+   "rows": 1,
+   "title": "[MISA_cashloan][API] client-create"
+  },
+  {
+   "key": "PL-10594",
+   "type": "Story",
+   "resolved": "2025-11-11",
+   "rows": 1,
+   "title": "[VNHUB_cashloan][API] client-create"
+  },
+  {
+   "key": "PL-10604",
+   "type": "Story",
+   "resolved": "2025-11-11",
+   "rows": 1,
+   "title": "[VNHUB_cashloan][API partner] partner-update-status"
+  },
+  {
+   "key": "PL-10621",
+   "type": "Story",
+   "resolved": "2025-11-11",
+   "rows": 1,
+   "title": "[VNHUB_cashloan][App] Repayment transaction history"
+  }
+ ],
+ "NGS_cashloan": [
+  {
+   "key": "PL-4921",
+   "type": "Story",
+   "resolved": "2024-07-30",
+   "rows": 9,
+   "title": "[NGS-CL][DOP] - Điều chỉnh đặc điểm sản phẩm"
+  },
+  {
+   "key": "PL-5240",
+   "type": "Story",
+   "resolved": "2024-07-31",
+   "rows": 4,
+   "title": "[Cashloan][Core] Bỏ điều kiện tất toán trước hạn"
+  },
+  {
+   "key": "PL-5571",
+   "type": "Story",
+   "resolved": "2024-09-25",
+   "rows": 3,
+   "title": "[Lending][CAK] - Sign contract on Cake App (All product)"
+  },
+  {
+   "key": "PL-11366",
+   "type": "Story",
+   "resolved": "2026-01-05",
+   "rows": 1,
+   "title": "[Precheck] - Migrate sản phẩm BE Cashloan sang Precheck ver2"
+  },
+  {
+   "key": "PL-7742",
+   "type": "Story",
+   "resolved": "2025-03-27",
+   "rows": 1,
+   "title": "[VDS-O2O][API] - API check-profile"
+  },
+  {
+   "key": "PL-6441",
+   "type": "Story",
+   "resolved": "2024-11-28",
+   "rows": 1,
+   "title": "[VNPOST-CL][API] - Adding pre-check generic to Vnpost Cashloan"
+  },
+  {
+   "key": "PL-5661",
+   "type": "Story",
+   "resolved": "2024-10-08",
+   "rows": 1,
+   "title": "[VNP-CL][API] - Apply Precheck generic for VNP Cashloan"
+  },
+  {
+   "key": "PL-5807",
+   "type": "Story",
+   "resolved": "2024-10-02",
+   "rows": 1,
+   "title": "[VDS-XSUS] Điều chỉnh rule deduplicate tại check-profile"
+  }
+ ],
+ "VT_Cashloan_S": [
+  {
+   "key": "PL-5240",
+   "type": "Story",
+   "resolved": "2024-07-31",
+   "rows": 4,
+   "title": "[Cashloan][Core] Bỏ điều kiện tất toán trước hạn"
+  },
+  {
+   "key": "PL-5571",
+   "type": "Story",
+   "resolved": "2024-09-25",
+   "rows": 3,
+   "title": "[Lending][CAK] - Sign contract on Cake App (All product)"
+  },
+  {
+   "key": "PL-10841",
+   "type": "Story",
+   "resolved": "2025-12-15",
+   "rows": 2,
+   "title": "[Precheck] - Migrate 2 sản phẩm payroll sang Precheck v2"
+  },
+  {
+   "key": "PL-11366",
+   "type": "Story",
+   "resolved": "2026-01-05",
+   "rows": 1,
+   "title": "[Precheck] - Migrate sản phẩm BE Cashloan sang Precheck ver2"
+  },
+  {
+   "key": "PL-7742",
+   "type": "Story",
+   "resolved": "2025-03-27",
+   "rows": 1,
+   "title": "[VDS-O2O][API] - API check-profile"
+  },
+  {
+   "key": "PL-6441",
+   "type": "Story",
+   "resolved": "2024-11-28",
+   "rows": 1,
+   "title": "[VNPOST-CL][API] - Adding pre-check generic to Vnpost Cashloan"
+  },
+  {
+   "key": "PL-5661",
+   "type": "Story",
+   "resolved": "2024-10-08",
+   "rows": 1,
+   "title": "[VNP-CL][API] - Apply Precheck generic for VNP Cashloan"
+  }
+ ],
+ "VT_Payday_S": [
+  {
+   "key": "PL-5571",
+   "type": "Story",
+   "resolved": "2024-09-25",
+   "rows": 3,
+   "title": "[Lending][CAK] - Sign contract on Cake App (All product)"
+  },
+  {
+   "key": "PL-10841",
+   "type": "Story",
+   "resolved": "2025-12-15",
+   "rows": 2,
+   "title": "[Precheck] - Migrate 2 sản phẩm payroll sang Precheck v2"
+  },
+  {
+   "key": "PL-9851",
+   "type": "Story",
+   "resolved": "2025-10-13",
+   "rows": 2,
+   "title": "[ZLP-PD][API] get-loan-detail"
+  },
+  {
+   "key": "PL-11366",
+   "type": "Story",
+   "resolved": "2026-01-05",
+   "rows": 1,
+   "title": "[Precheck] - Migrate sản phẩm BE Cashloan sang Precheck ver2"
+  },
+  {
+   "key": "PL-11219",
+   "type": "Story",
+   "resolved": "2025-12-23",
+   "rows": 1,
+   "title": "[VPO_cl_pension] - Create precheck"
+  },
+  {
+   "key": "PL-7742",
+   "type": "Story",
+   "resolved": "2025-03-27",
+   "rows": 1,
+   "title": "[VDS-O2O][API] - API check-profile"
+  }
+ ],
+ "FPT_paylater": [
+  {
+   "key": "PL-5673",
+   "type": "Story",
+   "resolved": "2024-10-08",
+   "rows": 5,
+   "title": "[FPT-PL] Onboarding API"
+  },
+  {
+   "key": "PL-5945",
+   "type": "Story",
+   "resolved": "2024-10-10",
+   "rows": 4,
+   "title": "[FPT-PL] Terminate"
+  },
+  {
+   "key": "PL-5948",
+   "type": "Story",
+   "resolved": "2024-10-10",
+   "rows": 3,
+   "title": "[FPT-PL] Transaction history"
+  },
+  {
+   "key": "PL-5571",
+   "type": "Story",
+   "resolved": "2024-09-25",
+   "rows": 3,
+   "title": "[Lending][CAK] - Sign contract on Cake App (All product)"
+  },
+  {
+   "key": "PL-5927",
+   "type": "Story",
+   "resolved": "2024-10-10",
+   "rows": 2,
+   "title": "[FPT-PL] Loan details + Repayment"
+  },
+  {
+   "key": "PL-11366",
+   "type": "Story",
+   "resolved": "2026-01-05",
+   "rows": 1,
+   "title": "[Precheck] - Migrate sản phẩm BE Cashloan sang Precheck ver2"
+  },
+  {
+   "key": "PL-5925",
+   "type": "Story",
+   "resolved": "2024-10-08",
+   "rows": 1,
+   "title": "[FPT-PL] Loan Listing"
+  }
+ ]
+}

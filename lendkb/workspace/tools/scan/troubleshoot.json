@@ -1,0 +1,2685 @@
+{
+ "Null": [
+  [
+   "Bước",
+   "Màn hình",
+   "Lỗi phát sinh",
+   "Nguyên nhân",
+   "Hướng xử lý"
+  ]
+ ],
+ "Quy trình": [
+  [
+   "Quy trình xử lý vận hành đã được các team thống nhất như sau:\n1. Ops sẽ tự check bằng các tool sẵn có và troubleshoot file Troubleshoot Lending.xlsx\n2. Nếu troubleshoot note là gửi Tech thì chuyển ticket sang cho Tech\n3. Nếu troubleshoot không có thông tin về case đang bị, Ops gửi sang cho Product để verify, danh sách product ở tab PIC\n4. Nếu Product verify không được, Product cần cmt chuyển sang Tech ạ\n5. Sau khi case đã hoàn thành, nếu cần edit vào troubleshoot để làm mẫu cho những lần sau, báo Tech cập nhật file"
+  ]
+ ],
+ "PIC": [
+  [
+   "Bộ phận",
+   "PIC",
+   "Mô tả"
+  ],
+  [
+   "Product",
+   "",
+   ""
+  ],
+  [
+   "",
+   "Hồ Đình Đạm",
+   "Head of Lending Product"
+  ],
+  [
+   "",
+   "Phan Thị Thanh Duyên",
+   "Chịu trách nhiệm\n- OD (+ TD)\n- Cake Cashloan\n- Cake Payday"
+  ],
+  [
+   "",
+   "Nguyễn Võ Minh Định",
+   "Chịu trách nhiệm\n- MWG Paylater\n- ZLP Cashloan\n- ZLP Payday\n-VDS Paylater"
+  ],
+  [
+   "",
+   "Nguyễn Thanh Lâm",
+   "Chịu trách nhiệm\n- VDS Cashloan (+ Payroll)\n- VDS Payday (+ Payroll)\n- VDS O2O\n- MWG Cashloan"
+  ],
+  [
+   "",
+   "Cấn Thị Kim Tuyến",
+   "Vnpost Casloan"
+  ],
+  [
+   "",
+   "Lý Chí Cường",
+   "Chịu trách nhiệm\n- Be Cashloan\n- Be Paylater\n- VNPay Cashloan\n- VNPay Paylater\n- VNPay Payday\n- FPT Paylater"
+  ],
+  [
+   "Tech",
+   "",
+   ""
+  ],
+  [
+   "",
+   "Phạm Tiến Dũng",
+   "Chịu trách nhiệm các case vận hành liên quan đến Lending"
+  ],
+  [
+   "",
+   "Võ Tuấn Nghĩa",
+   "Hỗ trợ các case vận hành Lending"
+  ],
+  [
+   "",
+   "Đỗ Phương Chi",
+   "Chịu trách nhiệm các case vận hành liên quan đến eKYC"
+  ],
+  [
+   "",
+   "Vũ Trần Đăng Khoa",
+   "Hỗ trợ các case vận hành eKYC"
+  ],
+  [
+   "Ops",
+   "",
+   ""
+  ],
+  [
+   "",
+   "Ngô Minh Thúy",
+   "Chịu trách nhiệm các case vận hành từ đối tác"
+  ],
+  [
+   "",
+   "Hoàng Thị Thu Quỳnh",
+   "Chịu trách nhiệm các case vận hành từ đối tác"
+  ],
+  [
+   "",
+   "Nguyễn Thị Diệu Hồng",
+   "Chịu trách nhiệm các case vận hành từ đối tác"
+  ],
+  [
+   "",
+   "Phạm Quỳnh Phương",
+   "Chịu trách nhiệm các case vận hành từ CSKH"
+  ],
+  [
+   "",
+   "Đỗ Thị Thu Phương",
+   "Chịu trách nhiệm các case vận hành từ CSKH"
+  ],
+  [
+   "",
+   "Nguyễn Tố Tâm (tam.nguyen3)",
+   "Chịu trách nhiệm các case vận hành từ CSKH"
+  ],
+  [
+   "",
+   "Nguyễn Thị Hoài (hoai.nguyen)",
+   "Chịu trách nhiệm các case vận hành từ CSKH, app Cake"
+  ],
+  [
+   "",
+   "Hứa Thu Hường",
+   "Chịu trách nhiệm các case vận hành từ CSKH"
+  ]
+ ],
+ "Onb-DOP": [
+  [
+   "Bước",
+   "Màn hình",
+   "Lỗi phát sinh",
+   "Ops lending kiểm tra",
+   "Nguyên nhân",
+   "Hướng xử lý",
+   "Tech lending kiểm tra"
+  ],
+  [
+   "Lỗi chung",
+   "",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "Tất cả màn hình",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Sau khi KH nhấn nút, hiển thị màn hình trắng xóa",
+   "KH đợi 1 lúc và thử lại.\nGửi ticket cho tech kiểm tra thêm.",
+   "",
+   "",
+   "Kiểm tra timeout"
+  ],
+  [
+   "Khởi tạo link",
+   "API create-token",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "[MWG-CL] Báo lỗi \"Mã đối tác không hợp lệ\"",
+   "N/A",
+   "Có thể đối tác upgrade hệ thống hoặc\nCó thể 1 phần hệ thống DOP bị quá tải tại 1 thời điểm",
+   "Sale gọi lại get-status",
+   "SVK-9564\nhttps://grafana.internal.cake.vn/explore?schemaVersion=1&panes=%7B%22u5d%22:%7B%22datasource%22:%22log-cake-as-se1-prd%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22datasource%22:%7B%22type%22:%22quickwit-quickwit-datasource%22,%22uid%22:%22log-cake-as-se1-prd%22%7D,%22query%22:%22k8s_container_name:%5C%22cake-dop%5C%22%5Cn%5C%22Ch%E1%BB%AF%20k%C3%BD%5C%22%22,%22alias%22:%22%22,%22metrics%22:%5B%7B%22type%22:%22logs%22,%22id%22:%223%22,%22settings%22:%7B%22limit%22:%22100%22,%22sortDirection%22:%22desc%22%7D%7D%5D,%22bucketAggs%22:%5B%7B%22type%22:%22date_histogram%22,%22id%22:%222%22,%22settings%22:%7B%22interval%22:%22auto%22%7D,%22field%22:%22%22%7D%5D,%22timeField%22:%22%22%7D%5D,%22range%22:%7B%22from%22:%22now-3h%22,%22to%22:%22now%22%7D,%22panelsState%22:%7B%22logs%22:%7B%22columns%22:%7B%220%22:%22time%22,%221%22:%22$qw_message%22,%222%22:%22error%22,%223%22:%22signature%22,%224%22:%22source.file%22,%225%22:%22source.function%22%7D,%22visualisationType%22:%22table%22,%22refId%22:%22A%22%7D%7D%7D%7D&orgId=1"
+  ],
+  [
+   "Xác thực khách hàng",
+   "Nhập số điện thoại",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chuyển sang MH tiếp theo, hiển thị \"Có lỗi xảy ra\"",
+   "Kiểm tra dashboard OTP",
+   "Có thể do KH đang bị khóa 15 phút / 24 giờ",
+   "Báo KH chờ 15 phút hoặc ngày hôm sau thử lại.\nSau đó báo tech team fix lỗi.",
+   ""
+  ],
+  [
+   "",
+   "Nhập OTP",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Nhập sai OTP, báo đợi",
+   "",
+   "Rule OTP\n- KH có thể lấy/nhập sai tổng 6 OTPs trong 24 tiếng\n- Cứ mỗi 3 lần lấy/nhập sai OTPs block 15 phút\n- Hiệu lực OTP là 2 phút\n- SMS OTP trên DOP Webview, luồng đăng nhập trên ứng dụng Cake và ký hợp đồng khoản vay hoàn toàn độc lập.",
+   "Theo rule",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Không nhận được OTP",
+   "Kiểm tra dashboard OTP",
+   "Lỗi hệ thống chưa gửi hoặc nhà mạng lỗi không gửi",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chuyển sang MH tiếp theo, hiển thị \"Có lỗi xảy ra\"",
+   "Kiểm tra portal saas ekyc, đã đăng ký khuôn mặt thành công chưa",
+   "Trước đó đăng ký khuôn mặt thất bại",
+   "Ops KYC cập nhật lại khuôn mặt của KH",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chuyển sang MH tiếp theo, hiển thị \"Oops, something went wrong\"",
+   "",
+   "",
+   "Tech đang check ở SVK-7231",
+   ""
+  ],
+  [
+   "",
+   "Quét khuôn mặt",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Quét hoài không được",
+   "",
+   "SDK eKYC không nhận diện được khuôn mặt",
+   "Báo KH đợi đến khi màn hình có nền xanh đỏ, đưa điện thoại từ gần ra xa dần, viền ngoài của tóc ở trong khung đỏ",
+   ""
+  ],
+  [
+   "Đăng ký nhu cầu",
+   "Đăng ký nhu cầu",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chuyển sang MH tiếp theo, hiển thị \"Hồ sơ không được duyệt\"",
+   "Hồ sơ No KYC",
+   "Hồ sơ No KYC sẽ auto reject kyc",
+   "Ops KYC reset lại để KH đi lại",
+   ""
+  ],
+  [
+   "",
+   "Đăng ký bảo hiểm OPES",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chưa ghi nhận",
+   "",
+   "-",
+   "-",
+   ""
+  ],
+  [
+   "Cập nhật thông tin cá nhân",
+   "Xác thực danh tính",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chưa ghi nhận",
+   "",
+   "-",
+   "-",
+   ""
+  ],
+  [
+   "",
+   "Chụp GTTT mặt trước",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chuyển từ MH trước, hiển thị \"Có lỗi xảy ra\"",
+   "1/ Kiểm tra sola portal có lỗi gì không",
+   "1/ \na/ Service detect_id_card_tampering - CCCD hết hạn\n2/ Có thể do chưa cấp quyền bật Camera",
+   "1/\na/ Báo KH đổi CCCD mới\n2/ Báo KH cấp quyền quyền camera trên app đối tác và cấp quyền khi web hỏi. \nLỗi này đã fix, nếu còn tồn tại báo tech team fix lỗi.",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Sau khi chụp xong và submit, hiển thị \"Có lỗi xảy ra\"",
+   "1/ Kiểm tra sola portal có lỗi gì không",
+   "1/ \na/ Service detect_id_card_tampering - Lỗi invalid_parameter_exception",
+   "1/\na/ Chưa thêm app-id cho sản phẩm mới, tech bổ sung",
+   ""
+  ],
+  [
+   "",
+   "Chụp GTTT mặt sau",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chuyển từ MH trước, hiển thị \"Có lỗi xảy ra\"",
+   "",
+   "Lỗi khi gửi thông tin xuống eKYC",
+   "Ops KYC kiểm tra Portal saas eKYC",
+   ""
+  ],
+  [
+   "",
+   "Chụp khuôn mặt",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chuyển từ MH trước, hiển thị \"Có lỗi xảy ra\"",
+   "",
+   "Lỗi khi gửi thông tin xuống eKYC",
+   "Ops KYC kiểm tra Portal saas eKYC",
+   ""
+  ],
+  [
+   "Bổ sung thông tin vay",
+   "Thông tin thu nhập",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chuyển từ MH trước, hiển thị \"Có lỗi xảy ra\"",
+   "",
+   "Lỗi khi gửi thông tin xuống eKYC",
+   "Ops KYC kiểm tra Portal saas eKYC",
+   ""
+  ],
+  [
+   "",
+   "Kiểm tra khoản vay",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "[VDS payday] KH nộp hồ sơ báo không đủ điều kiện, trên loan portal báo hồ sơ CANCEL",
+   "1/ KH có chọn bảo hiểm không?",
+   "1/ VDS payday sẽ CANCEL khoản vay khi chưa chọn bảo hiểm",
+   "-",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chuyển sang MH tiếp theo, hiển thị \"Có lỗi xảy ra\"",
+   "1/ Check SPS ekyc, permanent_ward_id có null không\n2/ Kiểm tra hồ sơ vay ekyc có bị thiếu không?",
+   "1/ Trường bắt buộc bị null nên có lỗi\n2/ Hồ sơ ekyc hoặc vay bị thiếu",
+   "1/ Gửi Ops KYC cập nhật lại cho KH\n2/ Kiểm tra lại hồ sơ eKYC trước, nếu không có gửi Tech\n3/ Tech check dữ liệu sđt người tham chiếu có bị dấu cách ở giữa không?",
+   ""
+  ],
+  [
+   "LOS check",
+   "LOS check",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "LOS loading liên tục không dừng",
+   "Hồ sơ ekyc có bị pending không",
+   "1/ Ekyc pending\n2/ Thời gian LOS duyệt có thể đến 10 phút",
+   "1/ Báo ops ekyc approve/reject hồ sơ\n2/ Sau 10 phút nếu hồ sơ chưa lên Portal cần báo Tech\nSau 10 phút hồ sơ dừng ở EKYC hoặc EKYC_SUCCESS, nhấn \"Hủy khoản vay\" để KH thực hiện lại",
+   ""
+  ],
+  [
+   "Ký hợp đồng",
+   "Thông tin phê duyệt",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chưa ghi nhận",
+   "",
+   "-",
+   "-",
+   ""
+  ],
+  [
+   "",
+   "Xem hợp đồng",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chuyển từ MH trước, hiển thị \"Có lỗi xảy ra\"",
+   "",
+   "1/ KH đổi thông tin eKYC sau khi được Approve",
+   "1/ \"Hủy khoản vay\" để KH thực hiện lại",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Nhấn CTA có gửi OTP về cho KH nhưng chỉ tải lại MH hợp đồng",
+   "",
+   "1/ VPO_cashloan check get_screen không vấn đề gì, nhưng submit_screen thiếu phần action",
+   "1/ Mới chỉ bị ở VPO_cashloan, báo KH lên app Cake để ký",
+   ""
+  ],
+  [
+   "",
+   "",
+   "[VDS PD] KH giới tính A nhưng hợp đồng hiển thị giới tính B",
+   "",
+   "1/ Với VDS CL có cho chọn giới tính trên luồng vay, nên hợp đồng sẽ theo giới tính KH chọn",
+   "1/ Báo lại KH lần sau chọn đúng",
+   ""
+  ],
+  [
+   "",
+   "OTP ký hợp đồng",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Nhập sai OTP, báo đợi",
+   "",
+   "Rule OTP ký hợp đồng\n- KH có thể lấy/nhập sai tổng 6 OTPs trong 24 tiếng\n- Cứ mỗi 3 lần lấy/nhập sai OTPs block 15 phút\n- Sau 6 lần lấy/nhập sai thì hồ sơ khoản vay của KH sẽ bị hủy. KH sẽ phải gửi lại hồ sơ đăng ký khoản vay từ đầu.\n- Hiệu lực OTP là 2 phút\n- SMS OTP trên DOP Webview, luồng đăng nhập trên ứng dụng Cake và ký hợp đồng khoản vay hoàn toàn độc lập.",
+   "Theo rule",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Không nhận được OTP ký hợp đồng",
+   "",
+   "Lỗi hệ thống chưa gửi hoặc nhà mạng lỗi không gửi",
+   "Báo Product Lending xây dựng công cụ kiểm tra hệ thống đã gửi chưa",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Nhập OTP ký thành công nhưng báo \"Có lỗi xảy ra\"",
+   "",
+   "a/ Có thể do đối tác Savis lấy sai CCCD",
+   "a/ Tech kiểm tra có đang bật Savis không",
+   ""
+  ],
+  [
+   "",
+   "Ký hợp đồng thành công",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Riêng với VNPost (VPO_cashloan)\nloan_status = USER_SIGN, chưa giải ngân",
+   "1/ Chưa tạo loan account trên mambu?\n2/ Đã tạo loan account trên mambu, đã gọi disburse-request với status user-sign thành công\na/ KH bị khóa ví PostPay hay không?\nb/ PP có ghi nhận log giải ngân chưa (dash [POSTPAY X CAKE] Check log call)\nc/ KH có xác thực sinh trắc học chưa?\nd/ KH là đại lý phải không?",
+   "1/ Chưa gặp\n2/ Đầu DVS nạp ví giải ngân thất bại, nên call qua Cake disburse-update lỗi.\n2c/ LI-PO-101: Người dùng chưa xác thực sinh trắc học trên ví PostPay. Vui lòng thực hiện sinh trắc học trên ví PostPay\n2d/LI-PO-008: Bưu tá / CTV/ Đại lý nhưng liên kết ngân hàng bằng đối tượng cá nhân, thực hiện liên kết lại và thực hiện giao dịch",
+   "2a+2b/ Báo PP mở khóa ví, gửi Tech PP patch data cho KH, sau đó Ops nhấn \"Gửi lại yêu cầu giải ngân\"\n2c/ Báo KH thực hiện lại sinh trắc học, sau đó gửi Tech PP patch data cho KH, sau đó Ops nhấn \"Gửi lại yêu cầu giải ngân\"\n2d/ KH đăng nhập PP, đổi đối tượng từ bưu tá thành KHCN, sau đó gửi Tech PP patch data cho KH, sau đó Ops nhấn \"Gửi lại yêu cầu giải ngân\"",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Khách hàng bị đứng ở loan_status=USER_SIGN",
+   "Xem tab Giải ngân",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Khách hàng bị đứng ở loan_status=USER_SIGN",
+   "1/ step 1\na/ Đã tạo loan account trên mambu/ice chưa?\nb/ Đã tạo loan drawdown (mambu) chưa?\n2/ step 2\na/ Nếu giải ngân vào Casa Cake, đã đi tiền vào Casa chưa?\nb/ Nếu giải ngân đối tác\nb1/ Cake đã gọi API disburse-request chưa?\nb2/ Đối tác đã giải ngân chưa\nb3/ Đối tác đã gọi API disburse-update chưa?\n3/ step 3\na/Đã acitve ICE chưa\nb/ Đã chuyển tiền vào loan drawdown chưa?\nc/ Đã chuyển tiền từ loan drawdown vào bảo hiểm và tkđbtt của đối tác/cake chưa?",
+   "1a/ Lỗi tạo loan account\n1b/ Lỗi tạo loan drawdown hoặc có thể do bị blacklist\n2a/ Lỗi khi giải ngân Casa\n2b1/ Lỗi không bắn api hoặc đối tác trả về lỗi khi gọi API\n2b2/ Đối tác bị lỗi giải ngân\n2b3/ Đối tác lỗi không bắn api hoặc Cake trả về lỗi khi gọi API\n3a/ Lỗi tạo tài khoản ICE\n3b/ Kẹt tiền khi chuyển vào loan dd\n3c/ Kẹt tiền khi chuyển tiền từ loan dd sang các tài khoản tương ứng",
+   "1a/ Nhấn \"Thử giải ngân lại\" trên Portal\n1b/ Kiểm tra blacklist, sau đó nhấn \"Thử giải ngân lại\" trên Portal\n2a/ Nhấn \"Thử giải ngân lại\" trên Portal\n2b/ Nhấn \"Gửi lại yêu cầu giải ngân\" (cẩn thận check kỹ trước khi nhấn) trên Portal\n        Riêng với VNPay, có thể nhấn lại \"Gửi lại yêu cầu giải ngân\" không cần check đối tác vì tech đối tác đã kiểm tra khoản vay đã giải ngân sẽ không giải ngân lại, chỉ gọi lại api disburse-update thôi\n3a/ Nhấn \"Thử giải ngân lại\" trên Portal\n3b/ Nhấn \"Thử giải ngân lại\" trên Portal\n3c/ Nhấn \"Thử giải ngân lại\" trên Portal\nNgoài ra: Nếu khoản vay đã lâu chưa xử lý thì có thể \"Hủy khoản vay\" để KH thực hiện lại từ đầu, nhưng cần đảm bảo đối tác chưa giải ngân.",
+   "2a/ Lỗi \"response status code does not match any response statuses defined for this endpoint in the swagger spec\" => bị dừng ở đã giải ngân bảo hiểm, nhưng phía sau bị lỗi, retry thêm phát sẽ lỗi giải ngân bảo hiểm 2 lần khiến bị thiếu tiền"
+  ],
+  [
+   "",
+   "",
+   "loan_status = USER_SIGN, chưa giải ngân\n1/ Với trường hợp giải ngân qua Casa\n  a/ Chưa tạo loan account trên Mambu\n  b/ Chưa giải ngân vào loan account trên Mambu\n  c/ Chưa Withdraw từ tài khoản Loan Drawdown vào các channel tương ứng\n2/ Với trường hợp giải ngân qua đối tác\n  a/ Chưa tạo loan account trên Mambu\n  b/ Chưa gọi API disburse-request sang đối tác",
+   "",
+   "all/ Kẹt giải ngân\n1c/ Kiểm tra KH có bị blacklist mambu không? Kiểm tra 2 custom-field Banking details mambu đã tạo chưa?",
+   "1/ \n  a/ Nhấn \"Thử giải ngân lại\" trên Portal\n  b/ Nhấn \"Thử giải ngân lại\" trên Portal, nếu thất bại nhắn Tech trigger tay\n  c/ Nhấn \"Thử giải ngân lại\" trên Portal. Nếu blacklist thì cần gỡ blacklist. Nếu thiếu field custom thì báo liab cập nhật\n2/ \n  a/ Nhấn \"Thử giải ngân lại\" trên Portal, nếu thất bại kiểm tra 2 custom-field mambu đã tạo chưa, nếu chưa tạo báo Liab, nếu đã tạo gửi Tech\n  b/ Nhấn \"Gửi lại yêu cầu giải ngân\"\nNgoài ra: Nếu khoản vay đã lâu chưa xử lý thì có thể \"Hủy khoản vay\" để KH thực hiện lại từ đầu, nhưng cần đảm bảo đối tác chưa giải ngân.",
+   ""
+  ],
+  [
+   "",
+   "",
+   "loan_status = USER_SIGN, đã giải ngân\n1/ Với trường hợp giải ngân qua Casa\n2/ Với trường hợp giải ngân qua đối tác\na/ Đối tác chưa gọi hoặc gọi API disburse-update thất bại\nb/ Cake đã trả về API disburse-update trạng thái thành công",
+   "",
+   "1/ Kẹt cập nhật status giải ngân\n2a/ Đối tác chưa gọi hoặc gọi API disburse-update thất bại\n2b/ Cake giải ngân vào channel tương ứng thất bại",
+   "1/ Gửi Tech trigger lại hoặc patch data\n2a/ Báo đối tác gọi lại API disburse-update\n2b/ Kiểm tra 2 custom-field mambu đã tạo chưa, nếu chưa tạo báo Liab, nếu đã tạo gửi Tech.\nNhấn \"Thử giải ngân lại\" trên Portal",
+   ""
+  ]
+ ],
+ "Onb-Cake": [
+  [
+   "Bước",
+   "Màn hình",
+   "Lỗi phát sinh",
+   "Ops lending kiểm tra",
+   "Nguyên nhân",
+   "Hướng xử lý",
+   "Tech lending kiểm tra"
+  ],
+  [
+   "Trước Lending",
+   "Mở tài khoản Cake",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "KH nhập sai OTP, báo lỗi (thường gặp với MWG)",
+   "",
+   "Rule:\n- Số lượng OTP KH có thể lấy trong 1 giờ = 3 SMS OTPs\n- Số lượng OTP KH có thể lấy trong 30 ngày = 20 SMS OTPs\n- Khi KH đăng nhập lần đầu vào Cake sẽ cần xác thực OTPs để đăng nhập lần đầu.\n- Khi KH thay đổi thiết bị so với thiết bị đăng nhập trước đó sẽ cần xác thực OTPs để đổi thiết bị\n- Khi KH thực hiện NFC và đăng nhập thành công sẽ cần OTP để ký mở TKTT\n- SMS OTP trên DOP Webview, luồng đăng nhập trên ứng dụng Cake và ký hợp đồng khoản vay hoàn toàn độc lập.",
+   "Theo rule\nCheck thêm Dashboard OTP có gửi được OTP cho KH không",
+   ""
+  ],
+  [
+   "tab Khoản vay/icon Home",
+   "Mở khoản vay",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "1/Hiển thị \"Có lỗi xảy ra\"\n2/ Hiển thị màn hình trắng\n3/ Hiển thị \"Hệ thống đã xảy ra lỗi. Vui lòng thử lại sau.\n4/ Hiển thị popup \"no Route matched with those values\"",
+   "",
+   "Lỗi thông tin eKYC\na/ Trường \"Tình trạng hôn nhân\" để trống\nb/ Các trường địa chỉ có dấu xuống dòng\nc/ Các trường eKYC khác chưa liệt kê\nd/ Đăng ký khuôn mặt không thành công\n4/ Gửi tech kiểm tra",
+   "Ops Lending kiểm tra trước, sau đó Ops KYC kiểm tra\n4/ Gửi tech kiểm tra",
+   "4/ Kiểm tra mở Kong chưa"
+  ],
+  [
+   "Xác thực khách hàng",
+   "Giới thiệu sản phẩm",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Hiển thị MH lỗi rõ ràng",
+   "",
+   "1/ KH bị chặn theo điều kiện sản phẩm\n2/ KH đủ tuổi nhưng báo không đủ tuổi",
+   "1/ Kiểm tra với team Product Lending\n2/ Hiện chưa thể hỗ trợ KH, dự kiến 20/8 Tech sẽ fix xong lỗi này",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Hiển thị MH \"Có lỗi xảy ra\"",
+   "",
+   "Có lỗi",
+   "Báo Tech kiểm tra",
+   ""
+  ],
+  [
+   "",
+   "Quét khuôn mặt",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "1/ Chuyển từ MH trước, hiển thị \"Có lỗi xảy ra\"\n2/ Chuyển từ MH trước/ tab khoản vay, hỉen thị màn hình trắng",
+   "",
+   "Trước đó đăng ký khuôn mặt thất bại",
+   "Ops KYC cập nhật lại khuôn mặt của KH",
+   ""
+  ],
+  [
+   "Đăng ký nhu cầu",
+   "Đăng ký nhu cầu",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chưa ghi nhận",
+   "",
+   "-",
+   "-",
+   ""
+  ],
+  [
+   "",
+   "Đăng ký bảo hiểm OPES",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chưa ghi nhận",
+   "",
+   "-",
+   "-",
+   ""
+  ],
+  [
+   "Bổ sung thông tin vay",
+   "Thông tin cá nhân",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "1/ Chuyển từ MH trước/tab Khoản vay, hiển thị \"Có lỗi xảy ra\"\n2/ Chuyển từ MH trước/tab Khoản vay, hiển thị màn hình trắng",
+   "",
+   "Lỗi thông tin eKYC\na/ Trường \"Tình trạng hôn nhân\" để trống\nb/ Các trường địa chỉ có dấu xuống dòng\nc/ Các trường eKYC khác chưa liệt kê\nd/ Đăng ký khuôn mặt không thành công\ne/ Nếu khoản vay chờ ký, check tab App Cake có mã lỗi 124523",
+   "a-d/ Ops Lending kiểm tra trước, sau đó Ops KYC kiểm tra\ne/ Báo Tech tắt savis",
+   ""
+  ],
+  [
+   "",
+   "Thông tin người tham chiếu",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chưa ghi nhận",
+   "",
+   "-",
+   "-",
+   ""
+  ],
+  [
+   "",
+   "Kiểm tra khoản vay",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chưa ghi nhận",
+   "",
+   "-",
+   "-",
+   ""
+  ],
+  [
+   "",
+   "Nhập OTP đăng ký",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Khách hàng không nhận được OTP",
+   "",
+   "Từ đối tác Datanest, đối tác không gửi otp",
+   "Báo Product Lending kiểm tra\nChi tiết discuss: https://teams.microsoft.com/l/message/19:05e5ab6748b846b7a721fcc8db236e3b@thread.v2/1758082921342?context=%7B%22contextType%22%3A%22chat%22%7D",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Khách hàng nhập sai OTP liên tục",
+   "",
+   "Từ đối tác Datanest, đối tác gửi sai otp",
+   "Báo Product Lending kiểm tra",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Nhập OTP thành công, nhưng ra MH \"Có lỗi xảy ra\"",
+   "",
+   "a/ Thiếu field xã ở eKYC",
+   "a/ Báo Ops KYC cập nhật lại hồ sơ",
+   ""
+  ],
+  [
+   "LOS check",
+   "LOS check",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chuyển từ MH trước, hiển thị \"Có lỗi xảy ra\"",
+   "",
+   "Hồ sơ ekyc hoặc vay bị thiếu",
+   "Kiểm tra lại hồ sơ eKYC trước, nếu không có gửi Tech",
+   ""
+  ],
+  [
+   "",
+   "",
+   "LOS loading liên tục không dừng",
+   "1/ Với OD:\na/ KH đã chọn sổ TD chưa? \nb/ Sổ TD của KH chọn có đủ theo điều kiện sản phẩm không?\nhttps://cake.vn/khoan-vay/cake/ung-tien-nhanh-lien-ket-so-tiet-kiem\n2/ Với các sp còn lại: Thời gian LOS duyệt có thể đến 10 phút",
+   "1a + 1b/ KH chưa chọn sổ TD, chưa đủ điều kiện LOS duyệt, hiện tại sẽ loading liên tục",
+   "1a + 1b/ Sau 10 phút chưa được báo KH 7 ngày sau vay lại\n2/ Sau 10 phút nếu hồ sơ chưa lên Portal cần báo Tech\nSau 20 phút hồ sơ dừng ở EKYC hoặc EKYC_SUCCESS, nhấn \"Hủy khoản vay\" để KH thực hiện lại",
+   ""
+  ],
+  [
+   "Ký hợp đồng",
+   "Thông tin phê duyệt",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chưa ghi nhận",
+   "",
+   "-",
+   "-",
+   ""
+  ],
+  [
+   "",
+   "Xem hợp đồng",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Chuyển từ MH trước, hiển thị \"Có lỗi xảy ra\"",
+   "",
+   "1/ KH đổi thông tin eKYC sau khi được Approve",
+   "1/ \"Hủy khoản vay\" để KH thực hiện lại",
+   ""
+  ],
+  [
+   "",
+   "OTP ký hợp đồng",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Nhập sai OTP, báo đợi",
+   "",
+   "Rule OTP ký hợp đồng\n- KH có thể lấy/nhập sai tổng 6 OTPs trong 24 tiếng\n- Cứ mỗi 3 lần lấy/nhập sai OTPs block 15 phút\n- Sau 6 lần lấy/nhập sai thì hồ sơ khoản vay của KH sẽ bị hủy. KH sẽ phải gửi lại hồ sơ đăng ký khoản vay từ đầu.\n- Hiệu lực OTP là 2 phút\n- SMS OTP trên DOP Webview, luồng đăng nhập trên ứng dụng Cake và ký hợp đồng khoản vay hoàn toàn độc lập.",
+   "Theo rule",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Không nhận được OTP ký hợp đồng",
+   "",
+   "Lỗi hệ thống chưa gửi hoặc nhà mạng lỗi không gửi",
+   "Báo Product Lending xây dựng công cụ kiểm tra hệ thống đã gửi chưa",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Nhập OTP ký thành công nhưng báo \"Có lỗi xảy ra\"",
+   "",
+   "a/ Có thể do đối tác Savis lấy sai CCCD",
+   "a/ Tech kiểm tra có đang bật Savis không",
+   ""
+  ],
+  [
+   "",
+   "Ký hợp đồng thành công",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Khách hàng bị đứng ở loan_status=USER_SIGN",
+   "1/ step 1\na/ Đã tạo loan account trên mambu/ice chưa?\nb/ Đã tạo loan drawdown (mambu) chưa?\n2/ step 2\na/ Nếu giải ngân vào Casa Cake, đã đi tiền vào Casa chưa?\nb/ Nếu giải ngân đối tác\nb1/ Cake đã gọi API disburse-request chưa?\nb2/ Đối tác đã giải ngân chưa\nb3/ Đối tác đã gọi API disburse-update chưa?\n3/ step 3\na/Đã acitve ICE chưa\nb/ Đã chuyển tiền vào loan drawdown chưa?\nc/ Đã chuyển tiền từ loan drawdown vào bảo hiểm và tkđbtt của đối tác/cake chưa?",
+   "1a/ Lỗi tạo loan account\n1b/ Lỗi tạo loan drawdown hoặc có thể do bị blacklist\n2a/ Lỗi khi giải ngân Casa\n2b1/ Lỗi không bắn api hoặc đối tác trả về lỗi khi gọi API\n2b2/ Đối tác bị lỗi giải ngân\n2b3/ Đối tác lỗi không bắn api hoặc Cake trả về lỗi khi gọi API\n3a/ Lỗi tạo tài khoản ICE\n3b/ Kẹt tiền khi chuyển vào loan dd\n3c/ Kẹt tiền khi chuyển tiền từ loan dd sang các tài khoản tương ứng",
+   "1a/ Nhấn \"Thử giải ngân lại\" trên Portal\n1b/ Kiểm tra blacklist, sau đó nhấn \"Thử giải ngân lại\" trên Portal\n2a/ Nhấn \"Thử giải ngân lại\" trên Portal\n2b/ Nhấn \"Gửi lại yêu cầu giải ngân\" (cẩn thận check kỹ trước khi nhấn) trên Portal\n3a/ Nhấn \"Thử giải ngân lại\" trên Portal\n3b/ Nhấn \"Thử giải ngân lại\" trên Portal\n3c/ Nhấn \"Thử giải ngân lại\" trên Portal\nNgoài ra: Nếu khoản vay đã lâu chưa xử lý thì có thể \"Hủy khoản vay\" để KH thực hiện lại từ đầu, nhưng cần đảm bảo đối tác chưa giải ngân.",
+   "2a/\n2a.1/ WF err \"invalid connection\" => tech retry wf\n3c/ \n3c.1/ WF err \"context canceled => Excess loan limit\" => Recon đi tiền, sau đó báo tech cập nhật status khoản vay và tạo lịch trả nợ (ví dụ PL-12149), đợi chuyển sang ICE\n3c.2/ WF err \"ErrorCode:3305 ErrorReason:EXTERNAL_ID_ALREADY_EXISTS\" => không retry mambu được, báo recon xử lý tay"
+  ],
+  [
+   "",
+   "",
+   "Khách hàng bị đứng ở loan_status=USER_SIGN",
+   "Xem tab Giải ngân",
+   "",
+   "",
+   ""
+  ]
+ ],
+ "Onb-API": [
+  [
+   "Bước",
+   "API",
+   "Lỗi phát sinh",
+   "Ops lending kiểm tra",
+   "Nguyên nhân",
+   "Hướng xử lý"
+  ],
+  [
+   "eKYC",
+   "check-profile",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Response is_duplicate_loan = true",
+   "",
+   "Đã tồn tại khoản vay tại Cake",
+   "Đối tác cần gọi API get-loan-detail để lấy thông tin khoản vay, KH không thể đăng ký khoản vay mới"
+  ],
+  [
+   "",
+   "",
+   "Response is_valid_user = false",
+   "",
+   "a/ SĐT và CCCD đối tác truyền không khớp với thông tin tại Cake\nb/ KH đã có khoản vay, không thể mở khoản vay mới",
+   "a/ Kiểm tra thông tin API với thông tin trên Portal eKYC\nb/ Đối tác cần gọi API get-loan-detail để lấy thông tin khoản vay"
+  ],
+  [
+   "",
+   "challenge-get-otp",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Khách hàng không nhận được OTP",
+   "",
+   "Từ đối tác Datanest, đối tác không gửi otp",
+   "Báo Product Lending kiểm tra\nChi tiết discuss: https://teams.microsoft.com/l/message/19:05e5ab6748b846b7a721fcc8db236e3b@thread.v2/1758082921342?context=%7B%22contextType%22%3A%22chat%22%7D"
+  ],
+  [
+   "",
+   "challenge-verify-otp",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Khách hàng nhập sai OTP liên tục",
+   "",
+   "Từ đối tác Datanest, đối tác gửi sai otp",
+   "Báo Product Lending kiểm tra"
+  ],
+  [
+   "",
+   "client-create",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "900000 - Có lỗi xảy ra, vui lòng thử lại sau!",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "500001 - Tài khoản bị từ chối",
+   "a/ Có gọi API check-profile chưa, nếu đã gọi và is_valid_user = false là do hit Precheck\nb/ Các trường hợp còn lại do hit product policy, ví dụ\nVới VTPO_cashloan:\n- age: 20-50\n- insurance_fee: 7\n- loan_amount: 5000000-30000000\n- monthly_income: >= 5000000\n- partner_cake_score >= 750\n- partner_fraud_score < 2000\n- partner_telco_score >= 550\n- tenors: 6-24 (step 1)\n- Không pass Precheck\n- Mới: (telco_score >= 550 & fraud_score < 2000) || (telco_score < 550 & vds_cake_score >= 750 & fraud_score < 2000)\nVới VDS_paylater_epass (chưa lên):\n- monthly_income >= 5.000.000\n- product_code IN ( PLVT_03 )\n- proposed_amount >= 100000 && proposed_amount <= 5000000 \n- proposed_term IN ( 60 )\n- vds_telco_score >= 350 && vds_telco_score <= 850 (lấy số nhỏ hơn trong range)",
+   "a/ Hit precheck\nb/ Sai product policy",
+   "Báo Product Lending kiểm tra trước"
+  ],
+  [
+   "",
+   "",
+   "Báo thành công nhưng trả request_id = \"\" (empty)",
+   "1/ Kiểm tra có phải KH NoKYC hoặc không có hình ảnh cccd, không có tài khoản ở Sola không?",
+   "1/ KH bị NoKYC hoặc lỗi tài khoản ekyc, không tạo hồ sơ mới được",
+   "1/ Reset eKYC cho KH"
+  ],
+  [
+   "",
+   "client-update",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "180203 - Giấy tờ đang xét duyệt",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "180208 - Không tìm thấy dữ liệu khuôn mặt. Vui lòng liên hệ CSKH để được hỗ trợ bổ sung thông tin. Hotline: 1900 636 686",
+   "",
+   "",
+   "Ops KYC cập nhật lại khuôn mặt KH"
+  ],
+  [
+   "",
+   "",
+   "180214 - Giấy tờ tuỳ thân hoặc hình ảnh không hợp lệ. Vui lòng thử lại hoặc gọi điện lên tổng đài 1900 636 686 để được hỗ trợ",
+   "",
+   "eKYC auto Reject",
+   "KH thử lại"
+  ],
+  [
+   "",
+   "",
+   "900000 - Có lỗi xảy ra, vui lòng thử lại sau!",
+   "",
+   "Lỗi chung",
+   "Lỗi chung, báo tech kiểm tra"
+  ],
+  [
+   "Submit loan",
+   "loan-register",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "900000 - Có lỗi xảy ra, vui lòng thử lại sau!",
+   "1/ Có tồn tại 2 khoản vay được approve không?\n2 Đã ekyc thành công chưa?",
+   "1/ Nếu không phải VDS CL thì do có lỗi duyệt\n2/ Chưa ekyc thành công",
+   "1/ Product check lại rule sản phẩm\n2/ Kiểm tra lại hồ sơ eKYC, có thể cần đối tác reset hồ sơ để KH thực hiện lại\nOther/ Lỗi chung, báo tech kiểm tra"
+  ],
+  [
+   "",
+   "",
+   "10001 - Dữ liệu nhập không hợp lệ!",
+   "1/ Đang có 1 khoản vay ở status APPROVE?\n2/ KH có bị risk không",
+   "1/ Chặn tạo hồ sơ mới khi có hồ sơ khác chưa hoàn thành\n2/ KH bị hit risk",
+   "1/ Báo đối tác kiểm tra lại"
+  ],
+  [
+   "",
+   "loan-update",
+   "Note: API riêng cho sp VDS O2O, dùng để cập nhật thông tin giải ngân",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "get-esign",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "900000 - Có lỗi xảy ra, vui lòng thử lại sau!",
+   "Kéo thêm cột error_detail vào bảng audit, xem mô tả lỗi ở cột này",
+   "a1/ Mã tỉnh/thành phố không hợp lệ\na2/ Lỗi chung\nb/ Riêng với VDS O2O, cần gọi loan-update trước",
+   "a1/ Kiểm tra lại với ops ekyc\na2/ Lỗi chung, báo tech kiểm tra\nb/ Product lending báo đối tác kiểm tra lại flow gọi API"
+  ],
+  [
+   "",
+   "get-otp",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "900000 - Có lỗi xảy ra, vui lòng thử lại sau!",
+   "",
+   "a/ Lỗi chung\nb/ Chưa gọi API get-esign trước đó",
+   "a/ Lỗi chung, báo tech kiểm tra\nb/ Product lending báo đối tác kiểm tra lại flow gọi API"
+  ],
+  [
+   "",
+   "",
+   "11013 - Trạng thái hợp đồng không hợp lệ",
+   "1/ Trạng thái khoản vay có phải APPROVE không?",
+   "1/ Không phải approve thì không ký được",
+   "1/ Nếu USER_SIGN thì xử lý theo các bước KH đã ký"
+  ],
+  [
+   "",
+   "",
+   "11000 - Dữ liệu nhập không hợp lệ!",
+   "1/ Trạng thái khoản vay có phải USER_SIGN không?",
+   "1/ Khoản vay đang đợi giải ngân, ko ký tiếp",
+   "1/ Check lại với đối tác luồng cập nhật status"
+  ],
+  [
+   "",
+   "verify-esign",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "300000 - Yêu cầu không hợp lệ",
+   "1/ Chưa gọi get-otp hoặc gọi không thành công?",
+   "1/ Chưa tạo otp nên chưa verify được",
+   "1/ Kiểm tra lại api và hồ sơ có đúng quy trình để ký chưa"
+  ],
+  [
+   "",
+   "",
+   "[VDS-CL]1245200 - EContract không tồn tại",
+   "1/ Chưa gọi get-otp hoặc gọi không thành công?",
+   "1/ Chưa tạo otp nên chưa verify được",
+   "1/ Kiểm tra lại api và hồ sơ có đúng quy trình để ký chưa"
+  ],
+  [
+   "",
+   "",
+   "Khách hàng bị đứng ở loan_status=USER_SIGN",
+   "Xem tab Giải ngân",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Khách hàng bị đứng ở loan_status=USER_SIGN",
+   "1/ step 1\na/ Đã tạo loan account trên mambu/ice chưa?\nb/ Đã tạo loan drawdown (mambu) chưa?\n2/ step 2\na/ Nếu giải ngân vào Casa Cake, đã đi tiền vào Casa chưa?\nb/ Nếu giải ngân đối tác\nb1/ Cake đã gọi API disburse-request chưa?\nb2/ Đối tác đã giải ngân chưa\nb3/ Đối tác đã gọi API disburse-update chưa?\n3/ step 3\na/Đã acitve ICE chưa\nb/ Đã chuyển tiền vào loan drawdown chưa?\nc/ Đã chuyển tiền từ loan drawdown vào bảo hiểm và tkđbtt của đối tác/cake chưa?",
+   "1a/ Lỗi tạo loan account\n1b/ Lỗi tạo loan drawdown hoặc có thể do bị blacklist\n2a/ Lỗi khi giải ngân Casa\n2b1/ Lỗi không bắn api hoặc đối tác trả về lỗi khi gọi API\n2b2/ Đối tác bị lỗi giải ngân\n2b3/ Đối tác lỗi không bắn api hoặc Cake trả về lỗi khi gọi API\n3a/ Lỗi tạo tài khoản ICE\n3b/ Kẹt tiền khi chuyển vào loan dd\n3c/ Kẹt tiền khi chuyển tiền từ loan dd sang các tài khoản tương ứng",
+   "1a/ Nhấn \"Thử giải ngân lại\" trên Portal\n1b/ Kiểm tra blacklist, sau đó nhấn \"Thử giải ngân lại\" trên Portal\n2a/ Nhấn \"Thử giải ngân lại\" trên Portal\n2b/ Nhấn \"Gửi lại yêu cầu giải ngân\" (cẩn thận check kỹ trước khi nhấn) trên Portal\n3a/ Nhấn \"Thử giải ngân lại\" trên Portal\n3b/ Nhấn \"Thử giải ngân lại\" trên Portal\n3c/ Nhấn \"Thử giải ngân lại\" trên Portal\nNgoài ra: Nếu khoản vay đã lâu chưa xử lý thì có thể \"Hủy khoản vay\" để KH thực hiện lại từ đầu, nhưng cần đảm bảo đối tác chưa giải ngân."
+  ],
+  [
+   "",
+   "",
+   "loan_status = USER_SIGN, chưa giải ngân\n1/ Với trường hợp giải ngân qua Casa\n  a/ Chưa tạo loan account trên Mambu\n  b/ Chưa giải ngân vào loan account trên Mambu\n  c/ Chưa Withdraw từ tài khoản Loan Drawdown vào các channel tương ứng\n2/ Với trường hợp giải ngân qua đối tác\n  a/ Chưa tạo loan account trên Mambu\n  b/ Chưa gọi API disburse-request sang đối tác",
+   "",
+   "Kẹt giải ngân\n1c/ Kiểm tra KH có bị blacklist mambu không? Kiểm tra 2 custom-field Banking details mambu đã tạo chưa?",
+   "1/ \n  a/ Nhấn \"Thử giải ngân lại\" trên Portal\n  b/ Nhấn \"Thử giải ngân lại\" trên Portal, nếu thất bại nhắn Tech trigger tay\n  c/ Nhấn \"Thử giải ngân lại\" trên Portal. Nếu blacklist thì cần gỡ blacklist. Nếu thiếu field custom thì báo liab cập nhật\n2/ \n  a/ Nhấn \"Thử giải ngân lại\" trên Portal, nếu thất bại kiểm tra 2 custom-field mambu đã tạo chưa, nếu chưa tạo báo Liab, nếu đã tạo gửi Tech\n  b/ Nhấn \"Gửi lại yêu cầu giải ngân\"\nNgoài ra: Nếu khoản vay đã lâu chưa xử lý thì có thể \"Hủy khoản vay\" để KH thực hiện lại từ đầu, nhưng cần đảm bảo đối tác chưa giải ngân."
+  ],
+  [
+   "",
+   "",
+   "loan_status = USER_SIGN, đã giải ngân\n1/ Với trường hợp giải ngân qua Casa\n2/ Với trường hợp giải ngân qua đối tác\na/ Đối tác chưa gọi hoặc gọi API disburse-update thất bại\nb/ Cake đã trả về API disburse-update trạng thái thành công",
+   "",
+   "1/ Kẹt cập nhật status giải ngân\n2a/ Đối tác chưa gọi hoặc gọi API disburse-update thất bại\n2b/ Cake giải ngân vào channel tương ứng thất bại",
+   "1/ Gửi Tech trigger lại hoặc patch data\n2a/ Báo đối tác gọi lại API disburse-update\n2b/ Kiểm tra 2 custom-field mambu đã tạo chưa, nếu chưa tạo báo Liab, nếu đã tạo gửi Tech.\nNhấn \"Thử giải ngân lại\" trên Portal"
+  ],
+  [
+   "",
+   "contract-cancel",
+   "",
+   "",
+   "",
+   ""
+  ]
+ ],
+ "Giải ngân": [
+  [
+   "Nền tảng",
+   "Sản phẩm",
+   "Bước",
+   "Quy trình giải ngân",
+   "Chi tiết",
+   "Lỗi và hướng xử lý với Ops",
+   "Hướng kiểm tra và xử lý với Tech"
+  ],
+  [
+   "Giải ngân TKTT Cake\nGiải ngân ngân hàng khác",
+   "",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "Cashloan: \n- CAKE_cashloan\n- CAKE_cl_affiliate\n- MWG_cashloan\n- MWG_cl_online",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "1A",
+   "Tạo loan account trên Core",
+   "- Tạo khoản vay + approve dựa theo phê duyệt của LOS",
+   "Nếu chưa tạo loan account: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được gửi Tech",
+   ""
+  ],
+  [
+   "",
+   "",
+   "1B",
+   "Tạo loan drawdown",
+   "AC 1: KH chưa có loan drawdown\n Step 1: Create loan drawdown account\n Step 2: Approve loan drawdown account\n\nAC 2: KH đã có loan drawdown\n- Không tạo mới loan drawdown.",
+   "Nếu chưa tạo loan drawdown: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được gửi Tech",
+   ""
+  ],
+  [
+   "",
+   "",
+   "1C",
+   "Tạo tài khoản trả trước (Prepayment)",
+   "AC 1: KH chưa có tài khoản prepayment (TK trả trước)\n  Step 1: Create prepayment account\n  Step 2: Approve prepayment account\nAC 2: KH đã có tài khoản trả trước\n- Không tạo mới tài khoản trả trước.\nLưu ý: Tài khoản trả trước này được sử dụng riêng cho từng sản phẩm",
+   "Nếu chưa tạo prepayment account: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được gửi Tech",
+   ""
+  ],
+  [
+   "",
+   "",
+   "2.0",
+   "",
+   "Không có bước gọi giải ngân đối tác, bỏ qua bước này",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "3A",
+   "Active Core",
+   "Chuyển status account ICE thành ACTIVE",
+   "Nếu chưa active ICE, gửi tech",
+   "Tech active ICE và chạy wf thủ công"
+  ],
+  [
+   "",
+   "",
+   "3B",
+   "Giải ngân",
+   "Giải ngân vào loan drawdown bằng số tiền approve + bảo hiểm\nThu phí bảo hiểm, thực hiện lệnh withdraw từ loan drawdown (số tiền phí bảo hiểm)\nThực hiện lệnh deposit vào tài khoản CASA / channel externalDisburse từ loan drawdown (số tiền approve)",
+   "1/ Chưa giải ngân loan drawdown: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được kiểm tra blacklist mambu, nếu không được tiếp gửi Tech\nNote: giải ngân ngoài thành công vẫn có thể dùng tool retry\n2/ Chưa thu phí bảo hiểm: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được gửi Tech\n3/ Chưa thực hiện lệnh deposit vào Casa: \n- Kiểm tra casa có đang active không, nếu không xử lý mở khóa casa\n- Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được gửi Tech",
+   "WF err \"invalid connection\" => tech retry wf\nWF err \"context canceled => Excess loan limit\" => Recon đi tiền, sau đó báo tech cập nhật status khoản vay và tạo lịch trả nợ (ví dụ PL-12149), đợi chuyển sang ICE\nWF err \"ErrorCode:3305 ErrorReason:EXTERNAL_ID_ALREADY_EXISTS\" => không retry mambu được, báo recon xử lý tay"
+  ],
+  [
+   "",
+   "",
+   "3C",
+   "Cập nhật LMS",
+   "Cập nhật trạng thái khoản vay từ USER_SIGN thành DISBURSE",
+   "Nếu chưa chuyển trạng thái: Ops nhấn \"Thử giải ngân lại\" trên Portal\nNếu các step đi tiền phía trên đã đầy đủ, confirm với product đủ bước, tạo ticket trên cake task \"Lending Force Status Loan\" để cập nhật trạng thái khoản vay thành ACTIVE",
+   ""
+  ],
+  [
+   "",
+   "Cashloan: \n- Cake payday, \n- Be payday",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "1A",
+   "Tạo loan account trên Core",
+   "- Tạo khoản vay + approve dựa theo phê duyệt của LOS",
+   "Nếu chưa tạo loan account: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được gửi Tech",
+   ""
+  ],
+  [
+   "",
+   "",
+   "1B",
+   "Tạo loan drawdown",
+   "AC 1: KH chưa có loan drawdown\n Step 1: Create loan drawdown account\n Step 2: Approve loan drawdown account\n\nAC 2: KH đã có loan drawdown\n- Không tạo mới loan drawdown.",
+   "Nếu chưa tạo loan drawdown: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được gửi Tech",
+   ""
+  ],
+  [
+   "",
+   "",
+   "2.0",
+   "",
+   "Không có bước gọi giải ngân đối tác, bỏ qua bước này",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "3A",
+   "Active Core",
+   "Chuyển status account ICE thành ACTIVE",
+   "Nếu chưa active ICE, gửi tech",
+   ""
+  ],
+  [
+   "",
+   "",
+   "3B",
+   "Giải ngân",
+   "Giải ngân vào loan drawdown bằng số tiền approve + bảo hiểm\nThu phí bảo hiểm, thực hiện lệnh withdraw từ loan drawdown (số tiền phí bảo hiểm)\nThực hiện lệnh deposit vào tài khoản CASA từ loan drawdown (số tiền approve)",
+   "1/ Chưa giải ngân loan drawdown: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được kiểm tra blacklist mambu, nếu không được tiếp gửi Tech\n2/ Chưa thu phí bảo hiểm: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được gửi Tech\n3/ Chưa thực hiện lệnh deposit vào Casa: \n- Kiểm tra casa có đang active không, nếu không xử lý mở khóa casa\n- Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được gửi Tech",
+   ""
+  ],
+  [
+   "",
+   "",
+   "3C",
+   "Cập nhật LMS",
+   "Cập nhật trạng thái khoản vay từ USER_SIGN thành DISBURSE",
+   "Nếu chưa chuyển trạng thái: Ops nhấn \"Thử giải ngân lại\" trên Portal\nNếu các step đi tiền phía trên đã đầy đủ, confirm với product đủ bước, tạo ticket trên cake task \"Lending Force Status Loan\" để cập nhật trạng thái khoản vay thành ACTIVE",
+   ""
+  ],
+  [
+   "Giải ngân ở đối tác",
+   "",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "Cashloan:\n- Viettel_Cashloan\n- VT_Cashloan_S\n- VTPO_cashloan\n- VNP_cashloan\n- VPO_cashloan\n- VPO_cl_pension\n- ZLP_cashloan",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "1A",
+   "Tạo loan account trên Core ICE",
+   "- Tạo khoản vay + approve dựa theo phê duyệt của LOS",
+   "Nếu chưa tạo loan account: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được gửi Tech",
+   ""
+  ],
+  [
+   "",
+   "",
+   "1B",
+   "Tạo loan drawdown",
+   "AC 1: KH chưa có loan drawdown\n Step 1: Create loan drawdown account\n Step 2: Approve loan drawdown account\n\nAC 2: KH đã có loan drawdown\n- Không tạo mới loan drawdown.",
+   "Nếu chưa tạo loan drawdown: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được gửi Tech",
+   ""
+  ],
+  [
+   "",
+   "",
+   "1C",
+   "Tạo tài khoản trả trước (Prepayment)",
+   "AC 1: KH chưa có tài khoản prepayment (TK trả trước)\n  Step 1: Create prepayment account\n  Step 2: Approve prepayment account\nAC 2: KH đã có tài khoản trả trước\n- Không tạo mới tài khoản trả trước.\nLưu ý: Tài khoản trả trước này được sử dụng riêng cho từng sản phẩm",
+   "Nếu chưa tạo prepayment account: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được gửi Tech",
+   ""
+  ],
+  [
+   "",
+   "",
+   "2A",
+   "Gọi API disburse-request sang đối tác",
+   "Gọi API disburse-request sang đối tác để yêu cầu đối tác giải ngân",
+   "Kiểm tra đã gọi API disburse-request chưa: Nhấn \"Gửi lại yêu cầu giải ngân\" (cẩn thận check kỹ các bước trên trước khi nhấn) trên Portal",
+   ""
+  ],
+  [
+   "",
+   "",
+   "2B",
+   "Đối tác gọi API disburse update sang Cake",
+   "Đối tác thực hiện giải ngân vào ví của KH\nĐối tác gọi API disburse update sang Cake để yêu cầu Cake tiếp tục luồng giải ngân",
+   "Nếu đối tác chưa gọi API disburse update, yêu cầu đối tác gọi lại API callback này\nNếu đối tác đã gọi API disburse update nhưng bị timeout, yêu cầu đối tác gọi lại API callback này, nếu không cần đối tác gửi log để có audit\nRiêng với VNPay, chỉ cần nhấn lại \"Gửi lại yêu cầu giải ngân\", đối tác đã xử lý việc check giải ngân trùng",
+   ""
+  ],
+  [
+   "",
+   "",
+   "3A",
+   "Active Core",
+   "Chuyển status account ICE thành ACTIVE",
+   "Nếu chưa active ICE, gửi tech",
+   ""
+  ],
+  [
+   "",
+   "",
+   "3B",
+   "Giải ngân",
+   "1. Giải ngân vào loan drawdown bằng số tiền approve + bảo hiểm\n2. Thu phí bảo hiểm, thực hiện lệnh withdraw từ loan drawdown (số tiền phí bảo hiểm)\n3. Giải ngân vào TKĐBTT của đối tác từ loan drawdown (số tiền approve)",
+   "1/ Chưa giải ngân loan drawdown: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được kiểm tra blacklist mambu, nếu không được tiếp gửi Tech\n2/ Chưa thu phí bảo hiểm: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được gửi Tech\n3/ Chưa thực hiện lệnh deposit vào Casa: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được gửi Tech",
+   ""
+  ],
+  [
+   "",
+   "",
+   "3C",
+   "Cập nhật LMS",
+   "Cập nhật trạng thái khoản vay từ USER_SIGN thành DISBURSE",
+   "Nếu chưa chuyển trạng thái: Ops nhấn \"Thử giải ngân lại\" trên Portal\nNếu các step đi tiền phía trên đã đầy đủ, confirm với product đủ bước, tạo ticket trên cake task \"Lending Force Status Loan\" để cập nhật trạng thái khoản vay thành ACTIVE",
+   ""
+  ],
+  [
+   "",
+   "Payday:\n- PD_Viettel\n- VT_Payday_S\n- VNP_payday\n- ZLP_payday",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "1A",
+   "Tạo loan account trên Core",
+   "- Tạo khoản vay + approve dựa theo phê duyệt của LOS",
+   "Nếu chưa tạo loan account: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được gửi Tech",
+   ""
+  ],
+  [
+   "",
+   "",
+   "1B",
+   "Tạo loan drawdown",
+   "AC 1: KH chưa có loan drawdown\n Step 1: Create loan drawdown account\n Step 2: Approve loan drawdown account\n\nAC 2: KH đã có loan drawdown\n- Không tạo mới loan drawdown.",
+   "Nếu chưa tạo loan drawdown: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được gửi Tech",
+   ""
+  ],
+  [
+   "",
+   "",
+   "2A",
+   "Gọi API disburse-request sang đối tác",
+   "Gọi API disburse-request sang đối tác để yêu cầu đối tác giải ngân",
+   "Kiểm tra đã gọi API disburse-request chưa: Nhấn \"Gửi lại yêu cầu giải ngân\" (cẩn thận check kỹ các bước trên trước khi nhấn) trên Portal",
+   ""
+  ],
+  [
+   "",
+   "",
+   "2B",
+   "Đối tác gọi API disburse update sang Cake",
+   "Đối tác thực hiện giải ngân vào ví của KH\nĐối tác gọi API disburse update sang Cake để yêu cầu Cake tiếp tục luồng giải ngân",
+   "Nếu đối tác chưa gọi API disburse update, yêu cầu đối tác gọi lại API callback này\nNếu đối tác đã gọi API disburse update nhưng bị timeout, yêu cầu đối tác gọi lại API callback này, nếu không cần đối tác gửi log để có audit\nRiêng với VNPay, chỉ cần nhấn lại \"Gửi lại yêu cầu giải ngân\", đối tác đã xử lý việc check giải ngân trùng",
+   ""
+  ],
+  [
+   "",
+   "",
+   "3A",
+   "Active Core",
+   "Chuyển status account ICE thành ACTIVE",
+   "Nếu chưa active ICE, gửi tech",
+   ""
+  ],
+  [
+   "",
+   "",
+   "3B",
+   "Giải ngân",
+   "1. Giải ngân vào loan drawdown bằng số tiền approve + bảo hiểm\n2. Thu phí bảo hiểm, thực hiện lệnh withdraw từ loan drawdown (số tiền phí bảo hiểm)\n3. Giải ngân vào TKĐBTT của đối tác từ loan drawdown (số tiền approve)",
+   "1/ Chưa giải ngân loan drawdown: Ops nhấn \"Thử giải ngân lại\" trên Portal, \nnếu không được kiểm tra blacklist mambu (sau khi gỡ blacklist thì phải nhờ recon đi tiền manual), \nnếu không được tiếp gửi Tech\n2/ Chưa thu phí bảo hiểm: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được gửi Tech\n3/ Chưa thực hiện lệnh deposit vào Casa: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được gửi Tech",
+   ""
+  ],
+  [
+   "",
+   "",
+   "3C",
+   "Cập nhật LMS",
+   "Cập nhật trạng thái khoản vay từ USER_SIGN thành DISBURSE",
+   "Nếu chưa chuyển trạng thái: Ops nhấn \"Thử giải ngân lại\" trên Portal\nNếu các step đi tiền phía trên đã đầy đủ, confirm với product đủ bước, tạo ticket trên cake task \"Lending Force Status Loan\" để cập nhật trạng thái khoản vay thành ACTIVE",
+   ""
+  ],
+  [
+   "",
+   "Paylater:\n- VDS_paylater\n- VNP_paylater\n- các sp paylater khác",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "1.0",
+   "Tạo loan account trên Core",
+   "- Tạo khoản vay + approve dựa theo phê duyệt của LOS",
+   "Nếu chưa tạo loan account: Ops nhấn \"Thử giải ngân lại\" trên Portal, nếu không được gửi Tech",
+   ""
+  ],
+  [
+   "",
+   "",
+   "2.0",
+   "",
+   "Không có bước gọi giải ngân đối tác, bỏ qua bước này",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "3A",
+   "Active Core",
+   "Chuyển status account ICE thành ACTIVE",
+   "Nếu chưa active ICE, gửi tech",
+   ""
+  ],
+  [
+   "",
+   "",
+   "3B",
+   "Giải ngân",
+   "Không có bước đi tiền, bỏ qua bước này",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "3C",
+   "Cập nhật LMS",
+   "Cập nhật trạng thái khoản vay từ USER_SIGN thành DISBURSE",
+   "Nếu chưa chuyển trạng thái: Ops nhấn \"Thử giải ngân lại\" trên Portal\nNếu các step đi tiền phía trên đã đầy đủ, confirm với product đủ bước, tạo ticket trên cake task \"Lending Force Status Loan\" để cập nhật trạng thái khoản vay thành ACTIVE",
+   ""
+  ],
+  [
+   "Trường hợp ngoại lệ",
+   "",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "Chuyển CANCEL thành ACTIVE",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "",
+   "Trình COO phê duyệt ngoại lệ",
+   "Tech cần mail phê duyệt để xử lý ngoại lệ chuyển status 1 account đã CANCEL thành ACTIVE",
+   "",
+   ""
+  ]
+ ],
+ "APIs sau vay": [
+  [
+   "Bước",
+   "API",
+   "Lỗi phát sinh",
+   "Ops lending kiểm tra",
+   "Nguyên nhân",
+   "Hướng xử lý"
+  ],
+  [
+   "Status",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "get-status",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "[MWG-CL] Hồ sơ khoản vay đã bị hủy, hoặc không tồn tại",
+   "Field reference_id được truyền vào API get-status có khác với reference_id được truyền vào API create-token mới nhất",
+   "DOP dựa vào reference_id cuối cùng được tạo ra, nếu truyền ref cũ sẽ báo lỗi",
+   "Báo đối tác truyền reference_id được tạo gần nhất"
+  ],
+  [
+   "",
+   "get-loan-detail",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "[VDS-PD] KH lệch ngày giải ngân so với ngày ký hợp đồng, nhưng ngày due_date đang hiển thị là ngày ký HĐ -1 ngày. Mong muốn due_date là ngày giải ngân -1 ngày.",
+   "Dữ liệu field due_date trả ra có đúng expect không hay như KH đang thấy ? (có thể kéo thêm field hoặc nhờ BI lấy)",
+   "Đối tác tự store lại dữ liệu cũ của field due_date",
+   "Báo đối tác cập nhật lấy dữ liệu từ API trả ra"
+  ],
+  [
+   "Repayment",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "App Cake",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Nhập tiền dưới 10k bị lỗi không rõ ràng",
+   "",
+   "Hệ thống chặn KH nhập số tiền nhỏ hơn 10k khi dư nợ lớn hơn 10k",
+   "Báo KH cập nhật ứng dụng bản mới nhất (update 9/2026)"
+  ],
+  [
+   "",
+   "Chưa gọi API",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "KH báo đã trừ tiền ở đối tác, nhưng chưa được gạch nợ",
+   "Đối tác đã gọi đủ API request và confirm chưa, trạng thái có thành công không",
+   "Chưa gọi API hoặc gọi không thành công nên không gạch nợ",
+   "Kiểm tra lại với đối tác"
+  ],
+  [
+   "",
+   "repayment-request",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "600000 - Thông tin thanh toán không hợp lệ",
+   "",
+   "Khi truyền ref_id đã được thanh toán",
+   "Đối tác/KH tạo đơn hàng mới"
+  ],
+  [
+   "",
+   "",
+   "100103 - Số tiền thanh toán vượt quá dư nợ có thể thanh toán",
+   "",
+   "",
+   "Gọi lại API get-loan-detail để lấy lại thông tin dư nợ"
+  ],
+  [
+   "",
+   "repayment-confirm",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "600000 - Thông tin thanh toán không hợp lệ",
+   "",
+   "Bộ order_id + ref_id + loan_id + payment_amount không khớp nhau",
+   "Kiểm tra lại so với API repayment-request"
+  ],
+  [
+   "",
+   "",
+   "10003 - Yêu cầu hiện tại khác với yêu cầu trước đó",
+   "",
+   "order_id đã được gọi repayment-confirm thất bại trước đó",
+   "Kiểm tra lại các API repayment-request trước đó"
+  ],
+  [
+   "",
+   "",
+   "Sau khi thanh toán đủ MAD/TAD, nhưng KH vẫn bị khóa hạn mức",
+   "1/ Khoản vay có status = ACTIVE\n2/ Khoản vay có status = TEMP_LOCK\na/ Kiểm tra days_in_arrears = 0",
+   "1/ Bắn status ACTIVE sang đối tác thất bại\n2a/ Update status trên LMS thất bại",
+   "1/ Gửi tech bắn lại status, sau khi có tool Ops có thể tự bắn status được\n2/ Gửi tech cập nhật lại status"
+  ],
+  [
+   "Terminate",
+   "terminate-review",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "100102 - Đang có số dư thanh toán trước hạn, không thể tất toán.",
+   "",
+   "KH đã thanh toán trước hạn",
+   "Đợi tới kì thanh toán mới có thể tất toán"
+  ],
+  [
+   "",
+   "terminate-request",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "100102 - Đang có số dư thanh toán trước hạn, không thể tất toán.",
+   "",
+   "KH đã thanh toán trước hạn",
+   "Đợi tới kì thanh toán mới có thể tất toán"
+  ],
+  [
+   "",
+   "",
+   "600000 - Thông tin thanh toán không hợp lệ",
+   "",
+   "Khi truyền ref_id đã được tất toán",
+   "Đối tác/KH tạo đơn hàng mới"
+  ],
+  [
+   "",
+   "terminate-facematch",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "100002 - Hình selfie không đúng",
+   "",
+   "Hình không khớp với khuôn mặt đã đăng ký",
+   "Kiểm tra lại Portal saas eKYC"
+  ],
+  [
+   "",
+   "",
+   "600000 - Thông tin thanh toán không hợp lệ",
+   "",
+   "Bộ order_id + ref_id + loan_id + payment_amount không khớp nhau",
+   ""
+  ],
+  [
+   "",
+   "terminate-confirm",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "10003 - Yêu cầu hiện tại khác với yêu cầu trước đó",
+   "",
+   "order_id đã được gọi terminate-confirm thất bại trước đó",
+   "Kiểm tra lại các API terminate-request trước đó"
+  ],
+  [
+   "",
+   "",
+   "100002 - Hình selfie không đúng",
+   "",
+   "order_id chưa được facematch",
+   "Đối tác kiểm tra lại flow"
+  ],
+  [
+   "",
+   "",
+   "600000 - Thông tin thanh toán không hợp lệ",
+   "",
+   "Bộ order_id + ref_id + loan_id + payment_amount không khớp nhau",
+   ""
+  ],
+  [
+   "",
+   "",
+   "900000 - Có lỗi xảy ra, vui lòng thử lại sau!\nĐối tác hoàn tiền cho KH, Cake ghi nhận thành công",
+   "",
+   "",
+   "Báo product làm việc với đối tác, khi ghi nhận mã lỗi lạ không tự hoàn tiền cho KH mà phải đợi đối soát thủ công, tham khảo đoạn chat tại SVK-8969"
+  ],
+  [
+   "Sau Terminate",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "OD-TD",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Đã tất toán OD nhưng vẫn bị lock TD",
+   "-",
+   "Liên kết dưới OD vẫn còn",
+   "Gửi tech gỡ liên kết"
+  ],
+  [
+   "Payment",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "payment-request",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "600000 - Thông tin thanh toán không hợp lệ",
+   "",
+   "a/ Khi truyền ref_id đã được thanh toán\nb/ SĐT đăng ký ví ban đầu và SĐT hiện tại khác nhau",
+   "a/ Đối tác/KH tạo đơn hàng mới\nb/ KH đổi lại sđt ban đầu hoặc hủy khoản vay hiện tại để đăng ký lại"
+  ],
+  [
+   "",
+   "",
+   "100103 - Số tiền thanh toán vượt quá dư nợ có thể thanh toán",
+   "",
+   "",
+   "Gọi lại API get-loan-detail để lấy lại thông tin dư nợ"
+  ],
+  [
+   "",
+   "payment-confirm",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "600000 - Thông tin thanh toán không hợp lệ",
+   "",
+   "Bộ order_id + ref_id + loan_id + payment_amount không khớp nhau",
+   "Kiểm tra lại so với API payment-request"
+  ],
+  [
+   "",
+   "",
+   "10003 - Yêu cầu hiện tại khác với yêu cầu trước đó",
+   "",
+   "order_id đã được gọi payment-confirm thất bại trước đó",
+   "Kiểm tra lại các API payment-request trước đó"
+  ],
+  [
+   "",
+   "payment-revert",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "API trả về\nWorkflow execution error",
+   "",
+   "Hệ thống bị lỗi tại thời điểm đó (ví dụ SVK-10423)",
+   "Recon hoàn tiền thủ công và lên ticket báo tech"
+  ],
+  [
+   "",
+   "generate-webview/payment-request",
+   "Note: hiện dùng cho MWG Paylater(QTV)",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "100103 - Số tiền thanh toán vượt quá dư nợ có thể thanh toán",
+   "",
+   "",
+   "KH kiểm tra lại dư nợ"
+  ],
+  [
+   "",
+   "",
+   "600000 - Thông tin thanh toán không hợp lệ",
+   "",
+   "a/ Khi truyền ref_id đã được thanh toán\nb/ SĐT đăng ký ví ban đầu và SĐT hiện tại khác nhau",
+   "a/ Đối tác/KH tạo đơn hàng mới\nb/ KH đổi lại sđt ban đầu hoặc hủy khoản vay hiện tại để đăng ký lại"
+  ],
+  [
+   "",
+   "",
+   "900000 - Có lỗi xảy ra, vui lòng thử lại sau!",
+   "Face-auth-regíster thành công chưa?",
+   "Do KH chưa đăng ký khuôn mặt thành công",
+   "Báo Ops KYC điều chỉnh lại khuôn mặt"
+  ],
+  [
+   "",
+   "",
+   "Giao dịch payment thành công, trả góp thất bại",
+   "1/ KH có tiền trong prepayment",
+   "1/ Tiền trừ payment lấy từ prepayment trước, nên số tiền payment không đúng với số tiền cần trả góp, khiến trả góp bị fail",
+   "1/ Báo product đưa hướng xử lý dứt điểm, trước đó đã báo anh Định"
+  ],
+  [
+   "",
+   "generate-webview/loan-detail",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "500014 - Trạng thái khoản vay không hợp lệ",
+   "",
+   "Khoản vay có trạng thái khác với:\nDISBURSE, TEMP_LOCK, TEMP_LOCK_FRAUD, PERM_LOCK, WRITTEN_OFF",
+   "Kiểm tra lại trạng thái khoản vay giữa Cake và đối tác"
+  ]
+ ],
+ "Payment": [
+  [
+   "Bước",
+   "Màn hình/API",
+   "Lỗi phát sinh",
+   "Nguyên nhân",
+   "Hướng xử lý"
+  ],
+  [
+   "Payment",
+   "generate-webview/payment-request",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "UI đối tác báo lỗi",
+   "Check với đối tác",
+   "Check xem đã gọi API chưa, API trả lỗi gì"
+  ],
+  [
+   "",
+   "",
+   "900000 - Có lỗi xảy ra, vui lòng thử lại sau!",
+   "1/ Khuôn mặt chưa được verify, check Sola portal",
+   "1/ Báo Ops KYC"
+  ],
+  [
+   "",
+   "payment-status",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "status = FAILED",
+   "Giao dịch thất bại hoặc quá thời gian confirm nhưng chưa confirm",
+   "Logic sản phẩm như vậy, check với product"
+  ],
+  [
+   "Payment xxx",
+   "generate-webview/payment-request",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "UI đối tác báo lỗi",
+   "Check với đối tác",
+   "Check xem đã gọi API chưa, API trả lỗi gì"
+  ],
+  [
+   "",
+   "",
+   "900000 - Có lỗi xảy ra, vui lòng thử lại sau!",
+   "1/ Khuôn mặt chưa được verify, check Sola portal",
+   "1/ Báo Ops KYC"
+  ],
+  [
+   "",
+   "payment-status",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "status = FAILED",
+   "Giao dịch thất bại hoặc quá thời gian confirm nhưng chưa confirm",
+   "Logic sản phẩm như vậy, check với product"
+  ]
+ ],
+ "Quy trình sau vay": [
+  [
+   "Bước",
+   "Nghiệp vụ",
+   "Lỗi phát sinh",
+   "Nguyên nhân",
+   "Hướng xử lý"
+  ],
+  [
+   "Sao kê",
+   "Email",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Không nhận được sao kê",
+   "1/ Chưa có email\n2/ Đã có email",
+   "1/ KH cập nhật lại email trên Portal, khoản vay sau mới gửi mail, khoản vay hiện tại k cập nhật nữa\n2/ KH đăng ký vay bằng 1 email khác với email trên Portal"
+  ],
+  [
+   "Repayment",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "Thanh toán",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Cần phân biệt auto collection hay KH chủ động thanh toán",
+   "Cần gửi tech kiểm tra, kể cả mambu channel là autoCollection vẫn có thể KH tự thanh toán",
+   "Tech kiểm tra WF, nếu Identity\n@cake-loan-management là KH chủ động thanh toán\n@cake-collection là auto collection"
+  ],
+  [
+   "",
+   "",
+   "KH đã thanh toán, Recon có ghi nhận bút toán gốc lãi, nhưng ICE chưa ghi nhận gạch nợ",
+   "1/ Kiểm tra có cùng 1 khoản vay không",
+   "1/ KH thanh toán khoản vay A, recon check khoản vay B"
+  ],
+  [
+   "",
+   "Quét nợ",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "KH đang có tiền trong Prepayment nhưng không quét nợ được",
+   "1/ KH đang bị block fund, số tiền lock là số âm, số tiền casa+cashback+prepayment = số âm, không thể quét nợ",
+   "1/ Gỡ block fund\nTech: nghiên cứu thêm SVK-9443"
+  ],
+  [
+   "",
+   "",
+   "KH có tiền trong Casa nhưng không quét nợ được",
+   "1/ KH bị lock fund, available balance = 0đ",
+   ""
+  ],
+  [
+   "Terminate",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "OD-TD",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Có sổ TD nhưng không tất toán được",
+   "KH đang bị lock vì quá hạn, rule hiện tại của sp",
+   "Rule hiện tại"
+  ]
+ ],
+ "Recon": [
+  [
+   "Bước",
+   "Công cụ",
+   "Lỗi phát sinh",
+   "Recon lending kiểm tra",
+   "Nguyên nhân",
+   "Hướng xử lý"
+  ],
+  [
+   "Repayment",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "Mô tả công cụ",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Superset = kết quả trả ra cho đối tác\nBI/Mambu = ghi nhận tiền ở hệ thống\nRecon check trên Core + chấm GL để kiểm tra kết quả cuối cùng",
+   "",
+   "",
+   "Đoạn chat hướng dẫn"
+  ],
+  [
+   "",
+   "Superset \"[RECON] Check DOP lending\"",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Message nhận được không phải \"Thành công\"",
+   "Kiểm tra mambu và dash khác",
+   "Đây là trạng thái chưa xác định đã được gạch nợ hay chưa",
+   ""
+  ]
+ ],
+ "Cake task": [
+  [
+   "Mục",
+   "Diễn giải"
+  ],
+  [
+   "Giới thiệu",
+   "Cake task giúp Ops thực hiện hành động hàng loạt, gọi là các task. Mỗi task sẽ tác động trực tiếp lên khoản vay, hồ sơ onboard."
+  ],
+  [
+   "Cơ chế maker/checker",
+   "Maker: người có quyền upload file csv\nChecker: người có quyền approve file, sau khi Checker approve, hệ thống sẽ xử lý tất cả các dòng trong file\nMaker và Checker sẽ cùng chịu trách nhiệm về file đã upload và xử lý. Do đó cần kiểm tra cẩn thận với mỗi dòng trong file"
+  ],
+  [
+   "Phân quyền",
+   "Request quyền tại: https://internal.support.cake.vn/servicedesk/customer/portal/1/create/1555\nQuyền mô tả tại từng task"
+  ],
+  [
+   "Hướng dẫn các bước",
+   "B1: Maker truy cập Portal, menu Cake Task, sub-menu theo tên từng Task bên dưới\nB2: Maker tải file Template về để chỉnh sửa theo nhu cầu. Vui lòng không dùng excel để chỉnh sửa, có thể dùng Notepad, VScode hoặc các phần mềm chỉnh sửa text tương đương.\nB3: Maker upload file lên hệ thống, không điền Schedule time. Điền description theo nhu cầu. Nhấn submit và gửi link cho Checker\nB4: Checker xem thông tin file đã được upload, thực hiện Approve hoặc Reject"
+  ],
+  [
+   "Danh sách tool",
+   "- Export E-Contract: xuất hợp đồng\n- Lending Adjustment Ice (dành cho Recon)\n- Lending Cancel Installment: hủy khoản trả góp\n- Lending Cancel Loan: hủy khoản vay sau khi approve, đã lên portal, chưa giải ngân\n- Lending Change Paylater Limit (dành cho Risk)\n- Lending Dop Reset Onboarding: hủy khoản vay trên dop, chưa vào los\n- Lending Export Statement: xuất sao kê\n- Lending Force Close Loan: hủy khoản vay sau khi giải ngân\n- Lending Force Status Loan: cập nhật status LMS khoản vay thành giải ngân\n- Lending Manual Collection: thu hồi nợ thủ công\n- Lending Send Status Loan: gửi lại trạng thái khoản vay sang đối tác"
+  ],
+  [
+   "Tên Task",
+   "Export E-Contract"
+  ],
+  [
+   "Trạng thái",
+   "COMPLETED"
+  ],
+  [
+   "Mô tả",
+   "Xuất hợp đồng có chữ ký số"
+  ],
+  [
+   "Điều kiện",
+   "- 1 lần giới hạn 50 hợp đồng\n- Product type thuộc danh sách sau, nếu sp mới cần gửi tech bổ sung: \nLending OD: OVER_DRAFT\nLending Cashloan: VIETTEL_CASHLOAN, VIETTEL_CASHLOAN_PAYROLL, BE_CASHLOAN, MWG_CASHLOAN, VNP_CASHLOAN, VNPOST_CASHLOAN, ZLP_CASHLOAN, \nLending Payday: VIETTEL_PAYDAY, VIETTEL_PAYDAY_PAYROLL, CAKE_PAYDAY, VNP_PAYDAY, ZLP_PAYDAY, MISA_CASHLOAN, VPO_CASHLOAN_PENSION, MWG_CL_ONLINE, CAKE_CASHLOAN\nLending Paylater: VIETTEL_PAYLATER, BE_PAYLATER, VNP_PAYLATER, MWG_PAYLATER, \nLending Cashloan terminate: CASHLOAN_TERMINATE, \nLending sp không chạy nữa: NGS_CASHLOAN, NGS_PAYDAY, VIETTEL_BIKELOAN,  VIETTEL_CL_LANDING_PAGE, FPT_PAYLATER, VTPO_CASHLOAN, VDS_PAYLATER_EPASS, VNHUB_CASHLOAN, \nKhác: CREDIT_CARD, ESIGN_CASA, TD_REGULAR, TD_PERIOD, TD_PREPAID, TD_SNBL, TD_GOAL, TD_PREMATURE_CLOSE_REQ, TD_REGULAR_PARTNERS, VIETTEL_TD, TD_PARTNERS_PREMATURE_CLOSE_REQ, TD_BALANCE_CONFIRM, FX_REGISTRATION, CAKE_CA_BALANCE_CONFIRM, CAKE_MULTI_TD_BALANCE_CONFIRM, PAYMENT_ACCOUNT_STATEMENT,..."
+  ],
+  [
+   "Phân quyền",
+   "Maker: CAKE_TASK_GROUP > export_esign_contract_maker\nChecker: CAKE_TASK_GROUP > export_esign_contract_checker"
+  ],
+  [
+   "Input file mẫu",
+   "client_id: client123\nproduct_type: VIETTEL_CASHLOAN\ncontract_id: contract123"
+  ],
+  [
+   "Quá trình kiểm tra",
+   "Theo rule e contract"
+  ],
+  [
+   "Quá trình xử lý",
+   "- Tạo link PDF hợp đồng tương ứng để tải về, thời gian giới hạn trong 60 phút (theo rule econtract)"
+  ],
+  [
+   "Tên Task",
+   "Lending Cancel Installment"
+  ],
+  [
+   "Trạng thái",
+   "COMPLETED"
+  ],
+  [
+   "Mô tả",
+   "Hủy khoản trả góp của khách hàng"
+  ],
+  [
+   "Điều kiện",
+   "Khoản trả góp paylater đang active"
+  ],
+  [
+   "Phân quyền",
+   "PIC approve: Vũ Thị Thu Trang (COO)\nMaker: CAKE_TASK_GROUP > lending_cancel_installment_maker\nChecker: CAKE_TASK_GROUP > lending_cancel_installment_checker"
+  ],
+  [
+   "Input file mẫu",
+   "phone_number: 0333093830\nloan_account_id: CAKEPLMWG1234567890\ninstallment_id: INS1234567890 (bảng cake_paylater_payment.transactions, cột metadata, $.core_txn_metadata.installment_account_id)\nnote: Ticket #123456 - Hủy trả góp"
+  ],
+  [
+   "Quá trình kiểm tra",
+   "- Nếu chưa truyền phone_number => Trả lỗi “Chưa nhập phone_number”\n- Nếu chưa truyền loan_account_id => Trả lỗi “Chưa nhập loan_account_id”\n- Nếu chưa truyền installment_id => Trả lỗi “Chưa nhập installment_id”\n- Nếu loan_account_id không tồn tại => Trả lỗi “[CAKE] Khoản vay không tồn tại”\n- Nếu phone_number không khớp với loan_account_id => Trả lỗi “[CAKE] Số điện thoại không hợp lệ”\n- Nếu installment_id không khớp với loan_account_id => Trả lỗi “[CAKE] Không tìm thấy kỳ thanh toán.”\n- Nếu installment_id đã đóng trước đó => Trả lỗi “[CAKE] Không tìm thấy kỳ thanh toán.”"
+  ],
+  [
+   "Quá trình xử lý",
+   "- Trigger WF hủy khoản trả góp (trạng thái của giao dịch payment vẫn giữ nguyên)"
+  ],
+  [
+   "Tên Task",
+   "Lending Cancel Loan"
+  ],
+  [
+   "Trạng thái",
+   "COMPLETED"
+  ],
+  [
+   "Mô tả",
+   "Hủy khoản vay trên LMS"
+  ],
+  [
+   "Điều kiện",
+   "Khoản vay đã submit LOS, và chưa sang trạng thái ACTIVE"
+  ],
+  [
+   "Phân quyền",
+   "PIC approve: Vũ Thị Thu Trang (COO)\nMaker: CAKE_TASK_GROUP > lending_cancel_loan_maker\nChecker: CAKE_TASK_GROUP > lending_cancel_loan_checker"
+  ],
+  [
+   "Lưu ý",
+   "Cần kiểm tra khoản vay đã giải ngân ở đối tác/Casa chưa, nếu đã giải ngân không được thực hiện hành động này"
+  ],
+  [
+   "Input file mẫu",
+   "phone_number: 0333093830\nloan_id: 423432432\nnote: #123456, KH bị kẹt ở bước giải ngân"
+  ],
+  [
+   "Quá trình kiểm tra",
+   "- Nếu chưa truyền phone_number => Trả lỗi “Chưa nhập phone_number”\n- Nếu chưa truyền loan_id => Trả lỗi “Chưa nhập loan_id”\n- phone_number và loan_id không khớp => Trả lỗi “Dữ liệu nhập không khớp”\n- Nếu khoản vay không thuộc các trạng thái sau: EKYC, EKYC_SUCCESS, APPROVED, USER_SIGN => Trả lỗi “[CAKE] Trạng thái khoản vay không hợp lệ”"
+  ],
+  [
+   "Quá trình xử lý",
+   "Với trạng thái USER_SIGN\n - Cập nhật trạng thái thành Cancel tại database\n - Nếu tài khoản Loan account đã được tạo trên Mambu/ICE → close cả loan account này, ví dụ CAKECLVIETTELxxxxxxxxx\n - Gọi cập nhật status sang đối tác\n\nVới các trạng thái khác:\n - Cập nhật trạng thái thành Cancel tại database\n - Gọi cập nhật status sang đối tác"
+  ],
+  [
+   "Tên Task",
+   "Lending Dop Reset Onboarding"
+  ],
+  [
+   "Trạng thái",
+   "COMPLETED"
+  ],
+  [
+   "Mô tả",
+   "Dùng để reset luồng đăng ký của KH trên DOP (trước khi vào LOS)"
+  ],
+  [
+   "Điều kiện",
+   "KH chưa submit LOS"
+  ],
+  [
+   "Lưu ý",
+   "Data application_id lấy từ bảng cake_dop.applications, cột id"
+  ],
+  [
+   "Phân quyền",
+   "PIC approve: Vũ Thị Thu Trang (COO)\nMaker: CAKE_TASK_GROUP > lending_dop_reset_onboarding_maker\nChecker: CAKE_TASK_GROUP >lending_dop_reset_onboarding_checker"
+  ],
+  [
+   "Input file mẫu",
+   "phone_number: 0333093830\napplication_id: 109629\nnote: #123456, KH bị kẹt ở MH CCCD"
+  ],
+  [
+   "Quá trình kiểm tra",
+   "- Nếu chưa truyền phone_number => Trả lỗi “Chưa nhập phone_number”\n- Nếu chưa truyền application_id => Trả lỗi “Chưa nhập application_id”\n- phone_number và application_id không khớp => Trả lỗi “Dữ liệu không hợp lệ”\n- application_id có trạng thái là Close hoặc OpsClose => Trả lỗi “Hồ sơ có trạng thái không phù hợp”\n- application_id đã có khoản vay tương ứng trên LMS (kể cả status cancel hoặc close vẫn sẽ lỗi, nhưng KH sẽ đi lại trên DOP được) => Trả lỗi “Hồ sơ đã có khoản vay, hãy hủy khoản vay”"
+  ],
+  [
+   "Quá trình xử lý",
+   "Chuyển status application_id thành OpsClose để KH đi lại từ đầu"
+  ],
+  [
+   "Tên Task",
+   "Lending Export Statement"
+  ],
+  [
+   "Trạng thái",
+   "COMPLETED"
+  ],
+  [
+   "Mô tả",
+   "Xuất sao kê"
+  ],
+  [
+   "Điều kiện",
+   ""
+  ],
+  [
+   "Phân quyền",
+   "PIC approve: Vũ Thị Thu Trang (COO)\nMaker: CAKE_TASK_GROUP > lending_export_statement_maker\nChecker: CAKE_TASK_GROUP > lending_export_statement_checker"
+  ],
+  [
+   "Input file mẫu",
+   "phone_number: 0333093830\nloan_account_id: CAKEPLMWG1234567890\nstatement_date: 21/10/2025\nnote: Ticket #123456 - Xuất sao kê"
+  ],
+  [
+   "Quá trình kiểm tra",
+   "- Nếu chưa truyền phone_number => Trả lỗi “Chưa nhập phone_number”\n- Nếu chưa truyền loan_account_id => Trả lỗi “Chưa nhập loan_account_id”\n- Nếu chưa truyền statement_date => Trả lỗi “Chưa nhập statement_date”\n- Nếu loan_account_id không tồn tại => Trả lỗi “[CAKE] Khoản vay không tồn tại”\n- Các giá trị input không khớp. Hoặc với statement_date không tồn tại => Trả lỗi “Dữ liệu nhập không khớp”"
+  ],
+  [
+   "Quá trình xử lý",
+   "- Tạo link PDF sao kê tương ứng để tải về, thời gian giới hạn trong 5 phút"
+  ],
+  [
+   "Tên Task",
+   "Lending Force Close Loan"
+  ],
+  [
+   "Trạng thái",
+   "COMPLETED"
+  ],
+  [
+   "Mô tả",
+   "Tất toán sớm khoản vay (Cashloan/Payday), buộc đóng khoản vay (Paylater)"
+  ],
+  [
+   "Điều kiện",
+   "Khoản vay đã giải ngân"
+  ],
+  [
+   "Phân quyền",
+   "PIC approve: hien.tu - Từ Thế Hiển (CTO)\nMaker: CAKE_TASK_GROUP > lending_force_close_loan_maker\nChecker: CAKE_TASK_GROUP >lending_force_close_loan_checker"
+  ],
+  [
+   "Lưu ý",
+   "Cần trình email xử lý ngoại lệ, recon cần hạch toán tiền vào casa đủ số tiền cần cho việc tất toán sớm"
+  ],
+  [
+   "Input file mẫu",
+   "phone_number: 0333093830\nloan_id: 423432432\nnote: Ticket #123456, KH đã mất, người nhà đóng khoản vay hộ"
+  ],
+  [
+   "Quá trình kiểm tra",
+   "- Nếu chưa truyền phone_number => Trả lỗi “Chưa nhập phone_number”\n- Nếu chưa truyền loan_id => Trả lỗi “Chưa nhập loan_id”\n- phone_number và loan_id không khớp => Trả lỗi “Dữ liệu nhập không khớp”\n- Nếu khoản vay không thuộc các trạng thái sau: DISBURSE, TEMP_LOCK, TEMP_LOCK_FRAUD, PERM_LOCK => Trả lỗi “[CAKE] Trạng thái khoản vay không hợp lệ”\n- Nếu có tiền dư trong Prepayment => Trả lỗi \"[CAKE] Lỗi chưa xác định\"\n- Nếu tiền trong Casa không đủ tất toán khoản vay => Trả lỗi \"[CAKE] Lỗi chưa xác định\""
+  ],
+  [
+   "Quá trình xử lý",
+   "- Trigger WF tất toán sớm\n- Gọi cập nhật status sang đối tác"
+  ],
+  [
+   "Tên Task",
+   "Lending Force Status Loan"
+  ],
+  [
+   "Trạng thái",
+   "COMPLETED"
+  ],
+  [
+   "Mô tả",
+   "Trường hợp khoản vay bị lỗi giải ngân. Tiền đã được giải ngân cho KH thông qua đối tác/Casa.\nCác bước giải ngân vào loan drawdown, bảo hiểm, TKĐBTT tại đối tác đã được xử lý hoàn tất bằng hệ thống hoặc recon manual, các trường hợp chưa xử lý xong dòng tiền sẽ không dùng tool này được.\nCake Task này sẽ thực hiện bước cuối cùng, chuyển status từ USER_SIGN thành DISBURSE.\nPO sẽ là role checker"
+  ],
+  [
+   "Điều kiện",
+   "Khoản vay đang ở USER_SIGN, đã hoàn thành các bước đi tiền"
+  ],
+  [
+   "Phân quyền",
+   "PIC approve: hien.tu - Từ Thế Hiển (CTO)\nMaker: CAKE_TASK_GROUP > lending_force_status_loan_maker"
+  ],
+  [
+   "Lưu ý",
+   "1/ Ops chỉ access quyền maker, PO sẽ access quyền checker và approve\n2/ Cần Product của sản phẩm xác nhận đã đủ các bước giải ngân, chỉ cần cập nhật status LMS thành ACTIVE"
+  ],
+  [
+   "Input file mẫu",
+   "loan_account_id: CAKECLCAKE123456\nloan_id: 423432432\nstatus: DISBURSE (note: status phải nhập là DISBURSE, không phải USER_SIGN)\nnote: Ticket #123456, KH bị kẹt giải ngân, đã giải ngân loan drawdown, bảo hiểm, Tkbdtt của đối tác"
+  ],
+  [
+   "Quá trình kiểm tra",
+   "- Nếu chưa truyền loan_account_id => Trả lỗi “Chưa nhập loan_account_id”\n- Nếu chưa truyền loan_id => Trả lỗi “Chưa nhập loan_id”\n- loan_account_id và loan_id không khớp => Trả lỗi “[CAKE] Dữ liệu đầu vào không khớp với dữ liệu trên hệ thống”\n- Nếu khoản vay hiện tại không phải trạng thái: USER_SIGN => Trả lỗi “[CAKE] Trạng thái khoản vay không hợp lệ”\n- Nếu status nhập khác với: USER_SIGN => Trả lỗi \"Hợp đồng không hợp lệ\""
+  ],
+  [
+   "Quá trình xử lý",
+   "- Cập nhật status LMS thành DISBURSE\n- Gọi cập nhật status sang đối tác"
+  ],
+  [
+   "Tên Task",
+   "Lending Manual Collection"
+  ],
+  [
+   "Trạng thái",
+   "COMPLETED"
+  ],
+  [
+   "Mô tả",
+   "Thu hồi nợ thủ công"
+  ],
+  [
+   "Điều kiện",
+   "Khoản vay Cashloan hoặc Paylater đã được giải ngân"
+  ],
+  [
+   "Phân quyền",
+   "PIC approve: Vũ Thị Thu Trang (COO) \nMaker: CAKE_TASK_GROUP > lending_manual_debt_collection_maker\nChecker: CAKE_TASK_GROUP >lending_manual_debt_collection_checker"
+  ],
+  [
+   "Input file mẫu",
+   "phone_number: 0333093830\nloan_id: 423432432\nnote: #123456, KH bị nợ quá hạn"
+  ],
+  [
+   "Quá trình kiểm tra",
+   "- Nếu chưa truyền phone_number => Trả lỗi “Chưa nhập phone_number”\n- Nếu chưa truyền loan_id => Trả lỗi “Chưa nhập loan_id”\n- phone_number và loan_id không khớp => Trả lỗi “Dữ liệu nhập không khớp”\n- Nếu khoản vay không thuộc các trạng thái sau: DISBURSE => Trả lỗi “[CAKE] Trạng thái khoản vay không hợp lệ”\n- Nếu khoản vay Payday (không hỗ trợ) => Trả lỗi \"[CAKE] Lỗi chưa xác định\""
+  ],
+  [
+   "Quá trình xử lý",
+   "Trigger rule thu hồi nợ, rule hiện tại thế nào thì tool sẽ chạy các bước thu hồi tương tự. Về tìm hiểu rule thu hồi nợ cần làm việc với team Product"
+  ],
+  [
+   "Tên Task",
+   "Lending Send Status Loan"
+  ],
+  [
+   "Trạng thái",
+   "COMPLETED"
+  ],
+  [
+   "Mô tả",
+   "Gửi trạng thái hiện tại của khoản vay sang đối tác"
+  ],
+  [
+   "Điều kiện",
+   "Khoản vay đã giải ngân"
+  ],
+  [
+   "Phân quyền",
+   "PIC approve: Vũ Thị Thu Trang (COO)\nMaker: CAKE_TASK_GROUP > lending_send_status_loan_maker\nChecker: CAKE_TASK_GROUP > lending_send_status_loan_checker"
+  ],
+  [
+   "Lưu ý",
+   "Cần trình email xử lý ngoại lệ, recon cần hạch toán tiền vào casa đủ số tiền cần cho việc tất toán sớm"
+  ],
+  [
+   "Input file mẫu",
+   "phone_number: 0333093830\nloan_id: 423432432\nnote: Ticket #123456, KH đã mất, người nhà đóng khoản vay hộ"
+  ],
+  [
+   "Quá trình kiểm tra",
+   "- Nếu chưa truyền phone_number => Trả lỗi “Chưa nhập phone_number”\n- Nếu chưa truyền loan_id => Trả lỗi “Chưa nhập loan_id”\n- phone_number và loan_id không khớp => Trả lỗi “Dữ liệu nhập không khớp”\n- Nếu khoản vay không thuộc các trạng thái sau: DISBURSE, TEMP_LOCK, TEMP_LOCK_FRAUD, PERM_LOCK => Trả lỗi “[CAKE] Trạng thái khoản vay không hợp lệ”\n- Nếu tiền trong Casa không đủ tất toán khoản vay => Trả lỗi “Số dư không đủ để tất toán, số tiền cần có {terminate amount}đ”\n- Không đủ tiền để tất toán sớm => Trả lỗi \"[CAKE] Lỗi chưa xác định\""
+  ],
+  [
+   "Quá trình xử lý",
+   "- Trigger WF tất toán sớm\n- Gọi cập nhật status sang đối tác"
+  ]
+ ],
+ "Dashboard cần bổ sung": [
+  [
+   "Use cases",
+   "Cần"
+  ],
+  [
+   "KH đăng ký khoản vay với email khác trên Portal, nên KH không nhận được mail sao kê",
+   "Bổ sung thêm cột mail vào SS > Check loan"
+  ],
+  [
+   "Xem application DOP, dùng id để reset luồng đăng ký DOP cho KH bị lỗi",
+   "Bổ sung dash mới lấy từ bảng application"
+  ],
+  [
+   "Xem thời gian được approve, được ký hợp đồng của KH, check đúng trạng thái KH",
+   "Bổ sung cột thời gian approve và ký hợp đồng vào SS > Check loan"
+  ],
+  [
+   "Xem log api gọi sang VNPost",
+   "Bảng audit_partner_requests  WHERE identify_id = '{client_id}';\nBảng tb_partner_event"
+  ],
+  [
+   "Tab Paylater Balance không dùng nữa, Check log Paylater balance trên ICE",
+   "Bảng bef-cake-prod.mart_paylater.rpt_ice_paylater_account_balances_by_booking_date"
+  ],
+  [
+   "tab statement vẫn xài được, nhưng chart dpd và account_state thì vẫn đang là core cũ.",
+   "Chuyển sang Viz"
+  ],
+  [
+   "Thêm số tiền bảo hiểm KH chọn và được duyệt",
+   "SELECT coalesce(json_value(metadata, '$.original_insurance_fee'),json_value(metadata, '$.insurance_fee'),json_value(metadata, '$.approve_insurance_amount'),json_value(metadata, '$.request_insurance_amount')) FROM `bef-cake-prod.cake_loan_management.loan_registrations` ORDER BY created_at DESC;"
+  ],
+  [
+   "Không hiển thị API disburse-request gọi sang đối tác với các sp Viettel",
+   "Điều chỉnh lại câu query"
+  ]
+ ],
+ "Request tools": [
+  [
+   "Use cases",
+   "Cần"
+  ],
+  [
+   "KH bị miss auto collection",
+   "Thêm tool để biết danh sách các KH bị miss auto collection"
+  ]
+ ],
+ "PO only": [
+  [
+   "Bước",
+   "Loại",
+   "Lỗi phát sinh",
+   "Kiểm tra",
+   "Nguyên nhân",
+   "Hướng xử lý"
+  ],
+  [
+   "Dashboard",
+   "Giải nghĩa",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "Native Cashloan",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "Bước #Loscheck thấp\n(loan-register = 1) / (client-create code = 1)",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "Query Postpay",
+   "",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "SELECT * from tb_loan_request where loan_code = 'vD9AFq84mjtdaVbhs7vn';",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "select * from tb_audit_client_request where tb_audit_client_request.metadata->>'request_id' = tb_loan_request.uid",
+   "",
+   "",
+   ""
+  ],
+  [
+   "",
+   "",
+   "/app/customer/account/bank/depositConfirm-v3",
+   "",
+   "",
+   ""
+  ]
+ ]
+}

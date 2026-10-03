@@ -1,59 +1,46 @@
-# CLAUDE.md
+# lending_manage
 
-## Atlassian credentials
+Repo gốc cho mảng lending. Ba thư mục con độc lập nhau, **không** phải monorepo —
+mỗi thư mục có `package.json` riêng, không dùng npm workspaces.
 
-Jira **và** Confluence dùng chung một Atlassian API token. Token nằm trong `.env`
-(gitignored — không commit, không in giá trị ra output):
-
-| Biến | Dùng cho |
-|---|---|
-| `JIRA_HOST` | Base URL Atlassian site |
-| `JIRA_USERNAME` | Email account |
-| `JIRA_API_TOKEN` | API token (`ATAT…`) — Basic auth cho **cả Jira lẫn Confluence** |
-
-Load trước khi gọi API:
-
-```bash
-set -a && . ./.env && set +a
+```
+lending_manage/
+├── open_api_viewer/   # Viewer tĩnh + bộ API spec (YAML) các sản phẩm lending
+├── lendkb/            # Knowledge base lending + Telegram bridge
+│   ├── workspace/     # KB (kb/, kb-po/), tools sinh KB, raw/ (gitignored)
+│   └── tgbot/         # Bot Telegram ↔ Claude Code, chạy nền bằng launchd
+└── tools/             # App quản lý task/sprint/roadmap (Express + Next.js)
 ```
 
-### Confluence REST API v2
+## Chạy gì ở đâu
 
-Base: `https://cakedigitalbank.atlassian.net/wiki/api/v2`
-Auth: `curl -u "$JIRA_USERNAME:$JIRA_API_TOKEN"`
+| Việc | Thư mục | Lệnh |
+|---|---|---|
+| Backend tools | `tools/` | `npm run dev` (cổng 3001) |
+| Frontend tools | `tools/client/` | `npm run dev` |
+| Dựng index spec | `tools/` | `npm run specs:index` |
+| Viewer spec độc lập | `tools/` | `npm run viewer` (cổng 8777) |
+| Làm mới KB | `lendkb/workspace/` | `tools/refresh.sh` |
+| Bot Telegram | `lendkb/tgbot/` | `./service.sh install\|status\|logs` |
 
-```bash
-# đọc page (kèm body storage format)
-curl -s -u "$JIRA_USERNAME:$JIRA_API_TOKEN" \
-  "https://cakedigitalbank.atlassian.net/wiki/api/v2/pages/<PAGE_ID>?body-format=storage"
+## Lưu ý về đường dẫn
 
-# ghi page — PUT ghi đè TOÀN BỘ body, version phải = version hiện tại + 1
-curl -s -X PUT -u "$JIRA_USERNAME:$JIRA_API_TOKEN" \
-  -H 'Content-Type: application/json' \
-  --data @payload.json \
-  "https://cakedigitalbank.atlassian.net/wiki/api/v2/pages/<PAGE_ID>"
-```
+`open_api_viewer/` nằm ở gốc repo, **không** nằm trong `tools/`. Code trong
+`tools/` trỏ tới nó bằng đường dẫn tương đối:
 
-Payload `PUT`:
+- `tools/package.json` → `../open_api_viewer/`
+- `tools/client/src/pages/api/openapi/specs.ts` và `.../specbuilder/meta.ts`
+  → `process.cwd()` là `tools/client`, nên dùng `'..', '..', 'open_api_viewer'`
 
-```json
-{
-  "id": "<PAGE_ID>",
-  "status": "current",
-  "title": "<title>",
-  "body": { "representation": "storage", "value": "<XHTML storage format>" },
-  "version": { "number": <current+1>, "message": "<changelog>" }
-}
-```
+Đổi chỗ thư mục thì phải sửa đủ 4 chỗ trên.
 
-Luôn `GET` lấy version + body hiện tại trước khi `PUT` — nội dung cũ bị thay hoàn toàn
-(vẫn restore được qua page history).
+## Bí mật
 
-### Jira
+`.env` bị gitignore ở mọi độ sâu. Trong đó có Jira API token thật —
+không commit, không in giá trị ra output. Chi tiết dùng token: `tools/CLAUDE.md`.
 
-`src/services/JiraService.ts` đã wrap sẵn Jira API — dùng service đó thay vì curl tay.
+## Lịch sử
 
-### MCP servers
-
-MCP `atlassian` (local) cần `uvx` — chưa cài trên máy này. Connector `claude.ai Atlassian`
-cần OAuth interactive. Dùng REST API + token trong `.env` là đường ngắn nhất.
+`lendkb/` trước là repo git riêng, đã gộp vào đây và bỏ lịch sử cũ.
+Lý do từng con số trong KB thay đổi được chép lại ở
+`lendkb/workspace/kb/_meta/lich-su-quyet-dinh.md`.

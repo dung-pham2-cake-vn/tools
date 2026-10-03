@@ -1,0 +1,5 @@
+tools/.env
+
+# Dữ liệu thô từ Confluence/Jira: tài liệu nội bộ, tái tạo được bằng
+# tools/export.mjs. Không commit.
+raw/

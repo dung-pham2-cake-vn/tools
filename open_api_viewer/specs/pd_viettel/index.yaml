@@ -14,7 +14,8 @@ info:
     | 2026-09-16 | [VDS-CAKE] API SPEC SẢN PHẨM PAYDAY NATIVE | Bổ sung API `/get-onboarding-status`; `client-update` đổi 3 ảnh base64 sang `*_image_url` (đối tác host ảnh, Cake tải về); `check-profile` bổ sung input `metadata.non_viettel` và output `is_repeated`; `nfc_data` chốt required cho toàn bộ field bên trong |
     | 2026-09-17 | [VDS-CAKE] API SPEC SẢN PHẨM PAYDAY NATIVE | Bỏ API `/get-loan-code-from-loan-id` (tag `Legacy Support`); đổi cơ chế ký từ RSA 1024 bit sang **RSA 2048 bit**; `/partner-disburse-request` bỏ field `partner_disburse_status` |
     | 2026-09-18 | [VDS-CAKE] API SPEC SẢN PHẨM PAYDAY NATIVE | Đồng bộ nhóm API Cake → VDS theo tài liệu VDS-LP-PAYDAY-CAKE-001 v1.0: body bọc `timestamp` + `requestId` + `data{}` camelCase, response `code` dạng chuỗi (`000` = thành công), cơ chế ký riêng (sort key alphabet đệ quy, không nối `partner_key`), header `apikey`; `partner-disburse-request` bỏ `partner_reference_id`/`loan_insurance`, bổ sung `identityNumber`; `partner-disburse-status` bổ sung `PROCESSING`/`TIMEOUT` + `subStatus`; bổ sung API `/applications/status`, bảng mã lỗi VDS và sub-status `DIS00xx` |
-    | 2026-09-22 | [VDS-CAKE] API SPEC SẢN PHẨM PAYDAY NATIVE | Đồng bộ theo VDS-LP-PAYDAY-CAKE-001 v1.1: đổi `/applications/status` thành `/partner-get-status`; `/partner-update-status` — `loanCode` không bắt buộc khi `LOAN_REJECT`, `statusReasonCode` là chuỗi tự do không bắt buộc; chốt quy tắc chuẩn hoá chuỗi ký Cake → VDS (compact, UTF-8 không escape, giữ `null`, giữ kiểu số, sort key đệ quy); sửa `PARTNER_IP_ADDRESS` thành IP VDS gọi sang Cake; ghi chú VDS chỉ gọi `/disburse-update` khi có kết quả cuối (kể cả sau `TIMEOUT`); ghi chú các mã `DIS0001`/`DIS0017`/`DIS0022`/`DIS0023` không trả cho đối tác |
+    | 2026-09-22 | [VDS-CAKE] API SPEC SẢN PHẨM PAYDAY NATIVE | Đồng bộ theo VDS-LP-PAYDAY-CAKE-001 v1.1 |
+    | 2026-10-03 | [VDS-CAKE] API SPEC SẢN PHẨM PAYDAY NATIVE | `check-profile`, `client-create`: bổ sung `metadata.credit_score_hash` / `metadata.fraud_score_hash` (score mã hóa RSAES-PKCS1-v1_5 bằng public key Cake, ưu tiên hơn range); `partner_score` / `partner_fraud_score` chuyển deprecated, chỉ bắt buộc khi không có hash (PL-12404) |
 
     ## Cơ chế xác thực (Signature)
 
@@ -468,10 +469,14 @@ components:
           example: "1999-12-02"
         metadata:
           type: object
-          description: Dữ liệu bổ sung
+          description: |
+            Dữ liệu bổ sung.
+
+            **Điểm credit / fraud** (PL-12404) — mỗi điểm truyền ít nhất một trong hai dạng, Cake xử lý từng điểm độc lập:
+            1. Có `*_hash` → giải mã bằng private key Cake → dùng exact score. Giải mã lỗi → trả lỗi `500013`.
+            2. Không có `*_hash` → dùng field range (`partner_score` lấy chặn dưới, `partner_fraud_score` lấy chặn trên; số cố định dùng trực tiếp).
+            3. Thiếu cả hai → trả lỗi `900000`.
           required:
-            - partner_score
-            - partner_fraud_score
             - partner_cake_score
             - partner_non_viettel_score
             - non_viettel
@@ -488,12 +493,30 @@ components:
               example: false
             partner_score:
               type: string
-              description: Credit score của KH từ phía đối tác, dạng range (lấy chặn dưới)
+              description: |
+                **Deprecated** — nên dùng `credit_score_hash`, vẫn hỗ trợ làm fallback.
+                Credit score của KH từ phía đối tác, số cố định hoặc dạng range (lấy chặn dưới).
+                Bắt buộc nếu không truyền `credit_score_hash`.
               example: "350-399"
             partner_fraud_score:
               type: string
-              description: Fraud score của KH từ phía đối tác, dạng range (lấy chặn trên)
+              description: |
+                **Deprecated** — nên dùng `fraud_score_hash`, vẫn hỗ trợ làm fallback.
+                Fraud score của KH từ phía đối tác, số cố định hoặc dạng range (lấy chặn trên).
+                Bắt buộc nếu không truyền `fraud_score_hash`.
               example: "300-350"
+            credit_score_hash:
+              type: string
+              description: |
+                Credit score (exact) đã mã hóa bằng public key Cake, thuật toán **RSAES-PKCS1-v1_5**, encode base64.
+                Ưu tiên hơn `partner_score`. Giải mã lỗi → `500013` "Thiếu dữ liệu bắt buộc: credit_score_hash - string".
+              example: "kG7x3Qm...base64...=="
+            fraud_score_hash:
+              type: string
+              description: |
+                Fraud score (exact) đã mã hóa bằng public key Cake, thuật toán **RSAES-PKCS1-v1_5**, encode base64.
+                Ưu tiên hơn `partner_fraud_score`. Giải mã lỗi → `500013` "Thiếu dữ liệu bắt buộc: fraud_score_hash - string".
+              example: "Pz91LwA...base64...=="
             partner_cake_score:
               type: string
               description: Điểm Cake score từ phía đối tác, dạng range (lấy chặn dưới)
@@ -776,10 +799,14 @@ components:
           example: "777777"
         metadata:
           type: object
-          description: Dữ liệu bổ sung
+          description: |
+            Dữ liệu bổ sung.
+
+            **Điểm credit / fraud** (PL-12404) — mỗi điểm truyền ít nhất một trong hai dạng, Cake xử lý từng điểm độc lập:
+            1. Có `*_hash` → giải mã bằng private key Cake → dùng exact score. Giải mã lỗi → trả lỗi `500013`.
+            2. Không có `*_hash` → dùng field range (`partner_score` lấy chặn dưới, `partner_fraud_score` lấy chặn trên; số cố định dùng trực tiếp).
+            3. Thiếu cả hai → trả lỗi `900000`.
           required:
-            - partner_score
-            - partner_fraud_score
             - partner_cake_score
             - partner_non_viettel_score
             - non_viettel
@@ -796,12 +823,30 @@ components:
               example: false
             partner_score:
               type: string
-              description: Credit score của KH từ phía đối tác, dạng range (lấy chặn dưới)
+              description: |
+                **Deprecated** — nên dùng `credit_score_hash`, vẫn hỗ trợ làm fallback.
+                Credit score của KH từ phía đối tác, số cố định hoặc dạng range (lấy chặn dưới).
+                Bắt buộc nếu không truyền `credit_score_hash`.
               example: "350-399"
             partner_fraud_score:
               type: string
-              description: Fraud score của KH từ phía đối tác, dạng range (lấy chặn trên)
+              description: |
+                **Deprecated** — nên dùng `fraud_score_hash`, vẫn hỗ trợ làm fallback.
+                Fraud score của KH từ phía đối tác, số cố định hoặc dạng range (lấy chặn trên).
+                Bắt buộc nếu không truyền `fraud_score_hash`.
               example: "300-350"
+            credit_score_hash:
+              type: string
+              description: |
+                Credit score (exact) đã mã hóa bằng public key Cake, thuật toán **RSAES-PKCS1-v1_5**, encode base64.
+                Ưu tiên hơn `partner_score`. Giải mã lỗi → `500013` "Thiếu dữ liệu bắt buộc: credit_score_hash - string".
+              example: "kG7x3Qm...base64...=="
+            fraud_score_hash:
+              type: string
+              description: |
+                Fraud score (exact) đã mã hóa bằng public key Cake, thuật toán **RSAES-PKCS1-v1_5**, encode base64.
+                Ưu tiên hơn `partner_fraud_score`. Giải mã lỗi → `500013` "Thiếu dữ liệu bắt buộc: fraud_score_hash - string".
+              example: "Pz91LwA...base64...=="
             partner_cake_score:
               type: string
               description: Điểm Cake score từ phía đối tác, dạng range (lấy chặn dưới)
@@ -2209,7 +2254,7 @@ paths:
                     message: "Xác thực chữ ký số thất bại"
                     data: null
 
-  /partner-get-status:
+  /partner-loan-status:
     post:
       tags: [ Cake → VDS ]
       summary: Cake truy vấn trạng thái khoản vay trên hệ thống VDS

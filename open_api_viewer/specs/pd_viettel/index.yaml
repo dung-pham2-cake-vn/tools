@@ -34,7 +34,7 @@ info:
     signature = base64(SHA256withRSA(body, cakePrivateKey))   // PKCS#1 v1.5, Base64 chuẩn
     ```
     **Không** nối `partner_key` vào body. Khóa RSA 2048 bit trở lên, private key PKCS#8 / public key X.509.
-    VDS verify bằng `CAKE_PUBLIC_KEY`.
+    VDS verify bằng `CAKE_API_KEY`.
 
     **Quy tắc chuẩn hoá chuỗi ký:**
     - Sắp xếp key của mọi object theo thứ tự ký tự, đệ quy ở mọi cấp; phần tử trong mảng giữ nguyên thứ tự.
@@ -51,27 +51,27 @@ info:
     ### SIT + UAT
     | Key | Value | Mô tả |
     |-----|-------|-------|
-    | CAKE_API_URL | `https://gw.stage.cakedigibank.tech/ext/loan/{group}/{product_id}` | Endpoint API |
+    | CAKE_API_URL | `https://gw.stage.cakedigibank.tech/ext/loan/payday/pd_viettel` | Endpoint API |
     | CAKE_PARTNER_ID | *(Cake cấp)* | Gắn ở header khi gọi API Cake |
     | CAKE_PARTNER_KEY | *(Cake cấp)* | Gắn sau body khi ký request |
-    | CAKE_PUBLIC_KEY | *(Cake cấp, file riêng)* | Partner dùng để verify Cake-signed payloads |
+    | CAKE_API_KEY | *(Cake cấp, file riêng)* | Partner dùng để verify Cake-signed payloads |
     | CAKE_IP_ADDRESS | `35.197.157.155/32` `34.87.136.147/32` `35.240.241.82/32` `34.142.212.108/32` `35.198.211.12/32` `34.143.164.202/32` `34.124.200.2/32` | Partner whitelist |
     | PARTNER_PUBLIC_KEY | *(Partner cấp, file riêng)* | Cake dùng để verify Partner-signed payloads |
     | PARTNER_API_URL | `https://staging1.viettelmoney.vn/lending/lender/public/v1/CAKE_PAYDAY/` | Base URL Cake gọi sang VDS (callback + truy vấn) |
-    | VDS_API_KEY | *(VDS cấp)* | Header `apikey` khi Cake gọi VDS. Môi trường SIT không yêu cầu |
-    | PARTNER_IP_ADDRESS | `171.255.192.33` | IP VDS gọi sang Cake — Cake whitelist. Chiều Cake gọi VDS chỉ cần domain |
+    | PARTNER_API_KEY | *(VDS cấp)* | Header `apikey` khi Cake gọi VDS. Môi trường SIT không yêu cầu |
+    | PARTNER_IP_ADDRESS | `34.87.136.147` *(Cake auto)* `171.255.192.33`| Cake whitelist |
 
     ### PROD
     | Key | Value | Mô tả |
     |-----|-------|-------|
-    | CAKE_API_URL | `https://gw.cake.vn/ext/loan/{group}/{product_id}` | Endpoint API |
+    | CAKE_API_URL | `https://gw.cake.vn/ext/loan/payday/pd_viettel` | Endpoint API |
     | CAKE_PARTNER_ID | *(Cake cấp)* | Gắn ở header |
     | CAKE_PARTNER_KEY | *(Cake cấp)* | Gắn sau body khi ký |
-    | CAKE_PUBLIC_KEY | *(Cake cấp, file riêng)* | Partner dùng để verify Cake-signed payloads |
+    | CAKE_API_KEY | *(Cake cấp, file riêng)* | Partner dùng để verify Cake-signed payloads |
     | CAKE_IP_ADDRESS | `34.87.56.148/32` `35.240.146.157/32` `34.87.175.195/32` `34.142.177.122/32` `34.87.39.41/32` `34.143.164.31/32` `34.143.174.79/32` | Partner whitelist |
     | PARTNER_PUBLIC_KEY | *(Partner cấp, file riêng)* | Cake dùng để verify Partner-signed payloads |
     | PARTNER_API_URL | *(VDS cấp sau)* | Base URL Cake gọi sang VDS (callback + truy vấn) |
-    | VDS_API_KEY | *(VDS cấp)* | Header `apikey` khi Cake gọi VDS |
+    | PARTNER_API_KEY | *(VDS cấp)* | Header `apikey` khi Cake gọi VDS |
     | PARTNER_IP_ADDRESS | *(Partner cấp)* | Cake whitelist |
 
     ## Error Codes
@@ -246,7 +246,7 @@ components:
         Chữ ký cho request **Cake → VDS** (khác cơ chế chiều Partner → Cake):
         chuẩn hoá body (sort key đệ quy, compact, UTF-8 không escape, giữ `null`, giữ kiểu số) →
         SHA256withRSA (PKCS#1 v1.5) bằng private key của Cake → base64 chuẩn.
-        Không nối `partner_key` vào body. VDS verify bằng `CAKE_PUBLIC_KEY`.
+        Không nối `partner_key` vào body. VDS verify bằng `CAKE_API_KEY`.
         Chi tiết quy tắc: mục *Cơ chế xác thực (Signature)*.
       schema:
         type: string
@@ -256,7 +256,7 @@ components:
       in: header
       required: false
       description: |
-        `VDS_API_KEY` do VDS cấp, định danh hệ thống Cake.
+        `PARTNER_API_KEY` do VDS cấp, định danh hệ thống Cake.
         Bắt buộc ở PreProduction/Production; môi trường SIT không yêu cầu.
       schema:
         type: string
@@ -2166,7 +2166,7 @@ paths:
         **Thành công:** VDS trả `code = "000"`. Mã khác → Cake retry (rule retry chốt sau).
         Dedupe phía VDS theo `requestId`, nên Cake giữ nguyên `requestId` khi retry.
 
-        **Signature:** chuẩn hoá body rồi SHA256withRSA bằng private key Cake → VDS verify bằng `CAKE_PUBLIC_KEY` (quy tắc ở mục *Cơ chế xác thực*).
+        **Signature:** chuẩn hoá body rồi SHA256withRSA bằng private key Cake → VDS verify bằng `CAKE_API_KEY` (quy tắc ở mục *Cơ chế xác thực*).
       operationId: partnerUpdateStatus
       parameters:
         - $ref: "#/components/parameters/ContentTypeHeader"
@@ -2217,7 +2217,7 @@ paths:
         **Chiều: Cake → VDS**
 
         Truy vấn trạng thái khoản vay phía VDS.
-        Full URL: `{PARTNER_API_URL}partner-get-status`
+        Full URL: `{PARTNER_API_URL}applications/status`
 
         `data.status` trả về là trạng thái nội bộ của VDS, **chưa** map sang `LOAN_*` của Cake.
       operationId: partnerGetStatus
@@ -2416,7 +2416,7 @@ tags:
       Khác nhóm Phase 1–4 ở ba điểm:
       1. **Body** bọc `timestamp` + `requestId` + `data{}`, field đặt tên camelCase.
       2. **Response** dùng mã của VDS: `code` là chuỗi, `"000"` = thành công (không có `success`, không có `response_id`).
-      3. **Signature** chuẩn hoá body (sort key đệ quy, compact, UTF-8, giữ `null`) rồi SHA256withRSA, **không** nối `partner_key`. Thêm header `apikey` = `VDS_API_KEY` (SIT không yêu cầu).
+      3. **Signature** chuẩn hoá body (sort key đệ quy, compact, UTF-8, giữ `null`) rồi SHA256withRSA, **không** nối `partner_key`. Thêm header `apikey` = `PARTNER_API_KEY` (SIT không yêu cầu).
 
       `timestamp` hiệu lực 5 phút; lệch quá VDS trả `416`. `requestId` là UUID, VDS dùng để idempotency.
 

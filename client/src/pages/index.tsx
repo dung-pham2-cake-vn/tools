@@ -10,12 +10,8 @@ import {
   extractSprintNumber,
   sprintPageLabel,
   SprintItem,
-  CachedSprintTicket as SmAnalysisTicket,
-  getItemStorageKey,
-  collectItemStoryFlags,
-  derivePoStatus,
-  PoStatus,
-  PO_STATUS_CONFIG,
+  PR_STATUS_LABELS,
+  isPrStatusLabel,
 } from '@/components/SprintManagementAnalysis';
 
 // ─── Sprint overview types ────────────────────────────────────────────────────
@@ -1822,15 +1818,15 @@ function PoReviewCard({
   );
 }
 
-// ─── Link sang trang đổi PO status ───────────────────────────────────────────
+// ─── Link sang Sprint check để gắn label UAT ─────────────────────────────────
 
-function PoStatusLink({ pageId, pageTitle }: { pageId: string; pageTitle?: string }) {
+function UatLabelLink({ pageId, pageTitle }: { pageId: string; pageTitle?: string }) {
   return (
     <Link
       href={pageTitle ? sprintPagePath(pageTitle) : pageId ? `/sprints/management/${pageId}` : '/sprints/management'}
       className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
     >
-      Đổi PO status →
+      Gắn label UAT →
     </Link>
   );
 }
@@ -2825,7 +2821,6 @@ export default function Dashboard() {
   const [sprintError, setSprintError] = useState<string | null>(null);
   const [smStats, setSmStats] = useState<SmStats | null>(null);
   const [smLoading, setSmLoading] = useState(true);
-  const [smTicketCache, setSmTicketCache] = useState<Record<string, SmCachedTicket>>({});
   const [smItems, setSmItems] = useState<SprintItem[]>([]);
   const [smPageId, setSmPageId] = useState('');
   const [smPageTitle, setSmPageTitle] = useState('');
@@ -2966,7 +2961,6 @@ export default function Dashboard() {
       const result = await loadSprintMgmtData(activeSprintName);
       if (result) {
         setSmStats(result.stats);
-        setSmTicketCache(result.ticketCache);
         setSmItems(result.items);
         setSmPageId(result.pageId);
         setSmPageTitle(result.pageTitle);
@@ -3111,25 +3105,40 @@ export default function Dashboard() {
   const [needUatItems, setNeedUatItems] = useState<SprintItem[]>([]);
 
 
+  // Cần gửi UAT = item có ticket PR mà PR chưa gắn label trạng thái nào (UatDoing / UatDone / Released).
+  // Label đọc thẳng từ Jira, cùng nguồn với control Labels ở Sprint check.
   useEffect(() => {
-    if (smLoading || !smPageId || !smItems.length) {
+    if (smLoading || !smItems.length) {
       setNeedUatItems([]);
       return;
     }
-    const result: SprintItem[] = [];
-    for (const item of smItems) {
-      const key = getItemStorageKey(smPageId, item);
-      let stored: PoStatus | null = null;
-      try {
-        const v = localStorage.getItem(key);
-        if (v && v in PO_STATUS_CONFIG) stored = v as PoStatus;
-      } catch {}
-      const flags = collectItemStoryFlags(item, smTicketCache as Record<string, SmAnalysisTicket>);
-      const effective = derivePoStatus(flags, stored);
-      if (effective === 'need-uat') result.push(item);
+    const withPr = smItems.filter((item) => /^[A-Z][A-Z0-9]+-\d+$/.test(item.prNumber || ''));
+    const keys = Array.from(new Set(withPr.map((item) => item.prNumber)));
+    if (!keys.length) {
+      setNeedUatItems([]);
+      return;
     }
-    setNeedUatItems(result);
-  }, [smLoading, smPageId, smItems, smTicketCache]);
+    let alive = true;
+    (async () => {
+      const labelsByKey: Record<string, string[]> = {};
+      for (let i = 0; i < keys.length; i += 50) {
+        const batch = keys.slice(i, i + 50);
+        const res = await jiraAPI.searchIssues({
+          jql: `key IN (${batch.join(',')})`,
+          maxResults: 100,
+          fields: ['labels'],
+        });
+        for (const issue of ((res.data.data as { issues?: any[] })?.issues || [])) {
+          labelsByKey[issue.key] = issue.fields?.labels || [];
+        }
+      }
+      if (!alive) return;
+      setNeedUatItems(withPr.filter((item) => !(labelsByKey[item.prNumber] || []).some(isPrStatusLabel)));
+    })().catch(() => alive && setNeedUatItems([]));
+    return () => {
+      alive = false;
+    };
+  }, [smLoading, smItems]);
 
   const sprintSummary = useMemo(
     () => computeSprintSummary(sprintReports, sprintError),
@@ -3291,8 +3300,9 @@ export default function Dashboard() {
       filter: (
         <TaskFilterNote
           notes={[
-            'Nguồn: page Sprint check của sprint hiện tại (không phải JQL)',
-            'Lấy item có PO status hiệu dụng = Need UAT (suy từ status ticket con + lựa chọn đã lưu)',
+            'Nguồn: item trong page Sprint check của sprint hiện tại',
+            `Cần gửi UAT = item có ticket PR mà PR chưa có label nào trong ${PR_STATUS_LABELS.join(' / ')}`,
+            'Gắn label ngay tại Sprint check (chip Labels trên từng item)',
           ]}
         />
       ),
@@ -3301,13 +3311,13 @@ export default function Dashboard() {
       ) : needUatItems.length === 0 ? (
         <div className="space-y-2 py-4 text-center">
           <p className="text-sm font-medium text-green-600">✅ Không có item nào cần UAT!</p>
-          <PoStatusLink pageId={smPageId} pageTitle={smPageTitle} />
+          <UatLabelLink pageId={smPageId} pageTitle={smPageTitle} />
         </div>
       ) : (
         <div className="pt-4 space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-gray-400">{needUatItems.length} item cần gửi UAT</p>
-            <PoStatusLink pageId={smPageId} pageTitle={smPageTitle} />
+            <UatLabelLink pageId={smPageId} pageTitle={smPageTitle} />
           </div>
           <div className="rounded-lg border border-gray-200 overflow-hidden">
             <table className="w-full text-sm border-collapse">
@@ -3316,18 +3326,27 @@ export default function Dashboard() {
                   <th className="text-left px-3 py-2 font-semibold w-[80px]">PR</th>
                   <th className="text-left px-3 py-2 font-semibold">Tên item</th>
                   <th className="text-left px-3 py-2 font-semibold w-[120px]">Teams</th>
-                  <th className="text-left px-3 py-2 font-semibold w-[100px]">PO Status</th>
+                  <th className="text-left px-3 py-2 font-semibold w-[120px]">Label PR</th>
                 </tr>
               </thead>
               <tbody>
                 {needUatItems.map((item) => (
                   <tr key={item.prNumber || item.number} className="border-t border-gray-100 hover:bg-gray-50">
-                    <td className="px-3 py-2 text-xs font-mono text-gray-500">{item.prNumber || `#${item.number}`}</td>
+                    <td className="px-3 py-2 text-xs font-mono">
+                      <a
+                        href={`${JIRA_BASE}/browse/${item.prNumber}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-blue-600 hover:underline"
+                      >
+                        {item.prNumber}
+                      </a>
+                    </td>
                     <td className="px-3 py-2 text-sm text-gray-800">{item.icon} {item.title || '—'}</td>
                     <td className="px-3 py-2 text-xs text-gray-500">{item.teams.join(', ') || '—'}</td>
                     <td className="px-3 py-2">
-                      <span className="text-xs px-2 py-0.5 rounded border font-medium bg-red-50 text-red-700 border-red-300">
-                        Need UAT
+                      <span className="text-xs px-2 py-0.5 rounded border border-dashed font-medium bg-white text-gray-500 border-gray-300">
+                        Chưa có label
                       </span>
                     </td>
                   </tr>

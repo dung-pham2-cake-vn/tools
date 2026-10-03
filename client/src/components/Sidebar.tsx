@@ -237,14 +237,9 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed = false, onToggle }) => {
                                       : 'text-blue-200 hover:bg-blue-700 hover:text-white'
                                   }`}
                                 >
-                                  {isCurrent && (
-                                    <span className="mr-1" title="Sprint đang chạy">{ACTIVE_SPRINT_ICON}</span>
-                                  )}
                                   {sprintPageLabel(page.title)}
                                   {isCurrent && (
-                                    <span className="ml-1.5 rounded bg-orange-400/90 px-1 py-px text-[9px] font-bold uppercase text-white">
-                                      đang chạy
-                                    </span>
+                                    <span className="ml-1.5" title="Sprint đang chạy">{ACTIVE_SPRINT_ICON}</span>
                                   )}
                                 </Link>
                               );

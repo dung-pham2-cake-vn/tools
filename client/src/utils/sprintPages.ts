@@ -23,6 +23,11 @@ export function sprintPageSlug(title: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+/** Mở thẳng page Confluence của sprint. */
+export function confluencePageUrl(pageId: string): string {
+  return `https://cakedigitalbank.atlassian.net/wiki/pages/viewpage.action?pageId=${pageId}`;
+}
+
 export function sprintPagePath(title: string): string {
   return `/sprints/management/${sprintPageSlug(title)}`;
 }

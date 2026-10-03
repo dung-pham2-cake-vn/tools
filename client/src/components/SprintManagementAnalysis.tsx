@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { JiraStatusPill } from '@/components/JiraBadges';
-import { ACTIVE_SPRINT_ICON, sprintNumberOfTitle, useActiveSprintNumbers } from '@/utils/sprintPages';
+import { JiraStatusPill, statusCategoryOf } from '@/components/JiraBadges';
+import { ACTIVE_SPRINT_ICON, confluencePageUrl, sprintNumberOfTitle, useActiveSprintNumbers } from '@/utils/sprintPages';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
-import { sprintManagementAPI, configAPI } from '@/utils/api';
+import { sprintManagementAPI, configAPI, jiraAPI } from '@/utils/api';
 
 export interface LoadedPage {
   pageId: string;
@@ -159,164 +159,169 @@ function matchTypeCategories(type: string, filter: Set<TypeCategory>): boolean {
   return cat !== null && filter.has(cat);
 }
 
-// ─── PO Status ───────────────────────────────────────────────────────────────
 
-export type PoStatus = 'na' | 'need-uat' | 'sent-uat' | 'need-confirm' | 'confirmed';
+// ─── Label trạng thái UAT trên ticket PR ─────────────────────────────────────
 
-export const PO_STATUS_CONFIG: Record<PoStatus, { label: string; cls: string }> = {
-  na: { label: 'N/A', cls: 'bg-gray-100 text-gray-500 border-gray-200' },
-  'need-uat': { label: 'Need UAT', cls: 'bg-red-50 text-red-700 border-red-300' },
-  'sent-uat': { label: 'Sent UAT', cls: 'bg-yellow-50 text-yellow-700 border-yellow-300' },
-  'need-confirm': { label: 'Need confirm', cls: 'bg-red-50 text-red-700 border-red-300' },
-  confirmed: { label: 'Confirmed', cls: 'bg-emerald-50 text-emerald-700 border-emerald-300' },
+/** Các label trạng thái — chọn một, gắn thẳng lên ticket PR trên Jira. */
+export const PR_STATUS_LABELS = ['UatDoing', 'UatDone', 'Released'] as const;
+type PrStatusLabel = (typeof PR_STATUS_LABELS)[number];
+
+const PR_LABEL_STYLE: Record<PrStatusLabel, string> = {
+  UatDoing: 'bg-amber-50 text-amber-700 border-amber-300',
+  UatDone: 'bg-blue-50 text-blue-700 border-blue-300',
+  Released: 'bg-emerald-50 text-emerald-700 border-emerald-300',
 };
 
-export function getItemStorageKey(pageId: string, item: SprintItem): string {
-  const slug = item.prNumber ? `pr-${item.prNumber}` : `n-${item.number}`;
-  return `smpo-${pageId}-${slug}`;
-}
+export const isPrStatusLabel = (label: string) =>
+  PR_STATUS_LABELS.some((s) => s.toLowerCase() === label.toLowerCase());
 
-export function collectItemStoryFlags(
-  item: SprintItem,
-  cache: Record<string, CachedSprintTicket>
-): { hasReleased: boolean; hasReady4Release: boolean; hasPOTMReview: boolean } {
-  const visited = new Set<string>();
-  const walk = (id: string) => {
-    if (!id || visited.has(id)) return;
-    visited.add(id);
-    (cache[id]?.children || []).forEach(walk);
-  };
-  item.tickets.forEach((t) => walk(t.id));
-
-  let hasReleased = false;
-  let hasReady4Release = false;
-  let hasPOTMReview = false;
-
-  for (const id of visited) {
-    const t = cache[id];
-    if (!t || t.type?.toLowerCase() !== 'story') continue;
-    const s = (t.status || '').toLowerCase().replace(/\s+/g, ' ').trim();
-    if (s === 'released') hasReleased = true;
-    if (s === 'ready4release') hasReady4Release = true;
-    if (s === 'po/tm review') hasPOTMReview = true;
-  }
-  return { hasReleased, hasReady4Release, hasPOTMReview };
-}
-
-export function derivePoStatus(
-  flags: { hasReleased: boolean; hasReady4Release: boolean; hasPOTMReview: boolean },
-  stored: PoStatus | null
-): PoStatus {
-  if (flags.hasReleased) return stored === 'confirmed' ? 'confirmed' : 'need-confirm';
-  if (flags.hasReady4Release) return 'na';
-  if (flags.hasPOTMReview) return stored === 'sent-uat' ? 'sent-uat' : 'need-uat';
-  return stored ?? 'na';
-}
-
-function PoStatusBadge({
-  item,
-  ticketCache,
-  pageId,
+function PrLabelControl({
+  prKey,
+  labels,
+  loaded,
+  onChange,
 }: {
-  item: SprintItem;
-  ticketCache: Record<string, CachedSprintTicket>;
-  pageId: string;
+  prKey: string;
+  labels: string[];
+  loaded: boolean;
+  onChange: (prKey: string, next: string[]) => void;
 }) {
-  const key = getItemStorageKey(pageId, item);
-  const [stored, setStored] = useState<PoStatus | null>(null);
   const [open, setOpen] = useState(false);
+  const [target, setTarget] = useState<PrStatusLabel | 'none' | null>(null);
+  const [saving, setSaving] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
 
-  const toggleOpen = () => {
+  const statusLabels = labels.filter(isPrStatusLabel);
+  const current = PR_STATUS_LABELS.find((s) => statusLabels.some((l) => l.toLowerCase() === s.toLowerCase()));
+  const otherLabels = labels.filter((l) => !isPrStatusLabel(l));
+
+  const toggleMenu = () => {
     setOpen((prev) => {
       const next = !prev;
       if (next && btnRef.current) {
         const r = btnRef.current.getBoundingClientRect();
-        const menuH = 200; // ước lượng chiều cao menu
-        const openUp = r.bottom + menuH > window.innerHeight && r.top > menuH;
+        const openUp = r.bottom + 170 > window.innerHeight && r.top > 170;
         setMenuStyle({
           position: 'fixed',
-          right: Math.max(8, window.innerWidth - r.right),
-          ...(openUp
-            ? { bottom: window.innerHeight - r.top + 4 }
-            : { top: r.bottom + 4 }),
+          left: r.left,
+          ...(openUp ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 }),
         });
       }
       return next;
     });
   };
 
-  useEffect(() => {
+  const confirmChange = async () => {
+    if (!target) return;
+    setSaving(true);
     try {
-      const v = localStorage.getItem(key);
-      if (v && v in PO_STATUS_CONFIG) setStored(v as PoStatus);
-    } catch {}
-  }, [key]);
-
-  const flags = collectItemStoryFlags(item, ticketCache);
-
-  useEffect(() => {
-    if (flags.hasReady4Release && stored !== null) {
-      try { localStorage.removeItem(key); } catch {}
-      setStored(null);
+      const add = target === 'none' ? [] : [target];
+      // gỡ mọi label trạng thái cũ (kể cả khác hoa/thường), giữ nguyên label khác
+      const remove = statusLabels.filter((l) => target === 'none' || l !== target);
+      await jiraAPI.updateIssueLabels(prKey, add, remove);
+      onChange(prKey, [...otherLabels, ...add]);
+      toast.success(target === 'none' ? `Đã bỏ label trạng thái của ${prKey}` : `${prKey} → ${target}`);
+      setTarget(null);
+    } catch (err: any) {
+      toast.error(`Đổi label thất bại: ${err?.response?.data?.error || err.message}`);
+    } finally {
+      setSaving(false);
     }
-  }, [flags.hasReady4Release, stored, key]);
-
-  const effective = derivePoStatus(flags, stored);
-  const cfg = PO_STATUS_CONFIG[effective];
-
-  const pick = (status: PoStatus) => {
-    try {
-      if (status === 'na') {
-        localStorage.removeItem(key);
-        setStored(null);
-      } else {
-        localStorage.setItem(key, status);
-        setStored(status);
-      }
-    } catch {}
-    setOpen(false);
   };
 
+  if (!loaded) return <span className="text-[11px] text-gray-300">…</span>;
+
   return (
-    <div className="relative ml-auto shrink-0" onClick={(e) => e.stopPropagation()}>
+    <div className="inline-flex flex-wrap items-center gap-1">
       <button
         ref={btnRef}
-        onClick={toggleOpen}
-        className={`flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded border cursor-pointer select-none ${cfg.cls}`}
+        type="button"
+        onClick={toggleMenu}
+        title={`Label trạng thái trên ${prKey} — bấm để đổi`}
+        className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-semibold ${
+          current ? PR_LABEL_STYLE[current] : 'border-dashed border-gray-300 bg-white text-gray-400'
+        }`}
       >
-        PO: {cfg.label}
-        <span className="opacity-40 text-[10px]">▾</span>
+        {current || 'Chưa có label'}
+        <span className="text-[9px] opacity-60">▾</span>
       </button>
+      {otherLabels.map((label) => (
+        <span key={label} className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500">
+          {label}
+        </span>
+      ))}
 
-      {open && createPortal(
-        <>
-          <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)} />
-          <div
-            style={menuStyle}
-            onClick={(e) => e.stopPropagation()}
-            className="z-[61] bg-white rounded-lg shadow-xl border border-gray-200 py-1 min-w-[150px]"
-          >
-            {(Object.entries(PO_STATUS_CONFIG) as [PoStatus, { label: string; cls: string }][]).map(([s, c]) => (
-              <button
-                key={s}
-                onClick={() => pick(s)}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-50"
-              >
-                <span className={`inline-flex px-1.5 py-0.5 rounded border font-medium ${c.cls}`}>{c.label}</span>
-                {effective === s && <span className="ml-auto text-gray-400">✓</span>}
-              </button>
-            ))}
-          </div>
-        </>,
-        document.body
-      )}
+      {open &&
+        createPortal(
+          <>
+            <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)} />
+            <div style={menuStyle} className="z-[61] min-w-[170px] rounded-lg border border-gray-200 bg-white py-1 shadow-xl">
+              {PR_STATUS_LABELS.map((label) => (
+                <button
+                  key={label}
+                  onClick={() => {
+                    setOpen(false);
+                    if (label !== current) setTarget(label);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-50"
+                >
+                  <span className={`inline-flex rounded border px-1.5 py-0.5 font-semibold ${PR_LABEL_STYLE[label]}`}>
+                    {label}
+                  </span>
+                  {current === label && <span className="ml-auto text-gray-400">✓</span>}
+                </button>
+              ))}
+              {current && (
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    setTarget('none');
+                  }}
+                  className="mt-1 w-full border-t border-gray-100 px-3 py-1.5 text-left text-xs text-red-600 hover:bg-gray-50"
+                >
+                  ✕ Bỏ label trạng thái
+                </button>
+              )}
+            </div>
+          </>,
+          document.body
+        )}
+
+      {target &&
+        createPortal(
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-sm rounded-lg bg-white p-5 shadow-2xl">
+              <h3 className="text-sm font-bold text-gray-900">Đổi label trạng thái?</h3>
+              <p className="mt-2 text-sm text-gray-600">
+                <span className="font-mono font-semibold">{prKey}</span>:{' '}
+                <span className="font-semibold">{current || 'chưa có'}</span> →{' '}
+                <span className="font-semibold">{target === 'none' ? 'bỏ label' : target}</span>
+              </p>
+              <p className="mt-1 text-xs text-gray-400">Ghi thẳng lên Jira, các label khác của ticket giữ nguyên.</p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  onClick={() => setTarget(null)}
+                  disabled={saving}
+                  className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Huỷ
+                </button>
+                <button
+                  onClick={confirmChange}
+                  disabled={saving}
+                  className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {saving ? 'Đang đổi...' : 'Xác nhận'}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
-
-
 
 function stripRoleSuffix(name: string): string {
   return name.replace(/\s*\(.*?\)\s*/g, '').trim();
@@ -564,10 +569,14 @@ function HealthMiniTable({ issues, columns }: { issues: HealthIssue[]; columns: 
                 </td>
               )}
               {columns.includes('assignee') && (
-                <td className="px-2 py-1.5 w-[130px] text-gray-500">{i.assignee || <span className="text-red-500">Chưa gán</span>}</td>
+                <td className="px-2 py-1.5 w-[300px] whitespace-nowrap text-gray-500 truncate" title={i.assignee || ''}>
+                  {i.assignee || <span className="text-red-500">Chưa gán</span>}
+                </td>
               )}
               {columns.includes('fixver') && (
-                <td className="px-2 py-1.5 w-[150px] text-gray-500">{i.fixVersions?.join(', ') || <span className="text-red-500">Chưa có</span>}</td>
+                <td className="px-2 py-1.5 w-[220px] whitespace-nowrap text-gray-500 truncate" title={i.fixVersions?.join(', ') || ''}>
+                  {i.fixVersions?.join(', ') || <span className="text-red-500">Chưa có</span>}
+                </td>
               )}
             </tr>
           ))}
@@ -577,19 +586,96 @@ function HealthMiniTable({ issues, columns }: { issues: HealthIssue[]; columns: 
   );
 }
 
-function HealthGroup({ label, count, children }: { label: string; count: number; children: React.ReactNode }) {
+function escapeHtmlText(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Copy một nhóm kiểm tra: tiêu đề đậm + danh sách đánh số, key là link Jira (dán Confluence/Teams giữ format). */
+async function copyHealthIssues(label: string, issues: HealthIssue[]): Promise<void> {
+  const text = [
+    `${label} (${issues.length})`,
+    ...issues.map((i, index) => `${index + 1}. ${i.id} - ${i.status || '—'} - ${i.name}`),
+  ].join('\n');
+  const html =
+    `<p><strong>${escapeHtmlText(label)} (${issues.length})</strong></p><ol>` +
+    issues
+      .map(
+        (i) =>
+          `<li><a href="${JIRA_HEALTH_BASE}/browse/${i.id}">${i.id}</a> - ${escapeHtmlText(i.status || '—')} - ${escapeHtmlText(i.name)}</li>`
+      )
+      .join('') +
+    '</ol>';
+
+  if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([text], { type: 'text/plain' }),
+      }),
+    ]);
+  } else {
+    await navigator.clipboard.writeText(text);
+  }
+}
+
+function HealthGroup({
+  label,
+  count,
+  warning = false,
+  issues,
+  children,
+}: {
+  label: string;
+  count: number;
+  /** chỉ cảnh báo (màu vàng), không tính vào số vấn đề */
+  warning?: boolean;
+  /** có truyền thì hiện nút copy danh sách */
+  issues?: HealthIssue[];
+  children: React.ReactNode;
+}) {
   const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const hasIssues = count > 0;
+
+  const handleCopy = async () => {
+    if (!issues?.length) return;
+    try {
+      await copyHealthIssues(label, issues);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error('Copy thất bại');
+    }
+  };
+
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => setOpen(p => !p)}
-        className={`flex items-center gap-2 text-xs font-semibold w-full text-left px-1 py-1 rounded hover:bg-gray-50 transition-colors ${hasIssues ? 'text-red-600' : 'text-emerald-600'}`}
-      >
-        <span className="text-[10px] font-mono w-3">{open ? '▼' : '▶'}</span>
-        {hasIssues ? `⚠ ${label} (${count})` : `✅ ${label}`}
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen(p => !p)}
+          className={`flex flex-1 items-center gap-2 text-xs font-semibold text-left px-1 py-1 rounded hover:bg-gray-50 transition-colors ${
+            !hasIssues ? 'text-emerald-600' : warning ? 'text-amber-600' : 'text-red-600'
+          }`}
+        >
+          <span className="text-[10px] font-mono w-3">{open ? '▼' : '▶'}</span>
+          {hasIssues ? `⚠ ${label} (${count})` : `✅ ${label}`}
+        </button>
+        {hasIssues && issues && issues.length > 0 && (
+          <button
+            type="button"
+            onClick={handleCopy}
+            title="Copy danh sách (giữ link + đánh số)"
+            className={`shrink-0 rounded border px-2 py-0.5 text-[11px] font-medium transition ${
+              copied
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+            }`}
+          >
+            {copied ? '✓ Đã copy' : '⧉ Copy'}
+          </button>
+        )}
+      </div>
       {open && <div className="ml-5">{children}</div>}
     </div>
   );
@@ -598,19 +684,39 @@ function HealthGroup({ label, count, children }: { label: string; count: number;
 function SprintHealthCheck({
   section,
   ticketCache,
+  strayStories,
+  sprintNumber = 0,
 }: {
   section: SprintSection;
   ticketCache: Record<string, CachedSprintTicket>;
+  /** story gắn sprint này nhưng không nằm trong Must have / Nice to have — chỉ cảnh báo */
+  strayStories?: HealthIssue[];
+  /** số sprint của page, để biết fix version nào là "sprint sau" */
+  sprintNumber?: number;
 }) {
   const [open, setOpen] = useState(false);
 
   const allIds = new Set<string>();
-  const walkTree = (id: string, visited = new Set<string>()) => {
+  // ticket nằm dưới một TechDebt: việc kỹ thuật nội bộ, không bắt buộc gán người ngay
+  const underTechDebt = new Set<string>();
+  const isTechDebt = (t?: CachedSprintTicket) => (t?.type || '').toLowerCase().replace(/[\s_-]/g, '') === 'techdebt';
+  // QA chỉ cần vào việc khi story còn ở sprint này: story có fix version sprint sau thì QA chưa cần assign
+  const underLaterStory = new Set<string>();
+  const storyIsLater = (t?: CachedSprintTicket) =>
+    sprintNumber > 0 &&
+    (t?.type || '').toLowerCase().includes('story') &&
+    (t?.fixVersions || []).some((fv) => sprintNumberOfTitle(fv) > sprintNumber);
+  const walkTree = (id: string, inTechDebt: boolean, inLaterStory: boolean, visited = new Set<string>()) => {
     if (!id || visited.has(id)) return;
     visited.add(id); allIds.add(id);
-    (ticketCache[id]?.children || []).forEach((c) => walkTree(c, visited));
+    if (inTechDebt) underTechDebt.add(id);
+    if (inLaterStory) underLaterStory.add(id);
+    const childInTechDebt = inTechDebt || isTechDebt(ticketCache[id]);
+    const childInLaterStory = inLaterStory || storyIsLater(ticketCache[id]);
+    (ticketCache[id]?.children || []).forEach((c) => walkTree(c, childInTechDebt, childInLaterStory, visited));
   };
-  section.items.forEach((item) => item.tickets.forEach((t) => walkTree(t.id)));
+  section.items.forEach((item) => item.tickets.forEach((t) => walkTree(t.id, false, false)));
+  const isQaType = (type: string) => (type || '').toLowerCase().includes('qa');
 
   const toHealthIssue = (id: string): HealthIssue => {
     const t = ticketCache[id] || { id, name: '', type: '', status: '', assignee: '', fixVersions: [] };
@@ -630,13 +736,18 @@ function SprintHealthCheck({
     .map(toHealthIssue);
 
   const subtasksNoAssignee = [...allIds]
-    .filter((id) => { const t = ticketCache[id]; return t && isSubTaskType(t.type) && noAssignee(t); })
+    .filter((id) => {
+      const t = ticketCache[id];
+      if (!t || !isSubTaskType(t.type) || !noAssignee(t) || underTechDebt.has(id)) return false;
+      return !(isQaType(t.type) && underLaterStory.has(id));
+    })
     .map(toHealthIssue);
 
   const itemsNoTickets = section.items.filter((item) => item.tickets.length === 0);
 
   const totalIssues = storiesNoAssignee.length + storiesNoFixVer.length + storiesDraft.length + subtasksNoAssignee.length + itemsNoTickets.length;
   const allOk = totalIssues === 0;
+  const warningCount = strayStories?.length || 0;
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white">
@@ -651,33 +762,54 @@ function SprintHealthCheck({
           {allOk
             ? <span className="text-xs text-emerald-600 font-medium">✅ Không có vấn đề</span>
             : <span className="text-xs text-red-600 font-medium">⚠ {totalIssues} vấn đề</span>}
+          {warningCount > 0 && (
+            <span className="text-xs text-amber-600 font-medium">· {warningCount} cảnh báo</span>
+          )}
         </div>
       </button>
       {open && (
         <div className="px-4 pb-3 pt-1 space-y-1.5 border-t border-gray-100">
-          <HealthGroup label="Story chưa có Assignee" count={storiesNoAssignee.length}>
+          <HealthGroup label="Story chưa có Assignee" count={storiesNoAssignee.length} issues={storiesNoAssignee}>
             {storiesNoAssignee.length === 0
               ? <p className="text-xs text-gray-400 mt-1">Tất cả story đã có assignee.</p>
               : <HealthMiniTable issues={storiesNoAssignee} columns={['status', 'assignee']} />}
           </HealthGroup>
 
-          <HealthGroup label="Story chưa có Fix Version" count={storiesNoFixVer.length}>
+          <HealthGroup label="Story chưa có Fix Version" count={storiesNoFixVer.length} issues={storiesNoFixVer}>
             {storiesNoFixVer.length === 0
               ? <p className="text-xs text-gray-400 mt-1">Tất cả story đã có fix version.</p>
               : <HealthMiniTable issues={storiesNoFixVer} columns={['status', 'fixver']} />}
           </HealthGroup>
 
-          <HealthGroup label="Story đang Draft" count={storiesDraft.length}>
+          <HealthGroup label="Story đang Draft" count={storiesDraft.length} issues={storiesDraft}>
             {storiesDraft.length === 0
               ? <p className="text-xs text-gray-400 mt-1">Không có story Draft.</p>
               : <HealthMiniTable issues={storiesDraft} columns={['status', 'assignee']} />}
           </HealthGroup>
 
-          <HealthGroup label="Subtask chưa có Assignee" count={subtasksNoAssignee.length}>
+          <HealthGroup label="Subtask chưa có Assignee" count={subtasksNoAssignee.length} issues={subtasksNoAssignee}>
             {subtasksNoAssignee.length === 0
-              ? <p className="text-xs text-gray-400 mt-1">Tất cả subtask đã có assignee.</p>
+              ? <p className="text-xs text-gray-400 mt-1">Tất cả subtask đã có assignee (không tính subtask dưới TechDebt, và QA của story đã dời fix version sang sprint sau).</p>
               : <HealthMiniTable issues={subtasksNoAssignee} columns={['status', 'assignee']} />}
           </HealthGroup>
+
+          {strayStories && (
+            <HealthGroup
+              label="Story trong sprint nhưng không thuộc Must have / Nice to have"
+              count={strayStories.length}
+              warning
+              issues={strayStories}
+            >
+              {strayStories.length === 0
+                ? <p className="text-xs text-gray-400 mt-1">Mọi story gắn sprint này đều có trong danh sách.</p>
+                : (
+                  <>
+                    <p className="text-[11px] text-amber-600 mt-1">Chỉ cảnh báo, không tính vào số vấn đề.</p>
+                    <HealthMiniTable issues={strayStories} columns={['status', 'assignee']} />
+                  </>
+                )}
+            </HealthGroup>
+          )}
 
           <HealthGroup label="Item không có sub-ticket" count={itemsNoTickets.length}>
             {itemsNoTickets.length === 0
@@ -836,219 +968,374 @@ function fmtPercent(p: number): string {
 
 // ─── Ticket row renderer ──────────────────────────────────────────────────────
 
-function renderTicketRows({
-  jiraBase,
-  ticketCache,
-  teamCapacity,
-  formatDate,
-  showChildTickets,
-  filterAssignees,
-  filterStatusCategory,
-  filterTypeCategories,
-  hideClosedStatuses,
-  collapsedTicketIds,
-  onToggleTicket,
-  ticket,
-  depth = 0,
-  visited = new Set<string>(),
-}: {
-  jiraBase: string;
-  ticketCache: Record<string, CachedSprintTicket>;
-  teamCapacity: TeamCapacity;
-  formatDate: (iso: string) => string;
-  showChildTickets: boolean;
-  filterAssignees: string[] | null;
-  filterStatusCategory: StatusCategory | null;
-  filterTypeCategories: Set<TypeCategory>;
-  hideClosedStatuses: boolean;
-  collapsedTicketIds: Set<string>;
-  onToggleTicket: (id: string) => void;
-  ticket: SprintTicket | CachedSprintTicket;
-  depth?: number;
-  visited?: Set<string>;
-}): React.ReactNode[] {
-  if (!ticket?.id || visited.has(ticket.id)) return [];
+// ─── Ticket đại diện + bảng tóm tắt của một item ─────────────────────────────
 
-  const cached = ticketCache[ticket.id];
-  const displayTicket = {
-    ...ticket,
-    ...cached,
-    name: cached?.name || ticket.name,
-    type: cached?.type || ticket.type,
-    status: cached?.status || ticket.status,
-  };
-  const childIds = cached?.children || [];
-  const rowKeyPrefix = `${ticket.id}-${depth}`;
-  const childVisited = new Set(visited);
-  childVisited.add(ticket.id);
-
-  const recurseChildren = (resetDepth: boolean): React.ReactNode[] => {
-    const childRows: React.ReactNode[] = [];
-    childIds.forEach((childId) => {
-      const child = ticketCache[childId];
-      if (!child) return;
-      childRows.push(...renderTicketRows({
-        jiraBase, ticketCache, teamCapacity, formatDate, showChildTickets,
-        filterAssignees, filterStatusCategory, filterTypeCategories, hideClosedStatuses,
-        collapsedTicketIds, onToggleTicket,
-        ticket: child,
-        depth: resetDepth ? 0 : depth + 1,
-        visited: childVisited,
-      }));
-    });
-    return childRows;
-  };
-
-  const isCollapsed = collapsedTicketIds.has(ticket.id);
-  const hasChildren = childIds.length > 0;
-
-  const anyFilterActive =
-    filterAssignees !== null || filterStatusCategory !== null || filterTypeCategories.size > 0;
-
-  if (hideClosedStatuses && isHiddenStatus(displayTicket.status)) {
-    // Hidden from display but still recurse to surface matching children
-    return anyFilterActive ? recurseChildren(true) : [];
-  }
-
-  // When a filter is active: only render self if directly matches; skip otherwise and recurse
-  if (anyFilterActive) {
-    const selfMatchAssignee = filterAssignees === null || filterAssignees.includes(assigneeKey(displayTicket.assignee));
-    const selfMatchStatus = filterStatusCategory === null || getStatusCategory(displayTicket.status) === filterStatusCategory;
-    const selfMatchType = matchTypeCategories(displayTicket.type, filterTypeCategories);
-
-    if (!selfMatchAssignee || !selfMatchStatus || !selfMatchType) {
-      return recurseChildren(true);
-    }
-    // Self matches: render self, then also recurse children (they may also match)
-  }
-
-  const rowClassName = depth === 0
-    ? 'border-t border-gray-100 hover:bg-gray-50 transition-colors'
-    : 'border-t border-gray-100 bg-slate-50 hover:bg-slate-100 transition-colors';
-
-  const rows: React.ReactNode[] = [
-    (
-      <tr key={rowKeyPrefix} className={rowClassName}>
-        <td className="px-2 py-1.5" style={{ paddingLeft: `${32 + depth * 24}px` }}>
-          <div className="flex items-center gap-1.5">
-            {hasChildren ? (
-              <button
-                onClick={() => onToggleTicket(ticket.id)}
-                className="text-gray-400 hover:text-gray-600 text-[10px] w-3 shrink-0 select-none"
-              >
-                {isCollapsed ? '▶' : '▼'}
-              </button>
-            ) : (
-              <span className="w-3 shrink-0" />
-            )}
-            <span title={displayTicket.type || ''} className="inline-flex shrink-0">
-              <IssueTypeIcon type={displayTicket.type} />
-            </span>
-            <a
-              href={`${jiraBase}/browse/${ticket.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-800 font-mono text-xs font-semibold hover:underline"
-            >
-              {ticket.id}
-            </a>
-          </div>
-        </td>
-        <td className={`px-2 py-1.5 text-sm ${depth === 0 ? 'text-gray-700' : 'text-gray-600'}`}>
-          {depth > 0 && <span className="text-xs text-gray-400 mr-2">{'↳'.repeat(Math.min(depth, 6))}</span>}
-          {displayTicket.name}
-        </td>
-        <td className="px-2 py-1.5">
-          <JiraStatusPill name={displayTicket.status || ''} />
-        </td>
-        <td className="px-2 py-1.5 text-xs text-gray-700">
-          {shortName(displayTicket.assignee) || 'Unassigned'}
-        </td>
-        <td className="px-2 py-1.5 text-xs text-gray-500">
-          {cached?.fixVersions?.length ? cached.fixVersions.join(', ') : '-'}
-        </td>
-        <td className="px-2 py-1.5 text-xs text-gray-500 font-mono text-center">
-          {(() => {
-            const sp = hasChildren
-              ? aggregateStoryPoints(ticket.id, ticketCache)
-              : displayTicket.storyPoints;
-            if (!sp) return '-';
-            return hasChildren ? (
-              <span
-                className="font-semibold text-gray-700"
-                title="Tổng story point từ các ticket con"
-              >
-                {sp}
-              </span>
-            ) : sp;
-          })()}
-        </td>
-        <td className="px-2 py-1.5 text-xs font-mono text-center">
-          {(() => {
-            const pct = hasChildren
-              ? aggregatePercent(ticket.id, ticketCache, teamCapacity)
-              : leafPercent(displayTicket, teamCapacity);
-            if (!pct) return <span className="text-gray-300">-</span>;
-            return (
-              <span
-                className={hasChildren ? 'font-semibold text-indigo-700' : 'text-indigo-600'}
-                title={hasChildren ? 'Tổng % tải từ các subtask con' : '% so với capacity team trong sprint'}
-              >
-                {fmtPercent(pct)}
-              </span>
-            );
-          })()}
-        </td>
-      </tr>
-    ),
-  ];
-
-  if (isCollapsed) return rows;
-
-  rows.push(...recurseChildren(false));
-
-  return rows;
+/** Cấp của type: số nhỏ = cấp cao (Initiative > Epic > Story > Task > Bug > Subtask). */
+function typeLevel(type: string): number {
+  const t = (type || '').toLowerCase();
+  if (t.includes('initiative')) return 0;
+  if (t === 'epic') return 1;
+  if (t.includes('story')) return 2;
+  if (t.includes('subtask') || t.includes('sub-task')) return 6;
+  if (t.includes('task')) return 3;
+  if (t.includes('bug') || t.includes('defect')) return 4;
+  return 5;
 }
 
-// ─── Sprint section table (single section) ────────────────────────────────────
+const isInitiative = (t?: CachedSprintTicket) => (t?.type || '').toLowerCase().includes('initiative');
+const isEpic = (t?: CachedSprintTicket) => (t?.type || '').toLowerCase() === 'epic';
+
+/** Ticket cấp cao nhất trong item — dùng làm thông tin đại diện cho dòng item. */
+function representativeTicket(
+  item: SprintItem,
+  ticketCache: Record<string, CachedSprintTicket>
+): CachedSprintTicket | undefined {
+  return item.tickets
+    .map((t) => ticketCache[t.id])
+    .filter((t): t is CachedSprintTicket => Boolean(t))
+    .sort((a, b) => typeLevel(a.type) - typeLevel(b.type))[0];
+}
+
+function descendantsOf(id: string, ticketCache: Record<string, CachedSprintTicket>): CachedSprintTicket[] {
+  const out: CachedSprintTicket[] = [];
+  const visited = new Set<string>([id]);
+  const walk = (current: string) => {
+    for (const childId of ticketCache[current]?.children || []) {
+      if (visited.has(childId)) continue;
+      visited.add(childId);
+      const child = ticketCache[childId];
+      if (child) out.push(child);
+      walk(childId);
+    }
+  };
+  walk(id);
+  return out;
+}
+
+/** Thứ tự loại trong bảng tóm tắt: Task → Backend → Web → Mobile → QA → Defect → Story. */
+function summaryTypeRank(type: string): number {
+  const t = (type || '').toLowerCase();
+  if (t === 'task') return 0;
+  if (t.includes('backend')) return 1;
+  if (t.includes('web')) return 2;
+  if (t.includes('mobile')) return 3;
+  if (t.includes('qa')) return 4;
+  if (t.includes('subtask') || t.includes('sub-task')) return 5;
+  if (t.includes('defect')) return 6;
+  if (t.includes('bug')) return 7;
+  if (t.includes('story')) return 8;
+  if (t === 'epic') return 9;
+  if (t.includes('initiative')) return 10;
+  return 11;
+}
+
+/** Story / Epic / Initiative là ticket chứa — không đếm vào tổng số lượng, % done và SP. */
+const isContainerType = (type: string) => {
+  const t = (type || '').toLowerCase();
+  return t.includes('story') || t === 'epic' || t.includes('initiative');
+};
+
+const isDoneTicket = (t: CachedSprintTicket) => statusCategoryOf(t.status || '') === 'done';
+
+/** Tất cả ticket của item: ticket gốc + con cháu, không trùng. */
+function itemScopeTickets(item: SprintItem, ticketCache: Record<string, CachedSprintTicket>): CachedSprintTicket[] {
+  const seen = new Map<string, CachedSprintTicket>();
+  for (const root of item.tickets) {
+    const cached = ticketCache[root.id];
+    if (!cached) continue;
+    seen.set(cached.id, cached);
+    for (const d of descendantsOf(cached.id, ticketCache)) seen.set(d.id, d);
+  }
+  return Array.from(seen.values());
+}
+
+const pct = (part: number, whole: number) => (whole ? Math.round((part / whole) * 100) : 0);
+const fmtPoints = (n: number) => (Math.round(n * 10) / 10).toString();
+
+/** "done/all (x%)" — chỉ đếm ticket làm việc thật (bỏ Story/Epic/Initiative). */
+function countDoneLabel(tickets: CachedSprintTicket[]): { done: number; all: number; text: string } {
+  const work = tickets.filter((t) => !isContainerType(t.type));
+  const done = work.filter(isDoneTicket).length;
+  const tick = work.length > 0 && done === work.length ? '✅ ' : '';
+  return {
+    done,
+    all: work.length,
+    text: work.length ? `${tick}${done}/${work.length} (${pct(done, work.length)}%)` : '-',
+  };
+}
+
+interface SummaryRow {
+  type: string;
+  assignee: string;
+  tickets: CachedSprintTicket[];
+  done: number;
+  points: number;
+  percent: number;
+}
+
+/**
+ * Tóm tắt item theo loại × assignee: Count = done/all (%), SP = điểm (% tải capacity).
+ * Item có Initiative/Epic thì cho chọn phạm vi (mặc định cấp cao nhất) — chỉ đếm con cháu của ticket được chọn.
+ * Bấm vào tên loại để xem danh sách ticket của loại đó.
+ */
+function ItemSummary({
+  item,
+  ticketCache,
+  teamCapacity,
+  matchLeaf,
+  jiraBase,
+}: {
+  item: SprintItem;
+  ticketCache: Record<string, CachedSprintTicket>;
+  teamCapacity: TeamCapacity;
+  matchLeaf: (t: CachedSprintTicket) => boolean;
+  jiraBase: string;
+}) {
+  const roots = item.tickets
+    .map((t) => ticketCache[t.id])
+    .filter((t): t is CachedSprintTicket => Boolean(t));
+
+  const initiatives = roots.filter(isInitiative);
+  const epicMap = new Map<string, CachedSprintTicket>();
+  for (const epic of roots.filter(isEpic)) epicMap.set(epic.id, epic);
+  for (const init of initiatives) {
+    for (const childId of init.children || []) {
+      const child = ticketCache[childId];
+      if (isEpic(child)) epicMap.set(child!.id, child!);
+    }
+  }
+  const containers = [...initiatives, ...Array.from(epicMap.values())];
+
+  const [selectedId, setSelectedId] = useState(containers[0]?.id || '');
+  const [openTypes, setOpenTypes] = useState<Set<string>>(new Set());
+  const selected = containers.find((c) => c.id === selectedId) || containers[0];
+
+  const scope = (selected ? descendantsOf(selected.id, ticketCache) : itemScopeTickets(item, ticketCache)).filter(
+    matchLeaf
+  );
+
+  const rowsByKey = new Map<string, SummaryRow>();
+  for (const ticket of scope) {
+    const type = ticket.type || 'Khác';
+    const assignee = shortName(ticket.assignee) || 'Unassigned';
+    const key = `${type}::${assignee}`;
+    const row = rowsByKey.get(key) || { type, assignee, tickets: [], done: 0, points: 0, percent: 0 };
+    row.tickets.push(ticket);
+    if (isDoneTicket(ticket)) row.done += 1;
+    row.points += ticket.storyPoints || 0;
+    row.percent += leafPercent(ticket, teamCapacity);
+    rowsByKey.set(key, row);
+  }
+
+  const rows = Array.from(rowsByKey.values()).sort(
+    (a, b) =>
+      summaryTypeRank(a.type) - summaryTypeRank(b.type) ||
+      a.type.localeCompare(b.type) ||
+      a.assignee.localeCompare(b.assignee)
+  );
+  const typeSpan = new Map<string, number>();
+  rows.forEach((r) => typeSpan.set(r.type, (typeSpan.get(r.type) || 0) + 1));
+
+  // tổng chỉ tính ticket làm việc thật
+  const countable = rows.filter((r) => !isContainerType(r.type));
+  const total = countable.reduce(
+    (acc, r) => ({
+      all: acc.all + r.tickets.length,
+      done: acc.done + r.done,
+      points: acc.points + r.points,
+      percent: acc.percent + r.percent,
+    }),
+    { all: 0, done: 0, points: 0, percent: 0 }
+  );
+
+  const toggleType = (type: string) =>
+    setOpenTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
+
+  const cell = 'px-2 py-1 text-xs';
+  const num = `${cell} text-left tabular-nums whitespace-nowrap`;
+  const countText = (done: number, all: number) =>
+    all ? `${done === all ? '✅ ' : ''}${done}/${all} (${pct(done, all)}%)` : '-';
+  const pointText = (points: number, percent: number) =>
+    points ? `${fmtPoints(points)}${percent ? ` (${fmtPercent(percent)})` : ''}` : '-';
+
+  return (
+    <div className="space-y-2 py-1 pl-8 pr-2">
+      {containers.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {containers.map((c) => {
+            const active = c.id === selected?.id;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setSelectedId(c.id)}
+                title={c.name}
+                className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-mono font-semibold transition-colors ${
+                  active
+                    ? 'border-blue-400 bg-blue-600 text-white'
+                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <span className="inline-flex" title={c.type}>
+                  <IssueTypeIcon type={c.type} />
+                </span>
+                {c.id}
+              </button>
+            );
+          })}
+          {selected && (
+            <a
+              href={`${jiraBase}/browse/${selected.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-1 truncate text-xs text-gray-500 hover:text-blue-600 hover:underline"
+            >
+              {selected.name}
+            </a>
+          )}
+        </div>
+      )}
+
+      {rows.length === 0 ? (
+        <p className="text-xs italic text-gray-400">Không có ticket con khớp bộ lọc hiện tại</p>
+      ) : (
+        <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500">
+                <th className={`${cell} text-left font-semibold`}>Loại</th>
+                <th className={`${cell} text-left font-semibold`}>Assignee</th>
+                <th className={`${num} font-semibold`} title="Số ticket done / tổng (% done)">Count</th>
+                <th className={`${num} font-semibold`} title="Story point (% tải so với capacity team)">SP</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, index) => {
+                const firstOfType = index === 0 || rows[index - 1].type !== r.type;
+                const lastOfType = index === rows.length - 1 || rows[index + 1].type !== r.type;
+                const open = openTypes.has(r.type);
+                const container = isContainerType(r.type);
+                const typeTickets = rows.filter((x) => x.type === r.type).flatMap((x) => x.tickets);
+                return (
+                  <React.Fragment key={`${r.type}::${r.assignee}`}>
+                    <tr className={`border-t border-gray-100 hover:bg-blue-50 ${container ? 'text-gray-400' : ''}`}>
+                      {firstOfType && (
+                        <td rowSpan={typeSpan.get(r.type)} className={`${cell} align-top`}>
+                          <button
+                            type="button"
+                            onClick={() => toggleType(r.type)}
+                            title={container ? 'Không tính vào tổng' : 'Xem danh sách ticket'}
+                            className="inline-flex items-center gap-1.5 text-left text-gray-700 hover:text-blue-600"
+                          >
+                            <span className="w-2.5 text-[9px] text-gray-400">{open ? '▼' : '▶'}</span>
+                            <IssueTypeIcon type={r.type} />
+                            <span className={container ? 'italic text-gray-400' : ''}>{r.type}</span>
+                          </button>
+                        </td>
+                      )}
+                      <td className={`${cell} ${container ? '' : 'text-gray-700'}`}>{r.assignee}</td>
+                      <td className={`${num} ${container ? '' : 'font-semibold text-gray-700'}`}>
+                        {countText(r.done, r.tickets.length)}
+                      </td>
+                      <td className={`${num} ${container ? '' : 'text-indigo-700'}`}>{pointText(r.points, r.percent)}</td>
+                    </tr>
+                    {lastOfType && open && (
+                      <tr className="border-t border-gray-100 bg-slate-50">
+                        {/* thụt vào qua chữ tên loại để thấy đây là cấp con vừa mở */}
+                        <td colSpan={4} className="py-1.5 pl-14 pr-2">
+                          <table className="w-full border-collapse">
+                            <tbody>
+                              {typeTickets
+                                .sort((a, b) => a.id.localeCompare(b.id))
+                                .map((t) => (
+                                  <tr key={t.id} className="border-b border-gray-100 last:border-b-0 hover:bg-blue-50">
+                                    <td className="w-[110px] whitespace-nowrap px-2 py-0.5">
+                                      <a
+                                        href={`${jiraBase}/browse/${t.id}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="font-mono text-xs font-semibold text-blue-600 hover:underline"
+                                      >
+                                        {t.id}
+                                      </a>
+                                    </td>
+                                    <td className="px-2 py-0.5 text-xs text-gray-700">{t.name}</td>
+                                    <td className="w-[130px] whitespace-nowrap px-2 py-0.5">
+                                      <JiraStatusPill name={t.status || ''} />
+                                    </td>
+                                    <td className="w-[140px] whitespace-nowrap px-2 py-0.5 text-xs text-gray-600">
+                                      {shortName(t.assignee) || 'Unassigned'}
+                                    </td>
+                                    <td className="w-[50px] px-2 py-0.5 text-left text-xs text-gray-500">
+                                      {t.storyPoints || '-'}
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+              <tr className="border-t border-gray-200 bg-gray-50 font-semibold">
+                <td className={`${cell} text-gray-700`} colSpan={2} title="Không tính Story / Epic / Initiative">
+                  Tổng
+                </td>
+                <td className={`${num} text-gray-800`}>{countText(total.done, total.all)}</td>
+                <td className={`${num} text-indigo-700`}>{pointText(total.points, total.percent)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SprintSectionTable({
   section,
   jiraBase,
   ticketCache,
   teamCapacity,
-  formatDate,
   showChildTickets,
   filterAssignees,
   filterStatusCategory,
   filterTypeCategories,
   hideClosedStatuses,
-  pageId,
-  collapseAllKey,
   uncheckedItems: controlledUnchecked,
   onUncheckedItemsChange,
   hideTotals = false,
+  prLabels,
+  onPrLabelsChange,
 }: {
   section: SprintSection;
   jiraBase: string;
   ticketCache: Record<string, CachedSprintTicket>;
   teamCapacity: TeamCapacity;
-  formatDate: (iso: string) => string;
   showChildTickets: boolean;
   filterAssignees: string[] | null;
   filterStatusCategory: StatusCategory | null;
   filterTypeCategories: Set<TypeCategory>;
   hideClosedStatuses: boolean;
-  pageId: string;
-  collapseAllKey?: number;
   // Khi truyền vào → state tick được điều khiển từ ngoài (vd header trang).
   uncheckedItems?: Set<string>;
   onUncheckedItemsChange?: (next: Set<string>) => void;
   /** tổng SP / % / tick tất cả đã hiện trên thanh công cụ thì không lặp lại ở bảng */
   hideTotals?: boolean;
+  /** label hiện tại của từng ticket PR (key có mặt = đã tải xong) */
+  prLabels: Record<string, string[]>;
+  onPrLabelsChange: (prKey: string, next: string[]) => void;
 }) {
-  const [collapsedItems, setCollapsedItems] = useState<Set<string>>(new Set());
-  const [collapsedTicketIds, setCollapsedTicketIds] = useState<Set<string>>(new Set());
+  const [collapsedItems, setCollapsedItems] = useState<Set<string>>(
+    () => new Set(showChildTickets ? [] : section.items.map(sectionItemKey))
+  );
   const [internalUnchecked, setInternalUnchecked] = useState<Set<string>>(new Set());
   const uncheckedItems = controlledUnchecked ?? internalUnchecked;
   const applyUnchecked = (updater: (prev: Set<string>) => Set<string>) => {
@@ -1056,51 +1343,20 @@ function SprintSectionTable({
     else setInternalUnchecked(updater);
   };
   const [tableOpen, setTableOpen] = useState(true);
-  const prevCollapseKeyRef = useRef(collapseAllKey ?? 0);
+  const prevExpandAllRef = useRef(showChildTickets);
 
+  // nút "Mở / Thu gọn tất cả" trên thanh công cụ
   useEffect(() => {
-    if (collapseAllKey !== undefined && collapseAllKey !== prevCollapseKeyRef.current) {
-      prevCollapseKeyRef.current = collapseAllKey;
-      const allKeys = new Set(section.items.map((item) => String(item.number)));
-      setCollapsedItems(allKeys);
-    }
-  }, [collapseAllKey, section.items]);
-
-  const prevShowChildTicketsRef = useRef(showChildTickets);
-
-  useEffect(() => {
-    if (prevShowChildTicketsRef.current === showChildTickets) return;
-    prevShowChildTicketsRef.current = showChildTickets;
-    if (!showChildTickets) {
-      const ids = new Set<string>();
-      const walk = (id: string, visited = new Set<string>()) => {
-        if (!id || visited.has(id)) return;
-        visited.add(id);
-        const cached = ticketCache[id];
-        if (cached?.children?.length) ids.add(id);
-        (cached?.children || []).forEach((c) => walk(c, visited));
-      };
-      section.items.forEach((item) => item.tickets.forEach((t) => walk(t.id)));
-      setCollapsedTicketIds(ids);
-    } else {
-      setCollapsedTicketIds(new Set());
-    }
-  }, [showChildTickets, section.items, ticketCache]);
+    if (prevExpandAllRef.current === showChildTickets) return;
+    prevExpandAllRef.current = showChildTickets;
+    setCollapsedItems(showChildTickets ? new Set() : new Set(section.items.map(sectionItemKey)));
+  }, [showChildTickets, section.items]);
 
   const toggleItem = (key: string) => {
     setCollapsedItems((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
-      return next;
-    });
-  };
-
-  const onToggleTicket = (id: string) => {
-    setCollapsedTicketIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
       return next;
     });
   };
@@ -1172,11 +1428,12 @@ function SprintSectionTable({
           <tr className="bg-gray-100 text-xs text-gray-500 uppercase tracking-wide">
             <th className="text-left px-2 py-1.5 font-semibold w-[130px]">Ticket ID</th>
             <th className="text-left px-2 py-1.5 font-semibold">Tên Ticket</th>
+            <th className="text-left px-2 py-1.5 font-semibold w-[100px]" title="Ticket đại diện của item — trạng thái/assignee/fix version lấy từ ticket này">Ticket PL</th>
             <th className="text-left px-2 py-1.5 font-semibold w-[130px]">Trạng thái</th>
             <th className="text-left px-2 py-1.5 font-semibold w-[150px]">Assignee</th>
             <th className="text-left px-2 py-1.5 font-semibold w-[140px]">Fix Version</th>
-            <th className="text-center px-2 py-1.5 font-semibold w-[52px]">SP</th>
-            <th className="text-center px-2 py-1.5 font-semibold w-[64px]">%</th>
+            <th className="text-left px-2 py-1.5 font-semibold w-[100px]" title="Story point (% tải so với capacity team)">SP</th>
+            <th className="text-left px-2 py-1.5 font-semibold w-[120px]" title="Ticket làm việc done / tổng (% done) — không tính Story/Epic/Initiative">Subtask</th>
           </tr>
         </thead>
         <tbody>
@@ -1185,10 +1442,13 @@ function SprintSectionTable({
             const collapsed = collapsedItems.has(key);
             const checked = !uncheckedItems.has(key);
             const itemPoints = itemPointsOf(item);
+            const itemPercent = itemPercentOf(item);
+            const rep = representativeTicket(item, ticketCache);
+            const subtaskCount = countDoneLabel(itemScopeTickets(item, ticketCache).filter(matchLeaf));
             return (
               <React.Fragment key={item.number}>
-                <tr className={`border-t border-blue-100 ${checked ? 'bg-blue-50' : 'bg-gray-50'}`}>
-                  <td colSpan={7} className="px-2 py-1.5">
+                <tr className={`border-t border-blue-100 transition-colors hover:bg-blue-100 ${checked ? 'bg-blue-50' : 'bg-gray-50'}`}>
+                  <td colSpan={2} className="px-2 py-1.5">
                     <div className="flex items-center gap-2 flex-wrap">
                       <input
                         type="checkbox"
@@ -1222,54 +1482,87 @@ function SprintSectionTable({
                         </a>
                       )}
                       <span className="font-semibold text-gray-900 text-sm">{item.title}</span>
-                      {itemPoints > 0 && (
-                        <span
-                          className="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded"
-                          title="Tổng story point của item (theo filter hiện tại)"
-                        >
-                          {itemPoints} SP
-                        </span>
+                      {item.prNumber && (
+                        <PrLabelControl
+                          prKey={item.prNumber}
+                          labels={prLabels[item.prNumber] || []}
+                          loaded={item.prNumber in prLabels}
+                          onChange={onPrLabelsChange}
+                        />
                       )}
-                      {itemPercentOf(item) > 0 && (
-                        <span
-                          className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded"
-                          title="Tổng % tải của item so với capacity team (theo filter hiện tại)"
-                        >
-                          {fmtPercent(itemPercentOf(item))}
-                        </span>
-                      )}
-                      <PoStatusBadge item={item} ticketCache={ticketCache} pageId={pageId} />
                     </div>
+                  </td>
+                  {/* thông tin của ticket đại diện (cấp cao nhất trong item) */}
+                  <td className="px-2 py-1.5 align-top whitespace-nowrap">
+                    {rep ? (
+                      <a
+                        href={`${jiraBase}/browse/${rep.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={`${rep.type} · ${rep.name}`}
+                        className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-blue-600 hover:underline"
+                      >
+                        <IssueTypeIcon type={rep.type} />
+                        {rep.id}
+                      </a>
+                    ) : (
+                      <span className="text-xs text-gray-300">-</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-1.5 align-top">
+                    {rep ? (
+                      <span title={`Đại diện: ${rep.id} (${rep.type})`}>
+                        <JiraStatusPill name={rep.status || ''} />
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-300">-</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-1.5 align-top text-xs text-gray-700">
+                    {rep ? shortName(rep.assignee) || 'Unassigned' : '-'}
+                  </td>
+                  <td className="px-2 py-1.5 align-top text-xs text-gray-500">
+                    {rep?.fixVersions?.join(', ') || '-'}
+                  </td>
+                  <td
+                    className="px-2 py-1.5 align-top whitespace-nowrap text-left text-xs font-mono font-bold text-purple-700"
+                    title="Tổng story point của item (% tải so với capacity team), theo filter hiện tại"
+                  >
+                    {itemPoints > 0 ? (
+                      <>
+                        {fmtPoints(itemPoints)}
+                        {itemPercent > 0 && (
+                          <span className="font-semibold text-indigo-600"> ({fmtPercent(itemPercent)})</span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="font-normal text-gray-300">-</span>
+                    )}
+                  </td>
+                  <td
+                    className="px-2 py-1.5 align-top whitespace-nowrap text-left text-xs font-mono font-semibold text-gray-700"
+                    title="Ticket làm việc done / tổng (% done) — không tính Story/Epic/Initiative"
+                  >
+                    {subtaskCount.all ? subtaskCount.text : <span className="font-normal text-gray-300">-</span>}
                   </td>
                 </tr>
 
                 {!collapsed && (
-                  item.tickets.length === 0 ? (
-                    <tr className="border-t border-gray-100">
-                      <td colSpan={7} className="px-2 py-1 text-xs text-red-500 italic pl-10">
-                        Không có sub-ticket
-                      </td>
-                    </tr>
-                  ) : (
-                    item.tickets.map((ticket, ti) => (
-                      <React.Fragment key={ticket.id || ti}>
-                        {renderTicketRows({
-                          jiraBase,
-                          ticketCache,
-                          teamCapacity,
-                          formatDate,
-                          showChildTickets,
-                          filterAssignees,
-                          filterStatusCategory,
-                          filterTypeCategories,
-                          hideClosedStatuses,
-                          collapsedTicketIds,
-                          onToggleTicket,
-                          ticket,
-                        })}
-                      </React.Fragment>
-                    ))
-                  )
+                  <tr className="border-t border-gray-100">
+                    <td colSpan={8} className="bg-white">
+                      {item.tickets.length === 0 ? (
+                        <p className="py-1.5 pl-10 text-xs italic text-red-500">Không có sub-ticket</p>
+                      ) : (
+                        <ItemSummary
+                          item={item}
+                          ticketCache={ticketCache}
+                          teamCapacity={teamCapacity}
+                          matchLeaf={matchLeaf}
+                          jiraBase={jiraBase}
+                        />
+                      )}
+                    </td>
+                  </tr>
                 )}
               </React.Fragment>
             );
@@ -1531,9 +1824,9 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
   const [loadingResults, setLoadingResults] = useState(false);
   const [ticketCache, setTicketCache] = useState<Record<string, CachedSprintTicket>>({});
   const [teamCapacity, setTeamCapacity] = useState<TeamCapacity>(DEFAULT_TEAM_CAPACITY);
-  const [showChildTickets, setShowChildTickets] = useState(true);
+  // true = mở tóm tắt của mọi item; mặc định thu gọn để chỉ thấy dòng item
+  const [showChildTickets, setShowChildTickets] = useState(false);
   const [hideClosedStatuses, setHideClosedStatuses] = useState(true);
-  const [collapseAllKey, setCollapseAllKey] = useState(0);
   const [niceToHaveOpen, setNiceToHaveOpen] = useState(false);
   const [selectedAssignee, setSelectedAssignee] = useState<string | null>(null);
   const [selectedRoleAssignees, setSelectedRoleAssignees] = useState<string[] | null>(null);
@@ -1658,11 +1951,7 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
     }
   };
 
-  const handleToggleChildTickets = () => {
-    const next = !showChildTickets;
-    setShowChildTickets(next);
-    if (!next) setCollapseAllKey((k) => k + 1);
-  };
+  const handleToggleChildTickets = () => setShowChildTickets((v) => !v);
 
   const latestResult = results[0] || null;
   const latestParsed = latestResult ? parseSprintJSON(latestResult.result) : null;
@@ -1678,6 +1967,102 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
   const mustHaveTotal = mustHaveSection
     ? sumSectionPoints(mustHaveSection, ticketCache, headerMatchLeaf, mustHaveUnchecked)
     : 0;
+  // label của các ticket PR trong sprint — đọc thẳng từ Jira, đổi xong cập nhật tại chỗ
+  const [prLabels, setPrLabels] = useState<Record<string, string[]>>({});
+  const prKeys = Array.from(
+    new Set(
+      (latestParsed?.sections || [])
+        .flatMap((sec) => sec.items.map((it) => it.prNumber))
+        .filter((key): key is string => Boolean(key) && /^[A-Z][A-Z0-9]+-\d+$/.test(key))
+    )
+  ).sort();
+  const prKeysSig = prKeys.join(',');
+
+  useEffect(() => {
+    if (!prKeys.length) return;
+    let alive = true;
+    (async () => {
+      const next: Record<string, string[]> = {};
+      for (let i = 0; i < prKeys.length; i += 50) {
+        const batch = prKeys.slice(i, i + 50);
+        try {
+          const res = await jiraAPI.searchIssues({
+            jql: `key IN (${batch.join(',')})`,
+            maxResults: 100,
+            fields: ['labels'],
+          });
+          for (const issue of ((res.data.data as { issues?: any[] })?.issues || [])) {
+            next[issue.key] = issue.fields?.labels || [];
+          }
+          // ticket PR không trả về (đã xoá/không có quyền) -> coi như không có label
+          batch.forEach((key) => {
+            if (!(key in next)) next[key] = [];
+          });
+        } catch {
+          batch.forEach((key) => {
+            next[key] = [];
+          });
+        }
+      }
+      if (alive) setPrLabels(next);
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prKeysSig]);
+
+  const handlePrLabelsChange = useCallback((prKey: string, nextLabels: string[]) => {
+    setPrLabels((prev) => ({ ...prev, [prKey]: nextLabels }));
+  }, []);
+
+  // story gắn sprint này trên Jira (PL + PLO) — để soi story lọt ngoài Must have / Nice to have
+  const pageSprintNumber = sprintNumberOfTitle(page.title);
+  const [sprintStories, setSprintStories] = useState<HealthIssue[] | null>(null);
+
+  useEffect(() => {
+    if (!pageSprintNumber) return;
+    let alive = true;
+    (async () => {
+      const found: HealthIssue[] = [];
+      let nextPageToken: string | undefined;
+      try {
+        for (let pageNo = 0; pageNo < 5; pageNo++) {
+          const res = await jiraAPI.searchIssues({
+            jql: 'project IN (PL, PLO) AND issuetype = Story AND (sprint IN openSprints() OR sprint IN futureSprints())',
+            maxResults: 100,
+            fields: ['summary', 'status', 'assignee', 'issuetype', 'fixVersions'],
+            nextPageToken,
+          });
+          const payload = res.data.data as { issues?: any[]; nextPageToken?: string } | undefined;
+          for (const issue of payload?.issues || []) {
+            const sprints: Array<{ name: string; state?: string }> = issue.fields?.normalizedSprints || [];
+            const inThisSprint = sprints.some(
+              (sp) => (sp.state || '').toLowerCase() !== 'closed' && sprintNumberOfTitle(sp.name) === pageSprintNumber
+            );
+            if (!inThisSprint) continue;
+            found.push({
+              id: issue.key,
+              name: issue.fields?.summary || '',
+              type: issue.fields?.issuetype?.name || 'Story',
+              status: issue.fields?.normalizedStatusName || issue.fields?.status?.name || '',
+              assignee: issue.fields?.normalizedAssigneeName || '',
+              fixVersions: issue.fields?.normalizedFixVersionNames || [],
+            });
+          }
+          nextPageToken = payload?.nextPageToken;
+          if (!nextPageToken) break;
+        }
+        if (alive) setSprintStories(found);
+      } catch {
+        if (alive) setSprintStories(null);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [pageSprintNumber]);
+
   const activeSprintNumbers = useActiveSprintNumbers();
   const isActiveSprint = activeSprintNumbers.has(sprintNumberOfTitle(page.title));
 
@@ -1690,18 +2075,33 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
     setMustHaveUnchecked(mustHaveAllChecked ? new Set(mustHaveSection.items.map(sectionItemKey)) : new Set());
   };
 
+  const strayStories = (() => {
+    if (!sprintStories) return undefined;
+    const listed = new Set<string>();
+    const walk = (id: string) => {
+      if (!id || listed.has(id)) return;
+      listed.add(id);
+      (ticketCache[id]?.children || []).forEach(walk);
+    };
+    [coreSection, mustHaveSection, niceToHaveSection].forEach((sec) =>
+      sec?.items.forEach((item) => item.tickets.forEach((t) => walk(t.id)))
+    );
+    return sprintStories
+      .filter((story) => !listed.has(story.id) && statusCategoryOf(story.status || '') !== 'done')
+      .sort((a, b) => a.id.localeCompare(b.id));
+  })();
+
   const commonSectionProps = {
     jiraBase,
     ticketCache,
     teamCapacity,
-    formatDate,
     showChildTickets,
     filterAssignees,
     filterStatusCategory,
     filterTypeCategories,
     hideClosedStatuses,
-    pageId: page.pageId,
-    collapseAllKey,
+    prLabels,
+    onPrLabelsChange: handlePrLabelsChange,
   };
 
   const commonSummaryProps = {
@@ -1721,8 +2121,8 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
       <div className="sticky top-0 z-40 -mx-8 -mt-8 px-8 py-2 bg-white/95 backdrop-blur border-b border-gray-200 shadow-sm">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="mr-1 flex items-center gap-1.5 text-lg font-bold text-gray-900" title={page.title}>
-            {isActiveSprint && <span title="Sprint đang chạy">{ACTIVE_SPRINT_ICON}</span>}
             {sprintPageLabel(page.title)}
+            {isActiveSprint && <span title="Sprint đang chạy">{ACTIVE_SPRINT_ICON}</span>}
           </span>
           <button
             onClick={handleReloadAll}
@@ -1734,6 +2134,15 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
           >
             {reloadingAll ? <><span className="animate-spin inline-block">⏳</span> Đang reload...</> : '🔄 Reload'}
           </button>
+          <a
+            href={confluencePageUrl(page.pageId)}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`Mở page Confluence: ${page.title}`}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+          >
+            📄 Confluence ↗
+          </a>
 
           {/* Bộ lọc theo loại — dropdown cho gọn */}
           <div className="relative">
@@ -1795,7 +2204,7 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
             onClick={handleToggleChildTickets}
             className="px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors"
           >
-            {showChildTickets ? 'Thu gọn ticket con' : 'Hiện ticket con'}
+            {showChildTickets ? 'Thu gọn tất cả' : 'Mở tất cả'}
           </button>
 
           {mustHaveSection && (
@@ -1857,7 +2266,12 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
                   <h3 className="font-bold text-gray-900">{mustHaveSection.name}</h3>
                   <span className="text-xs text-gray-400">({mustHaveSection.items.length} items)</span>
                 </div>
-                <SprintHealthCheck section={mustHaveSection} ticketCache={ticketCache} />
+                <SprintHealthCheck
+                  section={mustHaveSection}
+                  ticketCache={ticketCache}
+                  strayStories={strayStories}
+                  sprintNumber={pageSprintNumber}
+                />
                 <SprintSummaryTable sections={[mustHaveSection]} {...commonSummaryProps} />
                 <SprintSectionTable
                   section={mustHaveSection}
@@ -1885,7 +2299,7 @@ export function SprintManagementAnalysis({ page }: { page: LoadedPage }) {
                 </button>
                 {niceToHaveOpen && (
                   <>
-                    <SprintHealthCheck section={niceToHaveSection} ticketCache={ticketCache} />
+                    <SprintHealthCheck section={niceToHaveSection} ticketCache={ticketCache} sprintNumber={pageSprintNumber} />
                     <SprintSummaryTable sections={[niceToHaveSection]} {...commonSummaryProps} />
                     <SprintSectionTable section={niceToHaveSection} {...commonSectionProps} />
                   </>

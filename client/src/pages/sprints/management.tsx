@@ -3,7 +3,13 @@ import Link from 'next/link';
 import toast, { Toaster } from 'react-hot-toast';
 import { sprintManagementAPI } from '@/utils/api';
 import { JiraStatusPill } from '@/components/JiraBadges';
-import { ACTIVE_SPRINT_ICON, sprintNumberOfTitle, sprintPagePath, useActiveSprintNumbers } from '@/utils/sprintPages';
+import {
+  ACTIVE_SPRINT_ICON,
+  confluencePageUrl,
+  sprintNumberOfTitle,
+  sprintPagePath,
+  useActiveSprintNumbers,
+} from '@/utils/sprintPages';
 import { sprintPageLabel } from '@/components/SprintManagementAnalysis';
 import type { CachedSprintTicket, LoadedPage } from '@/components/SprintManagementAnalysis';
 
@@ -258,29 +264,34 @@ export default function SprintManagementPage() {
           ) : (
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {loadedPages.map((page) => (
-                <Link
+                <div
                   key={page.pageId}
-                  href={sprintPagePath(page.title)}
-                  className={`block rounded-lg border px-4 py-3 transition-colors ${
+                  className={`group relative rounded-lg border transition-colors ${
                     activeSprintNumbers.has(sprintNumberOfTitle(page.title))
                       ? 'border-orange-300 bg-orange-50 hover:bg-orange-100'
                       : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50'
                   }`}
                 >
-                  <p className="flex items-center gap-1.5 font-semibold text-blue-700">
-                    {activeSprintNumbers.has(sprintNumberOfTitle(page.title)) && (
-                      <span title="Sprint đang chạy">{ACTIVE_SPRINT_ICON}</span>
-                    )}
-                    {sprintPageLabel(page.title)}
-                    {activeSprintNumbers.has(sprintNumberOfTitle(page.title)) && (
-                      <span className="rounded bg-orange-500 px-1.5 py-px text-[10px] font-bold uppercase text-white">
-                        đang chạy
-                      </span>
-                    )}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500 truncate">{page.title}</p>
-                  <p className="mt-2 text-xs text-gray-400">Loaded {formatDate(page.loadedAt)}</p>
-                </Link>
+                  <Link href={sprintPagePath(page.title)} className="block px-4 py-3 pr-12">
+                    <p className="flex items-center gap-1.5 font-semibold text-blue-700">
+                      {sprintPageLabel(page.title)}
+                      {activeSprintNumbers.has(sprintNumberOfTitle(page.title)) && (
+                        <span title="Sprint đang chạy">{ACTIVE_SPRINT_ICON}</span>
+                      )}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500 truncate">{page.title}</p>
+                    <p className="mt-2 text-xs text-gray-400">Loaded {formatDate(page.loadedAt)}</p>
+                  </Link>
+                  <a
+                    href={confluencePageUrl(page.pageId)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Mở page Confluence của sprint"
+                    className="absolute right-2 top-2 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs text-gray-500 hover:border-blue-300 hover:text-blue-600"
+                  >
+                    📄 ↗
+                  </a>
+                </div>
               ))}
             </div>
           )}

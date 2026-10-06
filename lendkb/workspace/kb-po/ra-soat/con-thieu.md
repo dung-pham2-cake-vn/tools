@@ -354,3 +354,7 @@ PO cần làm, Ops không dùng. Điền xong mục nào thì sửa trang `kb/` 
 - [ ] Phí và điều kiện tất toán trước hạn — **từ Jira**
 - [ ] Điểm khác biệt so với [[kb/products/paylater/overview]]
 - [ ] Câu hỏi khách hay gặp riêng của đối tác này
+
+## [[kb/operations/luong-giai-ngan]]
+
+- [ ] Xếp nhóm giải ngân cho sản phẩm troubleshoot chưa phủ: `Be_Cashloan`, `KLP_cashloan`, `MISA_cashloan`, `MBF_cashloan`, `CAKE_overdraft`, `CAKE_overdraft_TD` — rồi bổ sung vào file troubleshoot cho Ops

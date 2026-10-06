@@ -748,9 +748,15 @@ const SVKTicketsTab: React.FC = () => {
   const loadChats = () =>
     supportAPI.getSvkChats().then((res) => setChats(res.data || {})).catch(() => {});
 
+  // notes reload with the tickets: a one-shot load that failed (backend restarting)
+  // used to leave the column blank until a full page refresh
+  const loadNotes = () =>
+    supportAPI.getSvkNotes().then((res) => setNotes(res.data || {})).catch(() => {});
+
   const loadTickets = async () => {
     const res = await supportAPI.getSvkTickets();
     setRows(buildRows(res.data || []));
+    void loadNotes();
     void loadChats();
   };
 
@@ -758,7 +764,6 @@ const SVKTicketsTab: React.FC = () => {
     setChats((prev) => ({ ...prev, [key]: { ...prev[key], conversationId } }));
 
   useEffect(() => {
-    supportAPI.getSvkNotes().then((res) => setNotes(res.data || {})).catch(() => {});
     Promise.all([
       loadTickets().catch((err) => setScanError(err?.message || 'Load failed')),
       supportAPI.svkAiStatus().then((res) => setAiJob(res.data)).catch(() => {}),

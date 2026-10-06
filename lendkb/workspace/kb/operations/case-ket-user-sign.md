@@ -98,7 +98,7 @@ Channel `iceLoanDrawdown`, user `cake-glpayment-svc`.
 
 > **Balance về `₫0` chứng minh tiền đã rời Loan Drawdown, không chứng minh tiền đã
 > vào CASA.** Đó là hai tài khoản khác nhau, và CASA có thể đang bị khoá
-> (xem bước 3B trong [[kb/operations/quy-trinh-xu-ly]]). Muốn chắc thì mở tab **CASA** ngay cạnh
+> (xem bước 3B trong [[kb/operations/luong-giai-ngan]]). Muốn chắc thì mở tab **CASA** ngay cạnh
 > tab Loan Drawdown — chỉ một cú click — xem có dòng `+5.000.000` cùng mốc giờ không.
 
 ## Ca SVK-11748

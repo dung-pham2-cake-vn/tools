@@ -10,7 +10,7 @@ status: generated
 
 # Index
 
-27 trang. **Đọc index trước, rồi mới mở trang chi tiết.**
+30 trang. **Đọc index trước, rồi mới mở trang chi tiết.**
 Quy ước bảo trì wiki: [[kb-po/SCHEMA]]. Ranh giới hai vùng: [[kb-po/README]].
 
 ## Bắt đầu từ đây
@@ -19,7 +19,7 @@ Quy ước bảo trì wiki: [[kb-po/SCHEMA]]. Ranh giới hai vùng: [[kb-po/REA
 |---|---|---|
 | [[kb-po/README]] — KB dành riêng PO | Ops không dùng phần này. Ranh giới: kb/ chỉ chứa kiến thức sản phẩm và | 2026-10-06 |
 | [[kb-po/SCHEMA]] — Schema — cách bảo trì wiki này | Ý chính của pattern: wiki là một artefact tích luỹ, không phải kho để RAG lục lại | 2026-10-06 |
-| [[kb-po/index]] — Index — catalog vùng chỉ PO | 27 trang. Đọc index trước, rồi mới mở trang chi tiết. | 2026-10-06 |
+| [[kb-po/index]] — Index — catalog vùng chỉ PO | 29 trang. Đọc index trước, rồi mới mở trang chi tiết. | 2026-10-06 |
 
 ## Bảo trì wiki — format, log, lịch sử quyết định
 
@@ -45,6 +45,8 @@ Quy ước bảo trì wiki: [[kb-po/SCHEMA]]. Ranh giới hai vùng: [[kb-po/REA
 | [[kb-po/ra-soat/product-matrix-ra-soat]] — Ma trận sản phẩm — nguồn, quyết định, điểm treo | Tách khỏi product-matrix 2026-10-06. Trang kb/ giữ phần Ops tra hằng ngày; | 2026-10-06 |
 | [[kb-po/ra-soat/products-without-numbers]] — Cần rà tiếp | Cả 30 sản phẩm đối tác đã có số liệu. Nhưng 10 file lấy số từ Confluence, | 2026-09-30 |
 | [[kb-po/ra-soat/soat-so-tai-chinh]] — Bảng soát số liệu tài chính toàn KB | Số tài chính của 33 sản phẩm trên một trang. Soát trước khi chuyển approved. | 2026-10-01 |
+| [[kb-po/ra-soat/svk-backlog-2026-10-02]] — SVK — ảnh chụp ticket vận hành đang mở ngày 2026-10-02 | Kéo bằng tools/export-svk.mjs. JQL lọc request type Lending, bỏ Done/Cancelled/Ready4Test/Waiting for customer. | 2026-10-02 |
+| [[kb-po/ra-soat/svk-phan-loai-2026-10]] — Phân loại ticket SVK Lending 12 tháng — câu hỏi nào lặp nhiều nhất | 327 ticket SVK thuộc request type Lending tạo trong 365 ngày (kéo 2026-10-06 bằng | 2026-10-06 |
 
 ## Ghi chú sản phẩm
 
@@ -72,6 +74,7 @@ Quy ước bảo trì wiki: [[kb-po/SCHEMA]]. Ranh giới hai vùng: [[kb-po/REA
 |---|---|---|
 | [[kb-po/workflow/quy-tac-dat-ten]] — Quy tắc đặt tên sản phẩm — dùng để rà tài liệu | Một sản phẩm được gọi bằng 4 kiểu tên khác nhau trong tài liệu. Bỏ sót kiểu nào | 2026-10-01 |
 | [[kb-po/workflow/quy-tac-viet-ticket]] — Quy tắc viết ticket Jira — style của PO Lending | Tài liệu cho AI hỗ trợ viết ticket. Rút ra từ 2.355 ticket project PL do | 2026-10-03 |
+| [[kb-po/workflow/xu-ly-ticket-svk]] — Quy trình PO xử lý ticket SVK — dùng cho mọi agent | Quy trình không phụ thuộc công cụ: agent nào (Claude, Codex, OpenCode…) hay người làm | 2026-10-06 |
 
 ## Nguồn gốc tài liệu
 
@@ -82,7 +85,7 @@ Quy ước bảo trì wiki: [[kb-po/SCHEMA]]. Ranh giới hai vùng: [[kb-po/REA
 
 ---
 
-Thống kê: **27 trang**, **290 liên kết chéo**.
+Thống kê: **30 trang**, **316 liên kết chéo**.
 Kiểm tra sức khoẻ wiki: `node tools/kb-lint.mjs`.
 
 <!-- AUTO:end -->

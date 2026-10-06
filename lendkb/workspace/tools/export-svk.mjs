@@ -1,9 +1,18 @@
 #!/usr/bin/env node
-// Kéo ticket vận hành SVK theo JQL cố định. Ẩn danh hoá dùng chung với export.mjs.
+// Kéo ticket vận hành SVK. Ẩn danh hoá dùng chung với export.mjs.
+//   node --env-file=tools/.env tools/export-svk.mjs                  ticket đang mở
+//   node --env-file=tools/.env tools/export-svk.mjs --history [ngày] mọi ticket tạo trong N ngày (mặc định 365)
+//                                                                   → raw/jira/SVK-history/ — dùng để gom câu hỏi lặp lại
+// Mạng công ty chặn TLS bằng CA nội bộ → thêm `--use-system-ca` sau `node` nếu gặp SELF_SIGNED_CERT_IN_CHAIN.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-const JQL = 'project = SVK AND "Request Type" IN ("Lending Onboarding DOP","Lending Onboarding API","Lending Onboarding Appcake","Lending Disburse","Lending Payment Installment","Lending Repayment","Lending Get Detail","Lending Termination","Lending Core","Lending Portal Support","Lending Risk Support","Lending Others") AND status NOT IN (Done,Cancelled,Ready4Test,"Waiting for customer") ORDER BY created DESC';
+const RT = '"Request Type" IN ("Lending Onboarding DOP","Lending Onboarding API","Lending Onboarding Appcake","Lending Disburse","Lending Payment Installment","Lending Repayment","Lending Get Detail","Lending Termination","Lending Core","Lending Portal Support","Lending Risk Support","Lending Others")';
+const HISTORY = process.argv.includes('--history');
+const DAYS = Number(process.argv[process.argv.indexOf('--history') + 1]) || 365;
+const JQL = HISTORY
+  ? `project = SVK AND ${RT} AND created >= -${DAYS}d ORDER BY created DESC`
+  : `project = SVK AND ${RT} AND status NOT IN (Done,Cancelled,Ready4Test,"Waiting for customer") ORDER BY created DESC`;
 const FIELDS = 'summary,issuetype,status,priority,created,updated,resolutiondate,labels,components,reporter,assignee,description,comment,customfield_10010';
 
 const { ATLASSIAN_BASE_URL, ATLASSIAN_EMAIL, ATLASSIAN_API_TOKEN } = process.env;
@@ -29,7 +38,7 @@ function adf(n) {
   return ['paragraph', 'heading', 'listItem', 'codeBlock'].includes(n.type) ? inner + '\n' : inner;
 }
 
-const OUT = 'raw/jira/SVK';
+const OUT = HISTORY ? 'raw/jira/SVK-history' : 'raw/jira/SVK';
 await fs.mkdir(OUT, { recursive: true });
 let token, rows = [];
 do {
@@ -65,5 +74,5 @@ do {
   console.log(`SVK: ${rows.length} ticket`);
 } while (token);
 
-await fs.writeFile('tools/scan/svk-list.json', JSON.stringify(rows, null, 1));
-console.log(`Xong: ${rows.length} ticket → raw/jira/SVK/`);
+await fs.writeFile(HISTORY ? 'raw/jira/svk-history-list.json' : 'tools/scan/svk-list.json', JSON.stringify(rows, null, 1));
+console.log(`Xong: ${rows.length} ticket → ${OUT}/`);

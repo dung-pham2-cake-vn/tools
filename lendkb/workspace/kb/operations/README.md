@@ -1,11 +1,12 @@
 ---
 title: Vận hành — quy trình, mã lỗi và case mẫu
-audience: [ops, po]
-last_verified: 2026-10-04
+audience:
+  - ops
+  - po
+last_verified: 2026-10-04T00:00:00.000Z
 owner: dung.pham2
 status: draft
 ---
-
 # Nhóm 2 — Vận hành
 
 ## Đọc theo thứ tự nào
@@ -17,33 +18,25 @@ Gặp một ticket chưa biết xử lý sao:
 3. **[[kb/operations/ma-loi-api]]** — khách/đối tác đưa mã lỗi thì tra thẳng ở đây
 4. **`case-*.md`** — xem đã có case y hệt chưa, đỡ điều tra lại từ đầu
 
+Tìm ticket cùng đợt lỗi: lọc SVK theo triệu chứng trong 1–2 tuần gần nhất trên Jira —
+nhiều ticket cùng triệu chứng thường là một đợt lỗi hệ thống, báo Product thay vì xử lý lẻ.
+
 ## Danh mục
 
 | File | Nội dung | Khi nào mở |
-|---|---|---|
+| --- | --- | --- |
 | [[kb/operations/quy-trinh-xu-ly]] | Quy trình xử lý ticket vận hành · **cách phản hồi ticket SVK** | Mặc định, mọi ticket · trước khi comment cho Ops |
 | [[kb/operations/luong-giai-ngan]] | Luồng giải ngân & vòng đời trạng thái khoản vay | Khoản vay kẹt, không rõ đang ở bước nào |
 | [[kb/operations/quy-trinh-sau-vay]] | Thanh toán, quét nợ, tất toán | Khách hỏi về trả nợ |
 | [[kb/operations/luong-van]] | Thanh toán nợ qua VAN — dùng chung mọi sản phẩm | Khách quét mã VAN, tiền không gạch nợ |
 | [[kb/operations/ma-loi-api]] | Mã lỗi API & cách xử lý | Có mã lỗi cụ thể trong tay |
-| [[kb/operations/svk-backlog]] | Ticket SVK đang mở, gom theo nhóm nguyên nhân | Rà backlog, tìm ticket cùng gốc |
 | [[kb/operations/case-ket-user-sign]] | Case mẫu — kẹt `USER_SIGN` sau khi đã giải ngân | Trạng thái LMS `USER_SIGN` mà tiền đã đi |
 | [[kb/operations/case-doi-so-dien-thoai]] | Case mẫu — KH đổi sđt khi đang có ví/khoản vay | Khách hỏi đổi số điện thoại |
 
-## Skill tự động
-
-`/lending-handle-ops-ticket` — xử lý **một** ticket SVK từ đầu tới cuối: kéo ticket
-và ảnh đính kèm về, đọc ảnh, đối chiếu KB này, kết luận duyệt được hay chưa, soạn
-câu trả lời ngắn cho Ops. Chỉ đọc Jira; mọi thao tác ghi đều hỏi trước.
-
-`/lending-scan-support-tickets` — quét **nhiều** ticket để nắm tổng thể production.
-
-Skill nằm ở `~/Library/Mobile Documents/com~apple~CloudDocs/Claude-Script/skills/`.
-
 ## Hai chỗ khác cũng chứa kinh nghiệm vận hành
 
-- **Mục 4 của từng file sản phẩm** (`kb/products/.../<product_id>.md`) — đặc thù
-  của riêng sản phẩm đó. Ops viết thẳng vào đó, đừng dồn hết về đây.
+- **Mục *Ghi chú vận hành — Ops* của từng file sản phẩm** (`kb/products/.../<product_id>.md`)
+  — đặc thù của riêng sản phẩm đó. Ops viết thẳng vào đó, đừng dồn hết về đây.
 - **[[kb/reject-messages]]** — khách đọc lại nguyên văn thông báo lỗi thì tra đây trước.
 
 ## Viết case mẫu mới

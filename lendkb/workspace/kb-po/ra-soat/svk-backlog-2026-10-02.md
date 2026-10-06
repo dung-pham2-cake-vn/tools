@@ -1,14 +1,18 @@
 ---
-title: SVK — ticket vận hành đang mở
-audience: [ops, po]
-nhom: 2
+title: SVK — ảnh chụp ticket vận hành đang mở ngày 2026-10-02
+audience: [po]
 last_verified: 2026-10-02
 owner: dung.pham2
-status: draft
+status: snapshot
 coverage: partial
 ---
 
 # SVK — 10 ticket đang mở (2026-10-02)
+
+> **Ảnh chụp một thời điểm, không cập nhật.** Trạng thái ticket bên dưới là của ngày
+> 2026-10-02. Trạng thái hiện tại tra thẳng Jira. Chuyển khỏi `kb/operations/` ngày
+> 2026-10-06 — kiến thức dùng lâu dài đã nằm ở [[kb/operations/luong-giai-ngan]],
+> [[kb/operations/case-ket-user-sign]], [[kb/operations/quy-trinh-sau-vay]].
 
 Kéo bằng `tools/export-svk.mjs`. JQL lọc request type Lending, bỏ Done/Cancelled/Ready4Test/Waiting for customer.
 

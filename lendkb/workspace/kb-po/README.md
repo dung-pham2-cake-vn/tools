@@ -39,6 +39,7 @@ số kinh doanh, bảo trì wiki và mọi việc của PO ở đây. Chi tiết
 | [[kb-po/core/_index]] | Index 766 tài liệu core & GL |
 | [[kb-po/core/dashboard-tool]] | Dashboard, query, tool nội bộ |
 | [[kb-po/business/README]] | Số liệu kinh doanh |
+| [[kb-po/workflow/xu-ly-ticket-svk]] | Quy trình xử lý một ticket SVK — kéo ticket, đọc ảnh, kết luận duyệt, soạn trả lời Ops. Dùng cho mọi agent |
 | [[kb-po/workflow/quy-tac-viet-ticket]] | Style viết ticket Jira, rút từ 2.355 ticket PL |
 | [[kb-po/workflow/quy-tac-dat-ten]] | Quy tắc đặt tên sản phẩm — dùng để rà ticket không bị sót |
 | [[kb-po/ra-soat/can-confirm]] | Điểm chờ PO xác nhận |

@@ -10,6 +10,10 @@ Jira để trả lời — không đoán, không tự tính số.
 
 ## Bước chuẩn khi xử lý một ticket
 
+Ticket SVK cần kết luận duyệt / chưa duyệt: theo quy trình đầy đủ ở
+[kb-po/workflow/xu-ly-ticket-svk.md](workspace/kb-po/workflow/xu-ly-ticket-svk.md) —
+không phụ thuộc công cụ, agent nào cũng làm theo được. Tóm tắt:
+
 1. **Xác định sản phẩm của khách trước** — tra `workspace/kb/product-matrix.md` qua onboarding
    source / contract type / tên app. Chưa xác định được sản phẩm → **không trả lời số
    nào** (lãi, phí, hạn mức), hỏi lại hoặc escalate.

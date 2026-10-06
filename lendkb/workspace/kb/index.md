@@ -10,7 +10,7 @@ status: generated
 
 # Index
 
-65 trang. **Đọc index trước, rồi mới mở trang chi tiết.**
+64 trang. **Đọc index trước, rồi mới mở trang chi tiết.**
 Cần tra theo ý định ("muốn biết X thì xem đâu") thì xem [[kb/README]].
 
 ## Bắt đầu từ đây
@@ -19,7 +19,7 @@ Cần tra theo ý định ("muốn biết X thì xem đâu") thì xem [[kb/READM
 |---|---|---|
 | [[kb/README]] — Hướng dẫn dùng KB Lending | kb/ chỉ chứa kiến thức sản phẩm và vận hành — thứ cần để trả lời khách và xử lý | 2026-10-06 |
 | [[kb/glossary]] — Thuật ngữ Lending | Lãi phạt lãi chậm — chưa triển khai. Có trong chính sách của nhiều sản phẩm, nhưng | 2026-09-30 |
-| [[kb/index]] — Index — catalog KB Ops/CSKH | 65 trang. Đọc index trước, rồi mới mở trang chi tiết. | 2026-10-06 |
+| [[kb/index]] — Index — catalog KB Ops/CSKH | 64 trang. Đọc index trước, rồi mới mở trang chi tiết. | 2026-10-06 |
 | [[kb/product-matrix]] — Ma trận Đối tác × Sản phẩm × Kênh | - Kênh — api = đối tác tự làm app, gọi API Cake · dop = webview Cake nhúng vào app đối tác · cake = làm trên app Cake. | 2026-09-30 |
 | [[kb/reject-messages]] — Thông báo từ chối hồ sơ — tra cứu | Khách thường nhắc lại nguyên văn câu thông báo trên màn hình. Dùng bảng này để biết | 2026-09-30 |
 
@@ -30,12 +30,11 @@ Cần tra theo ý định ("muốn biết X thì xem đâu") thì xem [[kb/READM
 | [[kb/operations/README]] — Vận hành — quy trình, mã lỗi và case mẫu | Gặp một ticket chưa biết xử lý sao: | 2026-10-04 |
 | [[kb/operations/case-doi-so-dien-thoai]] — Case mẫu — KH muốn đổi số điện thoại khi đang có ví/khoản vay | Ví dụ gốc: "KH mở ví được duyệt nhưng chưa ký, giờ muốn đổi sđt khác thì có đổi được không?" | 2026-10-04 |
 | [[kb/operations/case-ket-user-sign]] — Case mẫu — khoản vay kẹt USER_SIGN sau khi đã giải ngân | Ca phổ biến nhất của nhóm giải ngân. Ví dụ gốc: SVK-11748 (CAKE_payday, 2026-10-02). | 2026-10-05 |
-| [[kb/operations/luong-giai-ngan]] — Luồng giải ngân & trạng thái khoản vay — nền để xử lý ticket | Luồng dùng chung cho mọi sản phẩm DOP và Native API. Nguồn: ticket mẫu | 2026-10-02 |
+| [[kb/operations/luong-giai-ngan]] — Luồng giải ngân & trạng thái khoản vay — theo nhóm sản phẩm | Mỗi nhóm sản phẩm giải ngân một kiểu. Trước khi kết luận "đã giải ngân đủ bước", | 2026-10-06 |
 | [[kb/operations/luong-van]] — Thanh toán nợ qua VAN — dùng chung mọi sản phẩm | Luồng dùng chung cho tất cả sản phẩm, không riêng MWG Paylater. | 2026-10-02 |
 | [[kb/operations/ma-loi-api]] — Mã lỗi API & cách xử lý | Sinh từ tools/scan/troubleshoot.json bằng tools/gen-ops-docs.py. | 2026-10-02 |
 | [[kb/operations/quy-trinh-sau-vay]] — Quy trình sau vay — thanh toán, quét nợ, tất toán | Mambu ghi channel autoCollection vẫn có thể là khách tự thanh toán. Phải xem Identity trong workflow: | 2026-10-02 |
 | [[kb/operations/quy-trinh-xu-ly]] — Quy trình xử lý ticket vận hành | Nguồn: file Troubleshoot Lending Ops.xls — 15 tab. Parse bằng tools/parse-troubleshoot.py, | 2026-10-05 |
-| [[kb/operations/svk-backlog]] — SVK — ticket vận hành đang mở | Kéo bằng tools/export-svk.mjs. JQL lọc request type Lending, bỏ Done/Cancelled/Ready4Test/Waiting for customer. | 2026-10-02 |
 
 ## Sản phẩm — tổng quan theo loại
 
@@ -105,7 +104,7 @@ Cần tra theo ý định ("muốn biết X thì xem đâu") thì xem [[kb/READM
 
 ---
 
-Thống kê: **65 trang**, **198 liên kết chéo**.
+Thống kê: **64 trang**, **198 liên kết chéo**.
 Kiểm tra sức khoẻ wiki: `node tools/kb-lint.mjs`.
 
 <!-- AUTO:end -->

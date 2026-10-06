@@ -26,6 +26,51 @@ Loại: `ingest` (nạp nguồn mới) · `query` (câu trả lời được fil
 
 ---
 
+## [2026-10-06] ingest | Phân loại 327 ticket SVK 12 tháng
+
+Kéo mọi ticket SVK request type Lending tạo trong 365 ngày (`export-svk.mjs` thêm chế độ
+`--history`, ra `raw/jira/SVK-history/`; mạng công ty cần `node --use-system-ca`). Gom theo
+triệu chứng → [[kb-po/ra-soat/svk-phan-loai-2026-10]]: gãy giải ngân 47%, chưa gạch nợ 18%,
+đăng ký lỗi 11%. Chờ PO hướng dẫn cách trả lời từng nhóm.
+[[kb/README]] thêm bước 0b: câu hỏi chung → `products/<loại>/faq.md`.
+Lưu ý: export chỉ ẩn danh SĐT/CCCD — **mô tả ticket còn tên khách**, `raw/` không được commit.
+
+## [2026-10-06] refactor | svk-backlog sang kb-po — ảnh chụp, không phải kiến thức
+
+`kb/operations/svk-backlog` là ảnh chụp 10 ticket SVK đang mở ngày 2026-10-02: trạng thái
+từng ticket, PIC, số tiền từng khách, cách kéo dữ liệu, đợt lỗi đã fix — sổ theo dõi của PO,
+cũ rất nhanh. Chuyển bằng `kb-move` sang [[kb-po/ra-soat/svk-backlog-2026-10-02]],
+`audience: [po]`, `status: snapshot`. Kiến thức dùng lâu dài đã có ở trang khác; ý duy nhất
+còn sót — *đối tác chưa gọi `disburse-update` thì giữ `USER_SIGN` là đúng thiết kế, không
+phải lỗi Cake* — và "email đối tác không thay callback" thêm vào [[kb/operations/luong-giai-ngan]].
+Quy trình [[kb-po/workflow/xu-ly-ticket-svk]] bước 4 chuyển sang tra JQL trực tiếp.
+
+## [2026-10-06] refactor | Bỏ "Skill tự động" khỏi kb/, quy trình SVK thành tài liệu trung lập
+
+[[kb/operations/README]] có mục *Skill tự động* trỏ tới slash command Claude Code và
+đường dẫn iCloud của PO — agent khác không chạy được, và đó là quy trình của PO, không
+phải kiến thức Ops. Bỏ khỏi `kb/`. Nội dung skill `lending-handle-ops-ticket` viết lại
+thành [[kb-po/workflow/xu-ly-ticket-svk]] — không phụ thuộc công cụ, là nguồn chuẩn;
+skill chỉ còn là bản đóng gói cho Claude Code (đã thêm dòng trỏ về file này và sửa
+đường dẫn cũ `kb/SCHEMA.md`, `_meta/product-matrix.md`). `lendkb/AGENTS.md` trỏ tới quy trình.
+
+## [2026-10-06] ingest | Luồng giải ngân theo nhóm sản phẩm
+
+PO: [[kb/operations/luong-giai-ngan]] sai — mô tả một luồng 5 bước "dùng chung mọi sản phẩm
+DOP và Native" (nguồn: ticket `[Cake][Guideline] - Product Ticket`), trong khi mỗi nhóm
+sản phẩm giải ngân một kiểu. Viết lại theo tab *Giải ngân* của `Troubleshoot Lending Ops`
+(`tools/scan/troubleshoot.json`): 5 nhóm, ma trận bước 1A–3C theo nhóm, cách xử lý từng bước.
+
+- Mục "Luồng giải ngân" trong [[kb/operations/quy-trinh-xu-ly]] (đã đúng theo troubleshoot)
+  gộp vào trang này, bên kia chỉ còn con trỏ — tránh hai nơi nói khác nhau.
+- Bổ sung từ troubleshoot mà bản cũ thiếu: nhóm 5 (Paylater) không tạo loan drawdown;
+  nhóm 4 gỡ blacklist Mambu xong phải nhờ Recon đi tiền tay.
+- Bỏ chi tiết bút toán Mambu của bản cũ (channel `iceLoanDrawdown`, `insuranceFeeOpec<Đối tác>`,
+  Loan Drawdown → Ewallet → TK công ty đối tác `Cxxxxxxxx`) — không nói rõ áp nhóm nào,
+  troubleshoot không xác nhận. Nguồn vẫn ở `confluence:1084555273` nếu cần dựng lại.
+- Sản phẩm troubleshoot chưa phủ (`Be_Cashloan`, `KLP_cashloan`, `MISA_cashloan`,
+  `MBF_cashloan`, OD…) ghi rõ là chưa phủ, không tự xếp nhóm.
+
 ## [2026-10-06] query | Trả nợ trên app đối tác — tuỳ sản phẩm
 
 PO sửa: kênh DOP/Native **không** mặc định chuyển quản lý khoản vay và trả nợ sang app
@@ -56,7 +101,7 @@ Marker trong `kb/index.md`, `kb-po/index.md` giữ — hai file đó sinh trọn
 
 PO chốt: `kb/` chỉ chứa thông tin sản phẩm và vận hành cho Ops/CSKH. Cách lấy dữ
 liệu, số kinh doanh, bảo trì wiki đưa hết sang `kb-po/`. `kb/operations/` giữ nguyên
-(kể cả [[kb/operations/svk-backlog]]) để Ops tra khi xử lý ticket.
+(kể cả `svk-backlog`, sau đó chuyển đi — xem mục bên trên) để Ops tra khi xử lý ticket.
 
 - Bảo trì wiki → `kb-po/`: `SCHEMA`, `_meta/format`, `log`, `lich-su-quyet-dinh`,
   `source-index` → `kb-po/bao-tri/` (SCHEMA ở `kb-po/SCHEMA`); `jira-fill-plan`,

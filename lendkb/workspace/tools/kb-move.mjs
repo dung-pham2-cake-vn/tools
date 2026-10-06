@@ -22,6 +22,8 @@ const MOVES = [
   ['kb/_meta/source-index.md', 'kb-po/bao-tri/source-index.md'],
   ['kb/_meta/jira-fill-plan.md', 'kb-po/ra-soat/jira-fill-plan.md'],
   ['kb/_meta/products-without-numbers.md', 'kb-po/ra-soat/products-without-numbers.md'],
+  // Ảnh chụp ticket SVK đang mở một thời điểm — sổ theo dõi của PO, cũ rất nhanh.
+  ['kb/operations/svk-backlog.md', 'kb-po/ra-soat/svk-backlog-2026-10-02.md'],
 ];
 
 const DRY = process.argv.includes('--dry');

@@ -1,0 +1,451 @@
+openapi: 3.0.3
+info:
+  title: PD_Viettel - Lending APIs (current production)
+  description: |
+    API tích hợp giữa Viettel (Partner) và hệ thống Cake Digital Bank cho sản phẩm PD_Viettel.
+
+    > **Nguồn:** tái tạo trực tiếp từ log request/response thực tế trên production
+    > (BigQuery job `bquxjob_21878641_19fa17f167d`, partner_id=2, ngày 2026-07-26).
+    > Log thực tế trên BigQuery có bọc thêm envelope `meta` / `raw` quanh request,
+    > nhưng đó là dữ liệu do BigQuery tự thêm vào khi ghi log — **không** phải một phần
+    > của API thật. Tài liệu này chỉ mô tả field thật nằm trong `raw`.
+    > Hiện chỉ có 3 API xuất hiện trong log: `GetLink`, `CreateTokenV2`, `LoanRepayment`.
+
+    ## Response
+
+    Response KHÔNG có envelope, trả thẳng:
+    ```json
+    { "success": true, "message": "Thành công", "data": { ... } }
+    ```
+    (một số response có thêm field `code`).
+
+    ## Môi trường (quan sát được từ log)
+
+    | Key | Value | Description |
+    |-----|-------|-------------|
+    | partner_id | `2` | Mã đối tác Viettel |
+    | product_id | `4` | Mã sản phẩm PD_Viettel (dùng ở GetLink) |
+    | product_code | `VIETTEL_LENDING` | Mã sản phẩm truyền trong data của CreateTokenV2 |
+    | Webview URL (stage) | `https://cake-dop-stage.cakedigibank.tech/app` | |
+    | jwt_field | `viettel_lending_phone_number` | Field định danh user theo link |
+
+  version: "1.0.0"
+  contact:
+    name: Cake Digital Bank Support
+    url: https://cake.vn
+
+servers:
+  - url: https://gw.stage.cakedigibank.tech/ext/loan/{group}/{product_id}
+    description: SIT+UAT (Stage)
+    variables:
+      group:
+        default: cashloan
+      product_id:
+        default: "4"
+  - url: https://gw.cake.vn/ext/loan/{group}/{product_id}
+    description: Production
+    variables:
+      group:
+        description: "Nhóm API (ví dụ: cashloan)"
+        default: cashloan
+      product_id:
+        description: Mã sản phẩm PD_Viettel
+        default: "4"
+
+# ─────────────────────────────────────────────
+# COMMON COMPONENTS
+# ─────────────────────────────────────────────
+components:
+  parameters:
+    ContentTypeHeader:
+      name: Content-Type
+      in: header
+      required: true
+      schema:
+        type: string
+        default: application/json; charset=utf-8
+
+  schemas:
+    # ── Response Wrapper dùng chung ──
+    BaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Kết quả xử lý yêu cầu
+          example: true
+        code:
+          type: integer
+          description: Mã trạng thái (chỉ xuất hiện ở một số response, ví dụ CreateTokenV2)
+          example: 1
+        message:
+          type: string
+          description: Thông báo phản hồi
+          example: "Thành công"
+
+    # ── GetLink ──
+    GetLinkRequest:
+      type: object
+      required:
+        - partner_id
+        - product_id
+      properties:
+        partner_id:
+          type: integer
+          description: Mã đối tác Viettel
+          example: 2
+        product_id:
+          type: integer
+          description: Mã sản phẩm PD_Viettel
+          example: 4
+
+    GetLinkResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                link_id:
+                  type: integer
+                  description: ID của link webview
+                  example: 2
+                icon:
+                  type: string
+                  description: URL icon hiển thị cho link
+                  example: "https://www.internship.edu.vn/wp-content/uploads/icon-example.png"
+                start_date:
+                  type: string
+                  format: date
+                  description: Ngày bắt đầu hiệu lực của link
+                  example: "2022-06-21"
+                end_date:
+                  type: string
+                  format: date
+                  description: Ngày kết thúc hiệu lực của link
+                  example: "2028-06-30"
+                url:
+                  type: string
+                  description: Webview URL gốc. Cần gọi CreateTokenV2 để lấy full URL kèm token
+                  example: "https://cake-dop-stage.cakedigibank.tech/app"
+                jwt_field:
+                  type: string
+                  description: Field định danh user theo partner, dùng làm user_identity ở CreateTokenV2
+                  example: "viettel_lending_phone_number"
+                link_expiration:
+                  type: string
+                  description: Thời gian hết hạn của link
+                  example: "2035-01-22 07:00:00"
+                link_token:
+                  type: string
+                  description: Token của link, dùng cho CreateTokenV2
+                  example: "e6f064b751c8f1137fff7bff72df6c4b"
+
+    # ── CreateTokenV2 ──
+    NfcData:
+      type: object
+      description: Dữ liệu NFC raw đọc từ CCCD gắn chip
+      properties:
+        sod:
+          type: string
+          description: The raw NFC data
+        dg1:
+          type: string
+          description: The raw NFC data
+        dg2:
+          type: string
+          description: The raw NFC data
+        dg13:
+          type: string
+          description: The raw NFC data
+        dg14:
+          type: string
+          description: The raw NFC data
+        dg15:
+          type: string
+          description: The raw NFC data
+        com:
+          type: string
+          description: The raw NFC data
+
+    CreateTokenV2Data:
+      type: object
+      description: Dữ liệu eKYC + thông tin nghiệp vụ Viettel truyền kèm khi tạo token
+      required:
+        - phone_number
+        - document_id
+        - fullname
+        - date_of_birth
+        - doc_issue_date
+        - doc_issue_place
+        - credit_score
+        - fraud_score
+        - permanent_province
+        - permanent_district
+        - bank_issuer
+        - product_code
+        - tktt
+        - nfc_data
+      properties:
+        phone_number:
+          type: string
+          example: "0996908143"
+        document_id:
+          type: string
+          example: "020996908143"
+        fullname:
+          type: string
+          example: "Nguyễn Ngọc Thanh Thảo"
+        date_of_birth:
+          type: string
+          format: date
+          example: "1988-11-25"
+        doc_issue_date:
+          type: string
+          format: date
+          example: "2021-09-27"
+        doc_issue_place:
+          type: string
+          example: "HCM"
+        credit_score:
+          type: string
+          description: Dạng range, lấy chặn dưới
+          example: "600-650"
+        fraud_score:
+          type: string
+          description: Dạng range, lấy chặn dưới
+          example: "300-350"
+        permanent_province:
+          type: string
+          example: "1"
+        permanent_district:
+          type: string
+          example: "1"
+        bank_issuer:
+          type: string
+          example: "Vietcombank"
+        product_code:
+          type: string
+          example: "VIETTEL_LENDING"
+        tktt:
+          type: string
+          example: "777777"
+        nfc_data:
+          $ref: "#/components/schemas/NfcData"
+
+    CreateTokenV2Request:
+      type: object
+      required:
+        - user_identity
+        - link_id
+        - link_token
+        - data
+      properties:
+        user_identity:
+          type: string
+          description: Field định danh user, value = jwt_field trả về từ GetLink (số điện thoại)
+          example: "0996908143"
+        link_id:
+          type: integer
+          description: link_id từ API GetLink
+          example: 2
+        link_token:
+          type: string
+          description: link_token từ API GetLink
+          example: "e6f064b751c8f1137fff7bff72df6c4b"
+        data:
+          $ref: "#/components/schemas/CreateTokenV2Data"
+
+    CreateTokenV2Response:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                jwt_token:
+                  type: string
+                  description: JWT token, gắn ở Header của webview url
+                  example: "14abqYVQuTgu22zK2xvswhwXmf7J8ZB6"
+                url:
+                  type: string
+                  description: Webview URL đầy đủ để hiển thị cho KH
+                  example: "https://cake-dop-stage.cakedigibank.tech/app?version=2&link=2&code=14abqYVQuTgu22zK2xvswhwXmf7J8ZB6"
+
+    # ── LoanRepayment ──
+    LoanRepaymentRequest:
+      type: object
+      required:
+        - partner_transaction_id
+        - request_date
+        - cake_phone
+        - loan_id
+        - amount
+        - partner_id
+      properties:
+        partner_transaction_id:
+          type: string
+          description: ID giao dịch phía Viettel (idempotency key)
+          example: "8164287055258185520"
+        request_date:
+          type: string
+          format: date
+          description: Ngày gửi yêu cầu thanh toán (yyyy-mm-dd)
+          example: "2026-07-26"
+        cake_phone:
+          type: string
+          description: Số điện thoại KH đăng ký với Cake
+          example: "0996908143"
+        loan_id:
+          type: string
+          description: Mã khoản vay
+          example: "27614531"
+        amount:
+          type: integer
+          description: Số tiền thanh toán (VNĐ)
+          example: 5400000
+        partner_id:
+          type: integer
+          description: Mã đối tác Viettel
+          example: 2
+
+    LoanRepaymentResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                loan_amount:
+                  type: integer
+                  description: Số tiền đã thanh toán (VNĐ)
+                  example: 5400000
+                transaction_id:
+                  type: string
+                  description: Mã giao dịch do Cake tạo ra
+                  example: "3ed430b7-dbce-49bd-b5b1-6837fb22eef3"
+
+# ─────────────────────────────────────────────
+# PATHS
+# ─────────────────────────────────────────────
+paths:
+  # ════════════════════
+  # ONBOARDING
+  # ════════════════════
+  /GetLink:
+    post:
+      tags: [ Onboarding ]
+      summary: Lấy thông tin link webview onboarding
+      description: |
+        Truy vấn thông tin link webview (URL gốc, link_id, link_token, jwt_field...) theo
+        partner_id + product_id. Kết quả dùng làm input cho CreateTokenV2.
+      operationId: getLink
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetLinkRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetLinkResponse"
+
+  /CreateTokenV2:
+    post:
+      tags: [ Onboarding ]
+      summary: Tạo token + webview URL cho KH onboarding (kèm dữ liệu eKYC/NFC)
+      description: |
+        Nhận toàn bộ dữ liệu định danh + eKYC (bao gồm nfc_data đọc từ CCCD gắn chip) và các
+        field nghiệp vụ riêng của Viettel (credit_score, fraud_score, bank_issuer, tktt...).
+        Response trả về jwt_token + full webview url để hiển thị cho KH.
+      operationId: createTokenV2
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTokenV2Request"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateTokenV2Response"
+
+  # ════════════════════
+  # REPAYMENT
+  # ════════════════════
+  /LoanRepayment:
+    post:
+      tags: [ Repayment ]
+      summary: Thanh toán khoản vay
+      description: |
+        Viettel gửi yêu cầu thanh toán cho một khoản vay (loan_id) theo số tiền chỉ định.
+        `partner_transaction_id` dùng làm idempotency key.
+      operationId: loanRepayment
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoanRepaymentRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoanRepaymentResponse"
+
+# ─────────────────────────────────────────────
+# TAGS
+# ─────────────────────────────────────────────
+tags:
+  - name: Onboarding
+    description: |
+      Luồng onboarding: GetLink → CreateTokenV2 → (KH onboarding trong webview Cake)
+  - name: Repayment
+    description: Thanh toán khoản vay (LoanRepayment)
+
+# ─────────────────────────────────────────────
+# SEQUENCE DIAGRAM - API FLOW (x-extension)
+# ─────────────────────────────────────────────
+x-mermaid-flows:
+  onboarding: |
+    sequenceDiagram
+      autonumber
+      participant Cl as Client
+      participant P as Viettel (Partner)
+      participant C as Cake
+
+      Note over Cl,C: ONBOARDING
+      Cl->>P: Truy cập entry point
+      P->>C: GetLink(partner_id, product_id)
+      C-->>P: link_id, link_token, jwt_field, url
+      P->>C: CreateTokenV2(user_identity, link_id, link_token, data{eKYC + nfc_data})
+      C-->>P: jwt_token, url (full webview url)
+      P-->>Cl: Hiển thị webview Cake DOP
+
+  repayment: |
+    sequenceDiagram
+      autonumber
+      participant P as Viettel (Partner)
+      participant C as Cake
+
+      Note over P,C: REPAYMENT
+      P->>C: LoanRepayment(partner_transaction_id, request_date, cake_phone, loan_id, amount, partner_id)
+      C-->>P: loan_amount, transaction_id

@@ -1,0 +1,40 @@
+import express from 'express';
+import {
+  scanTickets,
+  getTickets,
+  saveAnalyzeNote,
+  reloadTicket,
+  proxyAttachment,
+  svkScanRecipe,
+  getSvkNotes,
+  saveSvkNote,
+  getSvkTickets,
+  getSvkHistoryTickets,
+  scanSvk,
+  svkAiStatus,
+  svkAiRunAll,
+  svkAiRunOne,
+  getSvkChats,
+  openSvkChat,
+} from '../controllers/SupportController';
+
+const router = express.Router();
+
+router.post('/scan', scanTickets);
+router.get('/tickets', getTickets);
+router.get('/svk-notes', getSvkNotes);
+router.put('/svk-notes/:key', saveSvkNote);
+router.get('/svk/tickets', getSvkTickets);
+router.get('/svk/history', getSvkHistoryTickets);
+router.post('/svk/scan', scanSvk);
+router.get('/svk/scan-recipe', svkScanRecipe);
+router.get('/svk/ai-status', svkAiStatus);
+router.post('/svk/ai-run', svkAiRunAll);
+router.post('/svk/tickets/:key/ai', svkAiRunOne);
+router.get('/svk/chats', getSvkChats);
+router.post('/svk/tickets/:key/chat', openSvkChat);
+router.patch('/tickets/:id/analyze', saveAnalyzeNote);
+router.post('/tickets/:id/reload', reloadTicket);
+router.get('/attachment/:attachmentId', proxyAttachment);
+
+export default router;

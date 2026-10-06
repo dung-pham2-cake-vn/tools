@@ -1,0 +1,13 @@
+.DS_Store
+*.log
+.vscode/
+.idea/
+
+# Secrets — bất kỳ độ sâu nào
+.env
+.env.local
+.env.*.local
+
+# Build / dependency
+node_modules/
+dist/

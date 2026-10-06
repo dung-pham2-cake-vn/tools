@@ -1,0 +1,26 @@
+
+### MWG_payday
+
+  PL-12919 (2026-06-10, Released) MWG_payday - Điều chỉnh tăng max request amount
+    (không có bảng số)
+
+  PL-12554 (2026-05-25, Released) MWG_payday - Portal allow process CakeTask on Cake portal
+    (không có bảng số)
+
+  PL-12256 (2026-05-11, Released) MWG_payday - [Setup] Tạo product code QTVPD01 và QTVPD02 trên hệ thống
+    | **Figma Link** | `https://www.figma.com/design/L0onU8nRq474CeuJNrqcIX/-Cake--DOP---TGD%C4%90?node-id=4868-3&p=f&t=NAT72xOihQxiGHI4-0` |
+
+  PL-12271 (2026-05-11, Released) MWG_payday - API generate-webview/onboarding
+    (không có bảng số)
+
+  PL-12276 (2026-05-11, Released) MWG_payday - API generate-webview/loan-detail
+    (không có bảng số)
+
+  PL-12303 (2026-05-11, Released) MWG_payday - API get-status
+    | `data.proposed_amount` | `string` | Số tiền KH đề nghị vay — chỉ có khi đăng ký thành công |
+    | `data.approved_amount` | `string` | Số tiền được phê duyệt — chỉ có khi LOAN_APPROVE |
+    | `data.approved_interest` | `string` | Lãi suất phê duyệt — chỉ có khi LOAN_APPROVE |
+    | `data.loan_insurance_amount` | `string` | Số tiền bảo hiểm khoản vay |
+
+  PL-12305 (2026-05-11, Released) MWG_payday - API partner-update-status
+    (không có bảng số)

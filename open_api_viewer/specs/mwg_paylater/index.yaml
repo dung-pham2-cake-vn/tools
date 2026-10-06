@@ -1,0 +1,1217 @@
+openapi: 3.0.3
+info:
+  title: MWG_paylater - DOP Lending APIs
+  description: |
+    > **⚠️ Lưu ý bản quyền:** Tài liệu này thuộc bản quyền của **Cake by VPBank**.
+    > Mọi hình thức sao chép, chỉnh sửa, hoặc phát tán phải được sự đồng ý bằng văn bản của Cake by VPBank.
+
+    ## Mô tả
+    API tích hợp giữa đối tác **MWG - Quà Tặng Vip (QTV)** và hệ thống Cake Digital Bank theo mô hình **DOP**
+    (Digital Onboarding Process), sản phẩm **Paylater** ("Ví trả sau" trên ứng dụng Quà Tặng Vip).
+
+    Phạm vi tài liệu:
+    - **Onboarding & liên kết tài khoản**: `generate-webview/onboarding` → `partner-update-status`
+    - **Thông tin khoản vay**: `get-loan-detail`, `generate-webview/loan-detail`
+    - **Thanh toán dịch vụ**: `generate-webview/payment-request` → `payment-status` → `payment-revert`
+    - **Callback Cake → Partner**: `partner-update-status`
+
+    Việc chuyển đổi trả góp (installment) do KH thực hiện trực tiếp trong webview Cake,
+    không có API riêng cho Partner.
+
+    MWG đã vận hành sản phẩm trên PROD từ 05/2025 nên một số tên field (`partner_order_amount`,
+    `partner_revert_amount`, `status`, `status_installment` ...) theo hợp đồng đã chốt với MWG,
+    khác với base DOP Paylater.
+
+    ## Changelog
+
+    | Thời gian | Email title | Cập nhật |
+    |-----------|-------|-------|
+    | 2026-10-06 | N/A | Khởi tạo tài liệu OpenAPI từ bộ tài liệu tích hợp `MWG_paylater-QTV APIs` |
+
+    ## Cơ chế xác thực (Signature)
+    Tất cả request từ Partner gọi Cake đều phải ký signature:
+    ```
+    rawBody = {{body}} + {{partner_key}}
+    hash = sha256(rawBody)
+    signature = base64_encode(rsa.SignPKCS1v15(rand.Reader, privKey, crypto.SHA256, hash))
+    ```
+    Partner cần tạo cặp khóa RSA 1024 bit: private key (PKCS#8) và public key (X.509),
+    gửi public key cho Cake.
+
+    **Lưu ý:** body khi gọi API và body khi ký phải y chang nhau, kể cả dấu cách và xuống dòng.
+
+    Test chữ ký có thể dùng tool online như [https://emn178.github.io/online-tools/rsa/verify](https://emn178.github.io/online-tools/rsa/verify/?input=%7B%22req_id%22%3A%221%22%2C%22action%22%3A1%7DPartner&input_type=utf-8&algorithm=SHA256&public_key=-----BEGIN%20PUBLIC%20KEY-----%0AMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC0KTbcJmoAT1g%2FFEp7eWWzuATg%0AK%2F7Go01PKZUaVTsN80JiDdg%2FmgDIcE0D9w5fYsDBN2pgeQ7EW8qqB8wb84qqk7QX%0AzAFfAqGx10X5aRe0WPsL3x7SCnG9QDz%2Fsun7hvrELes2sBw1a63lk3ZHyU9xLAcs%0ASsOFirCfQDlq0sbvNQIDAQAB%0A-----END%20PUBLIC%20KEY-----&signature_input_type=base64&signature=LWRijuKu83sa%2BU2FMe%2BsrtP8ctIaPjNAZ68YBiOiZNhzl%2FBELWztAcnTaOxINjghrfepTRLjhjvQw5mfwZrUHue4hwWDRvCpTMvCSfv513vuKp4kIQFK5EAASMZuhjwTn6mBxeO1i55xWB2wHqXVJxXgFecSok6T8qqJyH4XUzc%3D).
+    Other tools: [8gwifi RSA](https://8gwifi.org/RSAFunctionality?rsasignverifyfunctions=rsasignverifyfunctions&keysize=1024) (chọn `RSA Signature Algorithms: SHA256withRSA`).
+
+    ## Môi trường
+
+    Mapping môi trường giữa hai bên:
+
+    | Cake Env | MWG Env |
+    |----------|---------|
+    | PROD | Production |
+    | UAT | Staging |
+    | SIT | Staging |
+
+    ### SIT Environment
+
+    | Key | Value | Description |
+    |-----|-------|-------------|
+    | CAKE_API_URL | `https://gw.qa.cakedigibank.tech/ext/loan/paylater/mwg_paylater/` | |
+    | CAKE_PARTNER_ID | mwg_qtv | Gắn ở header khi gọi API Cake |
+    | CAKE_PARTNER_KEY | 5194ad8821a24c2d9293b730c5ebe464 | Gắn sau body khi ký API Cake |
+    | CAKE_IP_ADDRESS | `35.197.157.155/32`<br>`34.87.136.147/32` | Partner thêm các IP này vào Whitelist |
+    | PARTNER_API_URL | `https://betaerp.tgdd.vn/mwg-webhook-paylater-partner/wk/cake-webhook-rc/testing/` | |
+    | PARTNER_IP_ADDRESS | `14.161.40.155`<br>`113.161.93.13`<br>`115.78.11.231` | Cake thêm các IP này vào Whitelist |
+    | PARTNER_PUBLIC_KEY | `-----BEGIN PUBLIC KEY-----MIGf **** AQAB-----END PUBLIC KEY-----` | Partner gửi cho Cake để verify chữ ký |
+    | PARTNER_CODE | *(Partner cấp)* | Cake cấu hình khi gọi API phía Partner |
+    | CODE | *(Partner cấp)* | Cake cấu hình khi gọi API phía Partner |
+    | PARTNER_REDIRECT_URL | `loyalty://loyalty/mwgwallet/success` | Cake whitelist các redirect_url này |
+
+    ### UAT Environment
+
+    | Key | Value | Description |
+    |-----|-------|-------------|
+    | CAKE_API_URL | `https://gw.stage.cakedigibank.tech/ext/loan/paylater/mwg_paylater/` | |
+    | CAKE_PARTNER_ID | mwg_qtv | Gắn ở header khi gọi API Cake |
+    | CAKE_PARTNER_KEY | 5194ad8821a24c2d9293b730c5ebe464 | Gắn sau body khi ký API Cake |
+    | CAKE_IP_ADDRESS | `35.197.157.155/32`<br>`34.87.136.147/32` | Partner thêm các IP này vào Whitelist |
+    | PARTNER_API_URL | `https://gwcrm.tgdd.vn/mwg-webhook-paylater-partner/wk/cake-webhook-rc/testing/` | |
+    | PARTNER_IP_ADDRESS | *(Partner cấp)* | Cake thêm các IP này vào Whitelist |
+    | PARTNER_PUBLIC_KEY | *(Partner cấp)* | Partner gửi cho Cake để verify chữ ký |
+    | PARTNER_CODE | *(Partner cấp)* | Cake cấu hình khi gọi API phía Partner |
+    | CODE | *(Partner cấp)* | Cake cấu hình khi gọi API phía Partner |
+    | PARTNER_REDIRECT_URL | `loyalty://loyalty/mwgwallet/success` | Cake whitelist các redirect_url này |
+
+    ### PROD Environment
+
+    | Key | Value | Description |
+    |-----|-------|-------------|
+    | CAKE_API_URL | `https://gw.cake.vn/ext/loan/paylater/mwg_paylater/` | |
+    | CAKE_PARTNER_ID | mwg_qtv | Gắn ở header khi gọi API Cake |
+    | CAKE_PARTNER_KEY | *(Cake cấp)* | Gắn sau body khi ký api partner |
+    | CAKE_IP_ADDRESS | `34.87.56.148/32`<br>`35.240.146.157/32` | Partner thêm các IP này vào Whitelist |
+    | PARTNER_API_URL | *(Partner cấp)* | Theo mail "[MWG x CAKE] - Triển khai "Ví trả sau" trên ứng dụng Quà Tặng Vip" ngày 5/5/2025 |
+    | PARTNER_IP_ADDRESS | *(Partner cấp)* | Cake thêm các IP này vào Whitelist |
+    | PARTNER_PUBLIC_KEY | *(Partner cấp)* | Partner gửi cho Cake để verify chữ ký |
+    | PARTNER_CODE | *(Partner cấp)* | Cake cấu hình khi gọi API phía Partner |
+    | CODE | *(Partner cấp)* | Cake cấu hình khi gọi API phía Partner |
+    | PARTNER_REDIRECT_URL | `loyalty://loyalty/mwgwallet/success` | Cake whitelist các redirect_url này |
+
+    ### Deeplink (redirect_url)
+
+    Cake chỉ chấp nhận `redirect_url` có tiền tố `loyalty://loyalty/mwgwallet/success`.
+    Khi webview redirect về `redirect_url`, MWG bắt sự kiện và đóng webview.
+
+    | Mục đích | API truyền `redirect_url` | Giá trị `redirect_url` |
+    |----------|---------------------------|------------------------|
+    | Đóng webview Onboarding | `generate-webview/onboarding` | `loyalty://loyalty/mwgwallet/success/onboarding` |
+    | Đóng webview Spending | `generate-webview/payment-request` | `loyalty://loyalty/mwgwallet/success/checkout` |
+    | Đóng webview và mở SmartPay | `generate-webview/loan-detail` | `loyalty://loyalty/mwgwallet/success/accountmanager`<br>Cake nối thêm query, ví dụ: `?type=repayment&transaction_code=AH8K0` |
+
+    ## Định nghĩa Status
+
+    ### partner-update-status (Cake callback → Partner)
+    | Status | Description |
+    |--------|-------------|
+    | `EKYC_SUCCESS` | Hồ sơ khách hàng đã EKYC thành công |
+    | `LOAN_REJECT` | Hồ sơ đăng ký khoản vay bị từ chối |
+    | `LOAN_APPROVE` | Hồ sơ đăng ký khoản vay đã được phê duyệt |
+    | `LOAN_EXPIRED` | Hồ sơ đăng ký khoản vay bị hết hạn (7 ngày) |
+    | `LOAN_CANCEL` | Khách hàng hủy hợp đồng khoản vay |
+    | `LOAN_SIGNED` | Khách hàng ký hợp đồng vay thành công |
+    | `LOAN_ACTIVE` | Khoản vay của KH đã được giải ngân thành công |
+    | `LOAN_CLOSE` | Khoản vay đã tất toán |
+    | `EXISTING_LOAN` | Khoản vay đã tồn tại |
+
+    ### get-loan-detail (loan_account_status)
+    | Status | Description |
+    |--------|-------------|
+    | `LOAN_UNKNOWN` | Hồ sơ KH có trạng thái không xác định/lỗi |
+    | `LOAN_APPROVE` | Hồ sơ đăng ký khoản vay đã được phê duyệt |
+    | `LOAN_EXPIRED` | Hồ sơ đăng ký khoản vay bị hết hạn (7 ngày) |
+    | `LOAN_CANCEL` | Hồ sơ đăng ký khoản vay bị hủy |
+    | `LOAN_SIGNED` | Khoản vay đã được ký, đang giải ngân |
+    | `LOAN_ACTIVE` | Khoản vay của KH đã được giải ngân thành công |
+    | `LOAN_LOCK` | Khoản vay bị tạm khóa, cần thanh toán để mở lại (chỉ Paylater) |
+    | `LOAN_LOCKED` | Khoản vay bị khóa vĩnh viễn, cần tất toán và đăng ký lại (chỉ Paylater) |
+    | `LOAN_CLOSE` | Khoản vay đã tất toán |
+
+    ## Error Codes
+
+    Cột **Action**: `Retry` = có thể gọi lại, tối đa 3 lần; `Ended` = kết thúc, không gọi lại;
+    `Direction` = xử lý theo hướng dẫn trong Message.
+    "Retry" nghĩa là gọi lại đúng **body request cũ** (cùng `partner_reference_id`) để lấy kết quả cuối cùng.
+
+    ### General
+    | Code | Action | Message |
+    |------|--------|---------|
+    | `1` | Direction | Thành công |
+    | `2` | Ended | Deadline exceeded |
+    | `500` | Retry | Internal server error |
+    | `501` | Retry | Not implement |
+    | `502` | Retry | An invalid response was received from the upstream server |
+    | `900000` | Retry | Có lỗi xảy ra, vui lòng thử lại sau! |
+    | `900001` | Retry | Hệ thống đang bảo trì |
+    | `900002` | Direction | Request is processing |
+    | `200000` | Ended | Chữ ký không hợp lệ |
+    | `200001` | Ended | Mã đối tác không hợp lệ |
+    | `200003` | Ended | Request ID không hợp lệ |
+    | `400001` | Direction | Không có thông tin khoản vay |
+
+    ### Payment
+    Áp dụng cho `generate-webview/payment-request`, `payment-status`, `payment-revert`
+    (bổ sung / ghi đè các mã ở General).
+
+    | Code | Action | Message |
+    |------|--------|---------|
+    | `2` | Ended | Deadline exceeded (Không retry, gọi `get-loan-detail` để check hoặc chờ đối soát) |
+    | `500000` | Retry | Internal server error |
+    | `500002` | Retry | Request is processing (Không retry, gọi `get-loan-detail` để check hoặc chờ đối soát) |
+    | `900002` | Direction | Request is processing (Không retry, gọi `get-loan-detail` để check hoặc chờ đối soát) |
+    | `400000` | Retry | Dữ liệu nhập không hợp lệ |
+    | `10000` | Retry | Có lỗi xảy ra, vui lòng thử lại sau! |
+    | `100100` | Ended | COB Time. Yêu cầu thanh toán không được thực hiện |
+    | `500004` | Ended | Yêu cầu thanh toán hết hạn |
+    | `500008` | Ended | Yêu cầu hoàn tiền giao dịch không thể thực hiện |
+    | `600000` | Ended | Thông tin thanh toán không hợp lệ |
+    | `150005` | Ended | Không tìm thấy giao dịch |
+    | `160006` | Retry | Lỗi kết nối. Vui lòng thực hiện lại yêu cầu |
+    | Mã khác | Ended | Các mã lỗi khác |
+
+  version: "1.0.0"
+  contact:
+    name: Cake Digital Bank Support
+    url: https://cake.vn
+
+servers:
+  - url: https://gw.qa.cakedigibank.tech/ext/loan/{group}/{product_id}
+    description: SIT
+    variables:
+      group:
+        default: paylater
+      product_id:
+        default: mwg_paylater
+  - url: https://gw.stage.cakedigibank.tech/ext/loan/{group}/{product_id}
+    description: UAT
+    variables:
+      group:
+        default: paylater
+      product_id:
+        default: mwg_paylater
+  - url: https://gw.cake.vn/ext/loan/{group}/{product_id}
+    description: Production
+    variables:
+      group:
+        description: "Nhóm API (ví dụ: cashloan, paylater)"
+        default: paylater
+      product_id:
+        description: Mã sản phẩm được cấu hình
+        default: mwg_paylater
+
+# ─────────────────────────────────────────────
+# COMMON COMPONENTS
+# ─────────────────────────────────────────────
+components:
+  parameters:
+    PartnerHeader:
+      name: partner
+      in: header
+      required: true
+      description: CAKE_PARTNER_ID được cấu hình trong môi trường
+      schema:
+        type: string
+        example: mwg_qtv
+
+    SignatureHeader:
+      name: signature
+      in: header
+      required: true
+      description: |
+        Chữ ký RSA-SHA256 của request body.
+        rawBody = body + partner_key → sha256 → RSA sign PKCS1v15 → base64
+      schema:
+        type: string
+
+    ContentTypeHeader:
+      name: Content-Type
+      in: header
+      required: true
+      schema:
+        type: string
+        default: application/json; charset=utf-8
+
+  schemas:
+    # ── Common Response Wrapper ──
+    BaseResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Kết quả xử lý yêu cầu (true/false)
+          example: true
+        code:
+          type: integer
+          description: Mã trạng thái hệ thống
+          example: 1
+        message:
+          type: string
+          description: Thông báo phản hồi từ hệ thống
+          example: Thành công
+        response_id:
+          type: string
+          description: Mã định danh duy nhất của mỗi phản hồi
+          example: "849KTQG7SQWLWQW5"
+        timestamp:
+          type: string
+          format: date-time
+          description: Thời gian phản hồi (ISO 8601)
+          example: "2025-11-03T07:00:00+07:00"
+
+    # ── generate-webview/onboarding ──
+    GenerateWebviewOnboardingRequest:
+      type: object
+      required:
+        - phone_number
+        - partner_reference_id
+        - partner_score
+        - redirect_url
+        - metadata
+      properties:
+        phone_number:
+          type: string
+          description: SĐT của KH nhập trên MWG-QTV (định dạng bắt đầu bằng số 0)
+          example: "0xxxxxxxxx"
+        partner_reference_id:
+          type: string
+          description: ID do MWG sinh, tạo mới mỗi lần gọi API
+          example: "bf133c7c-8e10-45a2-b9d2-4d04a352917a"
+        partner_score:
+          type: string
+          description: Điểm QTV Score
+          example: "800"
+        partner_score_2:
+          type: string
+          description: Điểm MWG Score
+          example: "750"
+        redirect_url:
+          type: string
+          description: |
+            URL để đóng webview onboarding, whitelist theo tiền tố `loyalty://loyalty/mwgwallet/success`.
+            Giá trị dùng: `loyalty://loyalty/mwgwallet/success/onboarding`
+          example: "loyalty://loyalty/mwgwallet/success/onboarding"
+        document_id:
+          type: string
+          description: Số giấy tờ tùy thân (CCCD/CMND) của KH
+          example: "xxxxxxxxxxxx"
+        full_name:
+          type: string
+          description: Họ và tên đầy đủ của KH
+          example: "Nguyễn Hoàng Sơn"
+        date_of_birth:
+          type: string
+          format: date
+          description: Ngày sinh của KH (yyyy-mm-dd)
+          example: "1990-01-31"
+        nfc_data:
+          $ref: "#/components/schemas/NfcData"
+        metadata:
+          $ref: "#/components/schemas/OnboardingMetadata"
+
+    OnboardingMetadata:
+      type: object
+      description: Thông tin bổ sung
+      properties:
+        partner_staff_id:
+          type: string
+          description: Mã nhân viên hỗ trợ KH
+          example: "87328"
+        external_credit:
+          type: array
+          description: Danh sách các khoản tín dụng đã được cấp bởi tổ chức khác
+          items:
+            $ref: "#/components/schemas/ExternalCredit"
+
+    ExternalCredit:
+      type: object
+      required:
+        - disbursed_by
+        - disbursed_at
+        - disbursed_amount
+      properties:
+        partner_store_id:
+          type: string
+          description: Cửa hàng hỗ trợ KH khi duyệt hồ sơ ở tổ chức khác
+          example: "907"
+        disbursed_by:
+          type: string
+          description: "Duyệt bởi: FE, HOME, SHF, ..."
+          example: "FE"
+        disbursed_at:
+          type: string
+          format: date-time
+          description: Thời gian giải ngân tín dụng (ISO 8601)
+          example: "2025-12-11T09:45:00+07:00"
+        disbursed_amount:
+          type: string
+          description: Số tiền được giải ngân (VNĐ)
+          example: "25000000"
+
+    NfcData:
+      type: object
+      description: Dữ liệu NFC raw
+      required:
+        - sod
+        - dg1
+        - dg2
+        - dg13
+        - dg14
+        - dg15
+        - com
+      properties:
+        sod:
+          type: string
+          description: The raw NFC data
+        dg1:
+          type: string
+          description: The raw NFC data
+        dg2:
+          type: string
+          description: The raw NFC data
+        dg13:
+          type: string
+          description: The raw NFC data
+        dg14:
+          type: string
+          description: The raw NFC data
+        dg15:
+          type: string
+          description: The raw NFC data
+        com:
+          type: string
+          description: The raw NFC data
+
+    GenerateWebviewResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              description: Dữ liệu trả về khi khởi tạo webview thành công
+              properties:
+                webview_url:
+                  type: string
+                  description: Webview DOP URL (token hết hạn sau 30 phút)
+                  example: "https://dop.cake.vn/...?token=..."
+
+    # ── generate-webview/loan-detail ──
+    GenerateWebviewLoanDetailRequest:
+      type: object
+      required:
+        - loan_code
+        - redirect_url
+      properties:
+        loan_code:
+          type: string
+          description: Mã khoản vay, nhận từ API /partner-update-status
+          example: "u8123123Sjsdb"
+        redirect_url:
+          type: string
+          description: |
+            URL để đóng webview, whitelist theo tiền tố `loyalty://loyalty/mwgwallet/success`.
+            Giá trị dùng: `loyalty://loyalty/mwgwallet/success/accountmanager`.
+            Khi KH chọn thanh toán trong webview, Cake nối thêm query để MWG mở SmartPay,
+            ví dụ: `?type=repayment&transaction_code=AH8K0`
+          example: "loyalty://loyalty/mwgwallet/success/accountmanager"
+
+    # ── get-loan-detail ──
+    GetLoanDetailRequest:
+      type: object
+      required:
+        - loan_code
+      properties:
+        loan_code:
+          type: string
+          description: Mã khoản vay, nhận từ API /partner-update-status
+          example: "u8123123Sjsdb"
+
+    GetLoanDetailResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              description: Thông tin chi tiết khoản vay
+              properties:
+                loan_account_status:
+                  type: string
+                  enum:
+                    - LOAN_UNKNOWN
+                    - LOAN_APPROVE
+                    - LOAN_EXPIRED
+                    - LOAN_CANCEL
+                    - LOAN_SIGNED
+                    - LOAN_ACTIVE
+                    - LOAN_LOCK
+                    - LOAN_LOCKED
+                    - LOAN_CLOSE
+                  description: |
+                    Trạng thái tài khoản vay:
+                    - `LOAN_UNKNOWN`: Hồ sơ KH có trạng thái không xác định/lỗi
+                    - `LOAN_APPROVE`: Hồ sơ đăng ký khoản vay đã được phê duyệt
+                    - `LOAN_EXPIRED`: Hồ sơ đăng ký khoản vay bị hết hạn (7 ngày)
+                    - `LOAN_CANCEL`: Hồ sơ đăng ký khoản vay bị hủy
+                    - `LOAN_SIGNED`: Khoản vay đã được ký, đang giải ngân
+                    - `LOAN_ACTIVE`: Khoản vay của KH đã được giải ngân thành công
+                    - `LOAN_LOCK`: Khoản vay bị tạm khóa, cần thanh toán để mở lại (chỉ Paylater)
+                    - `LOAN_LOCKED`: Khoản vay bị khóa vĩnh viễn, cần tất toán và đăng ký lại (chỉ Paylater)
+                    - `LOAN_CLOSE`: Khoản vay đã tất toán
+                contract_id:
+                  type: string
+                  description: Mã hợp đồng (dùng cho nhắc nợ, đối soát)
+                  example: "1234567890"
+                loan_alias:
+                  type: string
+                  description: Mã thanh toán
+                  example: "G4JH5R"
+                contract_url:
+                  type: string
+                  description: URL hợp đồng đã ký song phương (hết hạn trong 1h)
+                  example: "https://storage.googleapis.com/..."
+                full_name:
+                  type: string
+                  description: Họ và tên đầy đủ của KH
+                  example: "Nguyễn Hoàng Sơn"
+                document_id:
+                  type: string
+                  description: Số CCCD của KH
+                  example: "xxxxxxxxxxxx"
+                approved_amount:
+                  type: string
+                  description: Số tiền được phê duyệt (VNĐ)
+                  example: "12000000"
+                approved_term:
+                  type: string
+                  description: Thời hạn vay phê duyệt
+                  example: "12"
+                disburse_amount:
+                  type: string
+                  description: Hạn mức đã sử dụng
+                  example: "12840000"
+                disburse_date:
+                  type: string
+                  format: date
+                  description: Ngày cấp hạn mức (yyyy-mm-dd)
+                  example: "2025-06-27"
+                interest_rate:
+                  type: string
+                  description: Lãi suất
+                  example: "43"
+                principle_balance:
+                  type: string
+                  description: Dư nợ gốc khả dụng còn lại
+                  example: "12640000"
+                interest_balance:
+                  type: string
+                  description: Dư nợ lãi phát sinh
+                  example: "197494"
+                payment_period:
+                  type: string
+                  description: Kỳ thanh toán số
+                  example: "12"
+                due_date:
+                  type: string
+                  format: date
+                  description: Ngày đến hạn thanh toán gần nhất
+                  example: "2025-06-27"
+                day_arrears:
+                  type: string
+                  description: Số ngày quá hạn
+                  example: "191"
+                predue_payment_amount:
+                  type: string
+                  description: Số tiền KH có thể thanh toán sớm
+                  example: "0"
+                due_payment_amount:
+                  type: string
+                  description: Số tiền KH buộc phải thanh toán (dư nợ trong hạn + quá hạn)
+                  example: "15331759"
+                total_payment_amount:
+                  type: string
+                  description: Tổng tiền KH có thể thanh toán (predue + due)
+                  example: "15331759"
+                prepayment_amount:
+                  type: string
+                  description: Số tiền KH thanh toán dư (nếu có)
+                  example: "0"
+
+    # ── partner-update-status (Cake → Partner) ──
+    PartnerUpdateStatusRequest:
+      type: object
+      required:
+        - partner_reference_id
+        - status
+      properties:
+        partner_reference_id:
+          type: string
+          description: ID do MWG sinh, đã truyền ở API /generate-webview/onboarding
+          example: "bf133c7c-8e10-45a2-b9d2-4d04a352917a"
+        status:
+          type: string
+          description: |
+            Trạng thái hồ sơ khoản vay Cake:
+            - EKYC_SUCCESS: Hồ sơ khách hàng đã EKYC thành công
+            - LOAN_REJECT: Hồ sơ đăng ký khoản vay bị từ chối
+            - LOAN_APPROVE: Hồ sơ đăng ký khoản vay đã được phê duyệt
+            - LOAN_EXPIRED: Hồ sơ đăng ký khoản vay bị hết hạn (7 ngày)
+            - LOAN_CANCEL: Khách hàng hủy hợp đồng khoản vay
+            - LOAN_SIGNED: Khách hàng ký hợp đồng vay thành công
+            - LOAN_ACTIVE: Khoản vay của KH đã được giải ngân thành công
+            - LOAN_CLOSE: Khoản vay đã tất toán
+            - EXISTING_LOAN: Khoản vay đã tồn tại
+          enum:
+            - EKYC_SUCCESS
+            - LOAN_REJECT
+            - LOAN_APPROVE
+            - LOAN_EXPIRED
+            - LOAN_CANCEL
+            - LOAN_SIGNED
+            - LOAN_ACTIVE
+            - LOAN_CLOSE
+            - EXISTING_LOAN
+          example: "LOAN_APPROVE"
+        loan_code:
+          type: string
+          description: Mã khoản vay. Không truyền (null) khi hồ sơ bị từ chối (`LOAN_REJECT`)
+          example: "u8123123Sjsdb"
+
+    # ── Partner callback response (code/message) ──
+    PartnerCallbackResponse:
+      type: object
+      required:
+        - success
+        - code
+        - message
+      properties:
+        success:
+          type: boolean
+          description: Kết quả xử lý yêu cầu (true/false)
+          example: true
+        code:
+          type: integer
+          description: "Mã trạng thái (1 = Thành công; khác 1 = lỗi)"
+          example: 1
+        message:
+          type: string
+          description: Thông báo phản hồi
+          example: "Thành công"
+
+    # ── Payment ──
+    GenerateWebviewPaymentRequestBody:
+      type: object
+      required:
+        - loan_code
+        - redirect_url
+        - partner_reference_id
+        - partner_order_amount
+        - metadata
+      properties:
+        loan_code:
+          type: string
+          description: Mã khoản vay, nhận từ API /partner-update-status
+          example: "u8123123Sjsdb"
+        redirect_url:
+          type: string
+          description: |
+            URL để đóng webview sau khi KH xác nhận / hủy thanh toán, whitelist theo tiền tố
+            `loyalty://loyalty/mwgwallet/success`.
+            Giá trị dùng: `loyalty://loyalty/mwgwallet/success/checkout`
+          example: "loyalty://loyalty/mwgwallet/success/checkout"
+        partner_reference_id:
+          type: string
+          description: ID đơn hàng phía MWG (order_id phía MWG), tạo mới mỗi request (idempotency key)
+          example: "bf133c7c-8e10-45a2-b9d2-4d04a352917a"
+        partner_order_amount:
+          type: integer
+          description: Số tiền đơn hàng KH cần thanh toán (VNĐ)
+          example: 5000000
+        metadata:
+          $ref: "#/components/schemas/PaymentRequestMetadata"
+
+    PaymentRequestMetadata:
+      type: object
+      description: Thông tin đơn hàng phía MWG
+      required:
+        - partner_service_code
+        - partner_service_name
+        - partner_created_time
+        - partner_branch_id
+        - partner_branch_name
+        - partner_store_id
+        - partner_longitude
+        - partner_latitude
+        - partner_original_amount
+      properties:
+        partner_service_code:
+          type: string
+          description: Mã nhóm dịch vụ / danh mục hàng hóa do MWG cấp
+          example: "ELECTRONIC"
+        partner_service_name:
+          type: string
+          description: Tên nhóm dịch vụ / danh mục hàng hóa do MWG cấp
+          example: "Điện tử"
+        partner_created_time:
+          type: string
+          description: Thời gian tạo QR code
+          example: "2026-01-02T09:45:00+07:00"
+        partner_branch_id:
+          type: string
+          enum: [ DMX, BHX, TGDD, AK, TOPZONE, AVAKIDS ]
+          description: Mã chuỗi cửa hàng
+          example: "DMX"
+        partner_branch_name:
+          type: string
+          enum:
+            - DIEN MAY XANH
+            - BACH HOA XANH
+            - THE GIOI DI DONG
+            - AN KHANG
+            - TOPZONE
+            - AVAKIDS
+          description: Tên đầy đủ của chuỗi cửa hàng
+          example: "DIEN MAY XANH"
+        partner_store_id:
+          type: string
+          description: Mã cửa hàng do MWG cấp
+          example: "907"
+        partner_staff_id:
+          type: string
+          description: Mã nhân viên xử lý yêu cầu thanh toán
+          example: "87328"
+        partner_longitude:
+          type: string
+          description: Kinh độ khi QTV thu thập từ KH
+          example: "106.660172"
+        partner_latitude:
+          type: string
+          description: Vĩ độ khi QTV thu thập từ KH
+          example: "10.762622"
+        partner_original_amount:
+          type: integer
+          description: Giá trị gốc của đơn hàng trước khuyến mãi (VNĐ)
+          example: 5200000
+        promotion_code:
+          type: string
+          description: Mã khuyến mãi MWG áp dụng cho đơn hàng (chỉ để thu thập dữ liệu, Cake không tính toán)
+          example: "SALE10"
+        promotion_applies:
+          type: array
+          description: Danh sách kỳ hạn trả góp / phí áp dụng theo campaign hoặc đơn hàng
+          items:
+            $ref: "#/components/schemas/PromotionApply"
+        extra_data:
+          $ref: "#/components/schemas/PaymentExtraData"
+
+    PromotionApply:
+      type: object
+      required:
+        - tenor_purpose
+        - fee_rate_with_vat
+      properties:
+        tenor_purpose:
+          type: number
+          description: Kỳ hạn trả góp (tháng) cho phép theo từng campaign/đơn hàng
+          example: 3
+        fee_rate_with_vat:
+          type: number
+          description: Tỷ lệ phí theo kỳ hạn đã gồm VAT (%)
+          example: 3.3
+
+    PaymentExtraData:
+      type: object
+      description: Dữ liệu bổ sung. Hiện tại Cake chưa validate các field bên dưới.
+      properties:
+        partner_sale_channel:
+          type: string
+          enum:
+            - WEB_TGDD
+            - WEB_DMX
+            - WEB_TOPZONE
+            - WEB_AVAKIDS
+            - WEB_ANKHANG
+            - APP_AVAKIDS
+            - APP_BHX
+            - WEB_BHX
+          description: Kênh mua
+          example: "WEB_DMX"
+        partner_shipping_type:
+          type: string
+          enum: [ HOME_DELIVERY, STORE_PICKUP ]
+          description: |
+            Phương thức giao hàng với đơn hàng online:
+            - `HOME_DELIVERY`: giao hàng đến địa chỉ khách hàng
+            - `STORE_PICKUP`: khách hàng nhận hàng tại cửa hàng
+          example: "HOME_DELIVERY"
+        partner_shipping_address:
+          $ref: "#/components/schemas/ShippingAddress"
+        order_products:
+          type: array
+          description: Danh sách sản phẩm trong đơn hàng
+          items:
+            $ref: "#/components/schemas/OrderProduct"
+
+    ShippingAddress:
+      type: object
+      description: Địa chỉ giao hàng với đơn hàng online
+      properties:
+        province_name:
+          type: string
+          description: Tỉnh/Thành phố
+          example: "Hồ Chí Minh"
+        district_name:
+          type: string
+          description: Quận/Huyện
+          example: "Quận 1"
+        ward_name:
+          type: string
+          description: Phường/Xã
+          example: "Phường Bến Nghé"
+        address:
+          type: string
+          description: Địa chỉ chi tiết
+          example: "xxx"
+
+    OrderProduct:
+      type: object
+      properties:
+        product_code:
+          type: string
+          description: Mã vạch sản phẩm
+          example: "8934563138165"
+        product_name:
+          type: string
+          description: Tên sản phẩm
+          example: "Điện thoại xxx"
+
+    GenerateWebviewPaymentResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              description: Dữ liệu trả về khi khởi tạo yêu cầu thanh toán thành công
+              properties:
+                webview_url:
+                  type: string
+                  description: Webview DOP xác nhận thanh toán (token hết hạn sau 5 phút)
+                  example: "https://dop.cake.vn/...?token=..."
+                order_id:
+                  type: string
+                  description: Mã tham chiếu giao dịch do Cake tạo ra
+                  example: "ORD20260102000001"
+
+    PaymentStatusRequest:
+      type: object
+      required:
+        - loan_code
+        - partner_reference_id
+        - order_id
+      properties:
+        loan_code:
+          type: string
+          description: Mã khoản vay, nhận từ API /partner-update-status
+          example: "u8123123Sjsdb"
+        partner_reference_id:
+          type: string
+          description: partner_reference_id đã truyền ở API /generate-webview/payment-request (order_id phía MWG)
+          example: "bf133c7c-8e10-45a2-b9d2-4d04a352917a"
+        order_id:
+          type: string
+          description: order_id từ response API /generate-webview/payment-request
+          example: "ORD20260102000001"
+
+    PaymentStatusResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              description: Trạng thái giao dịch thanh toán dịch vụ
+              properties:
+                status:
+                  type: string
+                  enum:
+                    - INIT
+                    - IN_PROCESS
+                    - HOLD
+                    - SUCCESS
+                    - FAILED
+                    - REVERT
+                  description: |
+                    Trạng thái giao dịch thanh toán của `order_id`:
+                    - `INIT`: Đã tạo yêu cầu, KH chưa xác nhận trong webview
+                    - `IN_PROCESS`: KH đã xác nhận, Cake đang xử lý ghi nợ
+                    - `HOLD`: Đã ghi nhận giao dịch nhưng lỗi hạch toán, cần đối soát thủ công
+                    - `SUCCESS`: Thanh toán thành công
+                    - `FAILED`: Thanh toán thất bại, KH hủy hoặc yêu cầu hết hạn
+                    - `REVERT`: Giao dịch đã được hoàn tiền qua API /payment-revert
+                  example: "SUCCESS"
+                status_installment:
+                  type: string
+                  enum:
+                    - NONE
+                    - INIT
+                    - SUCCESS
+                    - FAILED
+                  description: |
+                    Trạng thái chuyển đổi trả góp của giao dịch (KH chọn trong webview Cake):
+                    - `NONE`: Giao dịch không chuyển đổi trả góp
+                    - `INIT`: Đã tạo yêu cầu trả góp, đang xử lý
+                    - `SUCCESS`: Chuyển đổi trả góp thành công
+                    - `FAILED`: Chuyển đổi trả góp thất bại
+                  example: "NONE"
+
+    PaymentRevertRequest:
+      type: object
+      required:
+        - loan_code
+        - partner_reference_id
+        - order_id
+        - partner_order_amount
+        - partner_revert_amount
+      properties:
+        loan_code:
+          type: string
+          description: Mã khoản vay, nhận từ API /partner-update-status
+          example: "u8123123Sjsdb"
+        partner_reference_id:
+          type: string
+          description: partner_reference_id đã truyền ở API /generate-webview/payment-request (order_id phía MWG)
+          example: "bf133c7c-8e10-45a2-b9d2-4d04a352917a"
+        order_id:
+          type: string
+          description: order_id từ response API /generate-webview/payment-request
+          example: "ORD20260102000001"
+        partner_order_amount:
+          type: integer
+          description: Số tiền của đơn hàng gốc (VNĐ)
+          example: 5000000
+        partner_revert_amount:
+          type: integer
+          description: Số tiền cần hoàn (VNĐ), phải ≤ `partner_order_amount`
+          example: 2000000
+
+
+# ─────────────────────────────────────────────
+# PATHS
+# ─────────────────────────────────────────────
+paths:
+  # ════════════════════
+  # ONBOARDING (Partner → Cake)
+  # ════════════════════
+  /generate-webview/onboarding:
+    post:
+      tags: [ Onboarding ]
+      summary: Khởi tạo token & webview cho DOP onboarding
+      description: |
+        Khởi tạo token cho DOP. Response trả về `webview_url` (token hết hạn sau 30 phút)
+        để Partner hiển thị webview onboarding / liên kết tài khoản của Cake cho KH.
+        Kết quả hồ sơ được Cake gửi về qua callback `/partner-update-status`.
+      operationId: generateWebviewOnboarding
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateWebviewOnboardingRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateWebviewResponse"
+
+  /generate-webview/loan-detail:
+    post:
+      tags: [ Onboarding ]
+      summary: Khởi tạo token & webview cho màn hình chi tiết khoản vay
+      description: |
+        Khởi tạo token cho Webview loan detail. Response `webview_url`, token hết hạn sau 30 phút.
+        KH xem chi tiết khoản vay và chuyển đổi trả góp ngay trong webview Cake.
+      operationId: generateWebviewLoanDetail
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateWebviewLoanDetailRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateWebviewResponse"
+
+  # ════════════════════
+  # LOAN INFO (Partner → Cake)
+  # ════════════════════
+  /get-loan-detail:
+    post:
+      tags: [ Loan Info ]
+      summary: Truy vấn thông tin chi tiết khoản vay
+      description: |
+        Trả về trạng thái hồ sơ, hạn mức được duyệt, dư nợ và kỳ thanh toán của khoản vay (Paylater).
+        Chỉ truy vấn được sau khi hồ sơ đã được phê duyệt (`LOAN_APPROVE` trở đi);
+        `loan_code` không tồn tại trả `400001`.
+      operationId: getLoanDetail
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetLoanDetailRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetLoanDetailResponse"
+
+  # ════════════════════
+  # PAYMENT (Partner → Cake)
+  # ════════════════════
+  /generate-webview/payment-request:
+    post:
+      tags: [ Payment ]
+      summary: Khởi tạo token & webview xác nhận thanh toán
+      description: |
+        Khởi tạo yêu cầu thanh toán dịch vụ và trả `webview_url` để KH xác nhận trong webview Cake
+        (nhập OTP, chọn trả góp nếu có). Token hết hạn sau 5 phút.
+
+        `partner_reference_id` (order_id phía MWG) phải là duy nhất mỗi đơn hàng.
+        Sau khi webview redirect về `redirect_url`, MWG bắt sự kiện, đóng webview và **phải** gọi
+        `/payment-status` với `order_id` để lấy kết quả cuối cùng, không dựa vào redirect.
+      operationId: generateWebviewPaymentRequest
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateWebviewPaymentRequestBody"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateWebviewPaymentResponse"
+
+  /payment-status:
+    post:
+      tags: [ Payment ]
+      summary: Truy vấn trạng thái giao dịch thanh toán dịch vụ
+      description: |
+        Lấy kết quả cuối cùng của giao dịch tạo bởi `/generate-webview/payment-request`.
+        Partner **phải** gọi API này sau khi webview redirect để xác nhận kết quả,
+        không dựa vào tham số trên redirect_url.
+
+        Trạng thái `INIT` / `IN_PROCESS` là chưa kết thúc — Partner gọi lại đến khi ra
+        `SUCCESS` / `FAILED`. Trạng thái `HOLD` cần đối soát thủ công với Cake.
+      operationId: paymentStatus
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentStatusRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentStatusResponse"
+
+  /payment-revert:
+    post:
+      tags: [ Payment ]
+      summary: Yêu cầu hoàn tiền giao dịch thanh toán dịch vụ
+      description: |
+        Hoàn tiền một phần hoặc toàn bộ giao dịch đã `SUCCESS`.
+        `partner_revert_amount` không vượt quá `partner_order_amount`.
+        Giao dịch hoàn tất chuyển sang trạng thái `REVERT` khi tra qua `/payment-status`.
+      operationId: paymentRevert
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentRevertRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BaseResponse"
+
+  # ════════════════════
+  # PARTNER CALLBACKS (Cake → Partner)
+  # ════════════════════
+  /partner-update-status:
+    post:
+      tags: [ Partner Callbacks ]
+      summary: Cake cập nhật trạng thái hồ sơ sang Partner
+      description: |
+        **Chiều: Cake → Partner**
+        Cake chủ động gọi API này trên hệ thống đối tác để cập nhật trạng thái và thông tin liên kết tài khoản.
+        Partner cần expose endpoint này, yêu cầu path là */partner-update-status.
+      operationId: partnerUpdateStatus
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerUpdateStatusRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerCallbackResponse"
+
+tags:
+  - name: Onboarding
+    description: |
+      Luồng onboarding & liên kết tài khoản qua DOP webview:
+      generate-webview/onboarding → (KH onboarding trong webview Cake) → partner-update-status
+      Bao gồm cả generate-webview/loan-detail (webview chi tiết khoản vay & trả góp).
+  - name: Loan Info
+    description: get-loan-detail
+  - name: Payment
+    description: |
+      Thanh toán dịch vụ qua webview Cake:
+      generate-webview/payment-request → (KH xác nhận trong webview) → payment-status → payment-revert (nếu cần)
+  - name: Partner Callbacks
+    description: |
+      API Cake gọi sang Partner (webhook/callback): partner-update-status (trạng thái hồ sơ).
+      Partner phải expose endpoint này. Xác thực ngược chiều (Cake ký, Partner verify).
+
+# ─────────────────────────────────────────────
+# SEQUENCE DIAGRAMS - API FLOWS (x-extension)
+# ─────────────────────────────────────────────
+x-mermaid-flows:
+
+  onboarding: |
+    sequenceDiagram
+      autonumber
+      participant Cl as Client
+      participant P as MWG-QTV
+      participant C as Cake
+
+      Note over Cl,C: ONBOARDING & LINK ACCOUNT
+      Cl->>P: Access "Ví trả sau" Cake on app QTV
+      P-->>Cl: Show landing page + T&C
+      Cl->>P: Confirm T&C
+      P-->>Cl: Show NFC webview
+      Cl->>P: Input NID & Tap NFC
+      P-->>Cl: Show tap NFC result
+      Cl->>P: Onboarding / Link account
+      P->>C: generate-webview/onboarding(phone_number, partner_reference_id, partner_score, redirect_url, nfc_data, metadata)
+      C-->>P: Response webview_url
+      P-->>Cl: Show webview DOP Cake
+      Cl->>C: Access DOP Cake & onboarding process
+      Cl->>C: Submit loan & sign contract (trong webview)
+
+      Note over C,P: Cake callback cập nhật trạng thái
+      C->>P: partner-update-status(partner_reference_id, loan_code, status)
+      P-->>C: Response (success, code, message)
+      P-->>Cl: Update link status to customer
+
+      Note over P,C: MWG tra cứu khi cần
+      P->>C: get-loan-detail(loan_code)
+      C-->>P: Response loan_account_status & loan info
+
+  loan_info: |
+    sequenceDiagram
+      autonumber
+      participant Cl as Client
+      participant P as MWG-QTV
+      participant C as Cake
+
+      Note over Cl,C: LOAN INFO (API)
+      Cl->>P: View loan info
+      P->>C: get-loan-detail(loan_code)
+      C-->>P: loan_account_status, approved_amount, balances, due_date...
+      P-->>Cl: Show loan information
+
+      Note over Cl,C: LOAN DETAIL (WEBVIEW)
+      Cl->>P: Request view loan detail
+      P->>C: generate-webview/loan-detail(loan_code, redirect_url)
+      C-->>P: Response webview_url
+      P-->>Cl: Show webview chi tiết khoản vay
+      Cl->>C: Access & submit Installment (trong webview Cake)
+      C-->>Cl: Display kết quả trả góp
+
+  payment: |
+    sequenceDiagram
+      autonumber
+      participant Cl as Client
+      participant P as MWG-QTV
+      participant C as Cake
+
+      Note over Cl,C: SPENDING
+      Cl->>P: Service spending
+      P->>C: generate-webview/payment-request(loan_code, partner_reference_id, partner_order_amount, metadata)
+      C-->>P: webview_url, order_id
+      P-->>Cl: Show webview xác nhận thanh toán
+      Cl->>C: Nhập OTP & confirm transaction (trong webview)
+      Note over C: Validate & redirect
+      C-->>P: Redirect về redirect_url
+      Note over P: Catch redirect event, đóng webview
+
+      Note over P,C: VERIFY KẾT QUẢ (bắt buộc)
+      P->>C: payment-status(loan_code, partner_reference_id, order_id)
+      C-->>P: status, status_installment
+      P-->>Cl: Response transaction result
+
+      Note over Cl,C: REVERT (nếu cần)
+      Cl->>P: Request revert
+      P->>C: payment-revert(loan_code, partner_reference_id, order_id, partner_order_amount, partner_revert_amount)
+      C-->>P: Response revert result
+      P-->>Cl: Send notification to customer

@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Report ticket support PL — tổng quan loại lỗi & tần suất</title>
+<script>
+  // đặt theme trước khi render để SVG lấy đúng biến màu
+  var h = location.hash;
+  if (h === '#dark' || h === '#light') document.documentElement.setAttribute('data-theme', h.slice(1));
+</script>
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f4f3f0;
+  --surface-1: #fcfcfb;
+  --surface-2: #efeeea;
+  --border: #dcdad2;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #7a7973;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #9a9791;
+  /* ramp ordinal 4 bậc: nhỏ → lớn (đã qua validator: ΔL >= 0.06, đầu nhạt >= 2:1) */
+  --seq-1: #86b6ef;
+  --seq-2: #3987e5;
+  --seq-3: #1c5cab;
+  --seq-4: #0d366b;
+  --ink-1: #0b0b0b;
+  --ink-2: #ffffff;
+  --ink-3: #ffffff;
+  --ink-4: #ffffff;
+  --good: #1baf7a;
+  --warn: #eda100;
+  --crit: #e34948;
+  --grid: #e5e3dd;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0: #121211;
+    --surface-1: #1a1a19;
+    --surface-2: #232322;
+    --border: #383835;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #918f86;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #6f6d67;
+    --seq-1: #184f95;
+    --seq-2: #256abf;
+    --seq-3: #3987e5;
+    --seq-4: #6da7ec;
+    --ink-1: #ffffff;
+    --ink-2: #ffffff;
+    --ink-3: #ffffff;
+    --ink-4: #0b0b0b;
+    --grid: #2e2e2c;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #121211;
+  --surface-1: #1a1a19;
+  --surface-2: #232322;
+  --border: #383835;
+  --text-primary: #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted: #918f86;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #6f6d67;
+  --seq-1: #184f95;
+  --seq-2: #256abf;
+  --seq-3: #3987e5;
+  --seq-4: #6da7ec;
+  --ink-1: #ffffff;
+  --ink-2: #ffffff;
+  --ink-3: #ffffff;
+  --ink-4: #0b0b0b;
+  --grid: #2e2e2c;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 0 0 64px;
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+header { padding: 40px 0 28px; border-bottom: 1px solid var(--border); margin-bottom: 32px; }
+h1 { font-size: 30px; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.01em; }
+h2 { font-size: 20px; margin: 44px 0 6px; letter-spacing: -0.01em; }
+h3 { font-size: 15px; margin: 24px 0 8px; }
+p.sub { color: var(--text-secondary); margin: 0; font-size: 14px; }
+.meta { color: var(--text-muted); font-size: 13px; margin-top: 12px; }
+.note { color: var(--text-secondary); font-size: 13.5px; margin: 8px 0 16px; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-top: 16px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 12px; margin-top: 20px; }
+.kpi { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.kpi .v { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
+.kpi .l { font-size: 12.5px; color: var(--text-secondary); margin-top: 4px; }
+.kpi .h { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--text-secondary); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.03em; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr:hover { background: var(--surface-2); }
+a { color: var(--series-1); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.scroll { overflow-x: auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 4px 0 12px; font-size: 12.5px; color: var(--text-secondary); }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: 6px; vertical-align: -1px; }
+.tip {
+  position: fixed; pointer-events: none; z-index: 20; opacity: 0; transition: opacity .1s;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px; font-size: 12.5px; box-shadow: 0 6px 22px rgba(0,0,0,.16); max-width: 300px;
+}
+.tip b { font-weight: 600; }
+.bars { display: grid; gap: 6px; }
+.bar-row { display: grid; grid-template-columns: minmax(120px, 210px) 1fr 52px; gap: 10px; align-items: center; font-size: 13px; }
+.bar-row .lb { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar-track { background: var(--surface-2); border-radius: 4px; height: 18px; position: relative; }
+.bar-fill { height: 18px; border-radius: 0 4px 4px 0; }
+.bar-row .vl { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.hm { border-collapse: separate; border-spacing: 2px; font-size: 12.5px; }
+.hm th { border: 0; padding: 4px 6px; font-size: 11.5px; }
+.hm td { border: 0; padding: 0; }
+.hm .cell { width: 100%; min-width: 54px; height: 30px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; }
+.hm th.rowh { text-align: right; color: var(--text-secondary); font-weight: 400; text-transform: none; letter-spacing: 0; max-width: 210px; }
+.pill { display: inline-block; font-size: 11.5px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-secondary); }
+.pill.manual { border-color: var(--warn); color: var(--warn); }
+.pill.open { border-color: var(--crit); color: var(--crit); }
+.toggle { float: right; font-size: 12.5px; color: var(--text-secondary); background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+details { margin-top: 8px; }
+summary { cursor: pointer; color: var(--text-secondary); font-size: 13px; }
+ul.tight { margin: 6px 0 0; padding-left: 20px; color: var(--text-secondary); font-size: 13.5px; }
+ul.tight li { margin-bottom: 4px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 820px) { .grid2 { grid-template-columns: 1fr; } .bar-row { grid-template-columns: minmax(96px,150px) 1fr 44px; } }
+figcaption { font-size: 12.5px; color: var(--text-muted); margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <button class="toggle" id="themeBtn">Đổi sáng / tối</button>
+  <h1>Ticket support PL — team đang xử lý những lỗi gì</h1>
+  <p class="sub">Tổng hợp toàn bộ ticket support đang lưu trong hệ thống Tools (project PL / PLO / DOP, loại Task &amp; Bug có link "causes" hoặc là Bug production).</p>
+  <p class="meta" id="meta"></p>
+</header>
+
+<section>
+  <h2>1. Tổng quan</h2>
+  <p class="note">Sáu con số đọc trước tiên: khối lượng, mức độ phải can thiệp tay, tốc độ xử lý và tồn đọng.</p>
+  <div class="kpis" id="kpis"></div>
+</section>
+
+<section>
+  <h2>2. Các loại lỗi thường gặp &amp; tần suất</h2>
+  <p class="note">Mỗi ticket được gán đúng một nhóm lỗi chính (chấm điểm từ khoá trên title + description), nên tổng tần suất bằng tổng số ticket. Cột <b>tác động tay</b> là số ticket mà Tech phải sửa dữ liệu / chạy tay chứ không phải fix code.</p>
+  <div class="card"><div class="bars" id="catBars"></div><figcaption>Số ticket theo nhóm lỗi. Hover để xem tỉ lệ và số ticket còn mở.</figcaption></div>
+  <div class="card scroll"><table id="catTable"></table></div>
+</section>
+
+<section>
+  <h2>3. Xu hướng theo tháng</h2>
+  <p class="note">Cột xếp theo 3 nhóm lỗi lớn nhất + phần còn lại. Dữ liệu các tháng cũ nhất bị cắt bởi cửa sổ JQL 365 ngày, đọc phần đuôi mới đáng tin.</p>
+  <div class="card"><div class="legend" id="trendLegend"></div><div id="trendChart"></div><figcaption>Số ticket tạo mới mỗi tháng, chia theo nhóm lỗi.</figcaption></div>
+</section>
+
+<section>
+  <h2>4. Đối tác &amp; dòng sản phẩm</h2>
+  <p class="note">Một ticket có thể được gắn nhiều nhãn (ví dụ Viettel + Cashloan), nên tổng ở đây lớn hơn tổng số ticket.</p>
+  <div class="grid2">
+    <div class="card"><h3>Theo đối tác</h3><div class="bars" id="partnerBars"></div></div>
+    <div class="card"><h3>Theo dòng sản phẩm</h3><div class="bars" id="productBars"></div></div>
+  </div>
+</section>
+
+<section>
+  <h2>5. Điểm nóng: nhóm lỗi × đối tác</h2>
+  <p class="note">Ô càng đậm càng nhiều ticket — dùng để chọn đối tác/luồng cần ưu tiên làm sạch trước.</p>
+  <div class="card scroll"><table class="hm" id="heat"></table><figcaption>Số ticket ở giao điểm nhóm lỗi và đối tác.</figcaption></div>
+</section>
+
+<section>
+  <h2>6. Nhóm ticket lặp lại — ứng viên tự động hoá</h2>
+  <p class="note">Các ticket có title gần giống nhau được gom lại (độ tương đồng từ khoá ≥ 0,55). Nhóm xuất hiện ở nhiều tháng và phần lớn là tác động tay chính là chỗ nên làm tool / job tự động thay vì mở ticket từng lần.</p>
+  <div class="card scroll"><table id="clusters"></table></div>
+</section>
+
+<section>
+  <h2>7. Mã lỗi hay gặp</h2>
+  <p class="note">Mã lỗi chỉ được nhận khi nằm cạnh từ khoá "lỗi/error/code" trong nội dung ticket, nên đây là sàn dưới, không phải con số đầy đủ.</p>
+  <div class="card"><div class="bars" id="codeBars"></div></div>
+</section>
+
+<section>
+  <h2>8. Tốc độ xử lý &amp; tồn đọng</h2>
+  <p class="note">Thời gian xử lý = ngày <i>updated</i> trừ ngày <i>created</i> của ticket đã đóng (Done / Test Passed / Invalid). Đây là số gần đúng vì Jira không lưu resolutiondate trong dữ liệu đã scan.</p>
+  <div class="grid2">
+    <div class="card"><h3>Trung vị số ngày xử lý theo nhóm lỗi</h3><div class="bars" id="daysBars"></div></div>
+    <div class="card"><h3>Trạng thái ticket</h3><div class="bars" id="statusBars"></div>
+      <p class="note" id="invalidNote"></p></div>
+  </div>
+  <div class="card scroll"><h3>Ticket đang mở lâu nhất</h3><table id="oldest"></table></div>
+</section>
+
+<section>
+  <h2>9. Tải theo người xử lý</h2>
+  <p class="note">Assignee tại thời điểm scan. Tập trung quá nhiều vào một người là rủi ro vận hành, không chỉ là vấn đề khối lượng.</p>
+  <div class="card"><div class="bars" id="assigneeBars"></div></div>
+</section>
+
+<section>
+  <h2>10. Chi tiết từng nhóm lỗi</h2>
+  <p class="note">Định nghĩa nhóm + ticket ví dụ để đối chiếu khi bạn muốn kiểm tra cách phân loại.</p>
+  <div id="catDetails"></div>
+</section>
+
+<section>
+  <h2>11. Đọc gì từ report này</h2>
+  <p class="note">Các nhận định dưới đây được tính trực tiếp từ dữ liệu ở trên, không phải nhận xét thủ công.</p>
+  <div class="card"><ul class="tight" id="insights"></ul></div>
+</section>
+
+<section>
+  <h2>12. Phương pháp &amp; hạn chế</h2>
+  <div class="card">
+    <ul class="tight">
+      <li><b>Nguồn:</b> collection <code>supporttickets</code> trong MongoDB của Tools — dữ liệu do tab "PL Tickets" của trang /support scan từ Jira.</li>
+      <li><b>JQL gốc:</b> <code>project in (PL, PLO, DOP) AND created &gt;= -365d AND (issueLinkType = "causes" or (type = Bug and labels not in (NON_PROD, auto_stage))) AND type in (Task, Bug)</code>. Ticket cũ hơn 365 ngày vẫn còn trong DB từ các lần scan trước nên khoảng thời gian rộng hơn 1 năm, nhưng các tháng đầu <b>không đầy đủ</b>.</li>
+      <li><b>Phân loại:</b> theo bộ từ khoá tiếng Việt/tiếng Anh, chấm điểm title (×3) + description (×1), lấy nhóm điểm cao nhất. Không dùng AI nên kết quả tái lập được 100% và có thể sửa quy tắc trong <code>reports/generate-pl-support-report.ts</code>.</li>
+      <li><b>Hạn chế:</b> ticket có title chỉ chứa mã khoản vay rơi vào nhóm "Chưa phân loại được"; "Invalid" trong Jira ở đây thường nghĩa là "không phải bug — đã hỗ trợ xong", không phải ticket sai.</li>
+      <li><b>Bối cảnh SVK:</b> <span id="svkNote"></span></li>
+    </ul>
+  </div>
+</section>
+
+</div>
+<div class="tip" id="tip"></div>
+<script id="data" type="application/json">{"generatedAt":"2026-08-22T03:03:58.338Z","kpi":{"total":282,"from":"2025-05","to":"2026-08","perMonth":17.625,"manualPct":37.234042553191486,"medianDays":10.934165335648148,"p90Days":201.08564700231483,"open":1,"openOld":0,"invalidPct":39.361702127659576,"noComment":21.98581560283688,"svkCount":258,"svkWithPl":166},"categories":[{"id":"disbursement","label":"Giải ngân & active khoản vay","desc":"Khoản vay đã ký nhưng không giải ngân được, gãy luồng giải ngân, treo tiền ở loan drawdown, retry giải ngân thất bại, phải active/giải ngân thủ công.","n":85,"pct":30.141843971631204,"manual":60,"open":0,"medianDays":7.089465925925926,"avgComments":1.6588235294117648,"examples":[{"key":"PL-13984","title":"Hỗ trợ active khoản vay CAKECLZLP205733697888128 - loand id: 15928280 - phone: 0352096828","url":"https://cakedigitalbank.atlassian.net/browse/PL-13984","status":"Test Passed"},{"key":"PL-13935","title":"Hỗ trợ Active khoản vay CAKEPDVIETTEL1582342450168 - loan id: 15616816","url":"https://cakedigitalbank.atlassian.net/browse/PL-13935","status":"Test Passed"},{"key":"PL-13934","title":"Hỗ trợ kiểm tra thông tin tài khoản nhận giải ngân trên hợp đồng tín dụng không đúng với thông tin KH khai báo","url":"https://cakedigitalbank.atlassian.net/browse/PL-13934","status":"Test Passed"},{"key":"PL-13927","title":"VIETTEL CASHLOAN - KIỂM TRA API DISBURSE REQUEST","url":"https://cakedigitalbank.atlassian.net/browse/PL-13927","status":"Invalid"}]},{"id":"paylater","label":"Ví trả sau & trả góp","desc":"Ví trả sau (paylater): revert giao dịch không hoàn tiền, quét QR thanh toán lỗi, chuyển đổi trả góp thất bại, dư nợ ví sai.","n":39,"pct":13.829787234042554,"manual":4,"open":0,"medianDays":171.97566686342591,"avgComments":2,"examples":[{"key":"PL-13137","title":"Hỗ trợ kiểm tra sao kê khoản vay MWG_paylater CAKEPL168209694521664 ( case 1900874)","url":"https://cakedigitalbank.atlassian.net/browse/PL-13137","status":"Test Passed"},{"key":"PL-12953","title":"Hỗ trợ kiểm tra ví trả Be CAKEPL178807987425728 ( case 1839155)","url":"https://cakedigitalbank.atlassian.net/browse/PL-12953","status":"Invalid"},{"key":"PL-12941","title":"Be Paylater - Giao dịch revert không thành công ngày 21-27/05/2026","url":"https://cakedigitalbank.atlassian.net/browse/PL-12941","status":"Test Passed"},{"key":"PL-12579","title":"Kiểm tra trạng thái khoản vay MWG_paylater CAKEPL160137338573504 ( case 1762255)","url":"https://cakedigitalbank.atlassian.net/browse/PL-12579","status":"Invalid"}]},{"id":"onboarding","label":"Đăng ký vay & eKYC","desc":"Không đăng ký được khoản vay, rớt ở bước eKYC/chụp CCCD, màn hình trắng, precheck rule chặn sai, chưa được cấp hạn mức, gen link đăng ký lỗi.","n":37,"pct":13.120567375886525,"manual":1,"open":0,"medianDays":37.82498085648148,"avgComments":1.4864864864864864,"examples":[{"key":"PL-13755","title":"[Ops] Be cashloan lỗi create-token","url":"https://cakedigitalbank.atlassian.net/browse/PL-13755","status":"Invalid"},{"key":"PL-13740","title":"KH 0966537790 đăng ký CAKE PAYDAY nhập OTP báo sai","url":"https://cakedigitalbank.atlassian.net/browse/PL-13740","status":"Invalid"},{"key":"PL-13127","title":"Staff thực hiện đăng kí luồng vay OD nhưng bị chặn ở đầu luồng","url":"https://cakedigitalbank.atlassian.net/browse/PL-13127","status":"Invalid"},{"key":"PL-13111","title":"VIETTEL PAYDAY - Đăng ký vay bị màn hình trắng khi bấm vào webview","url":"https://cakedigitalbank.atlassian.net/browse/PL-13111","status":"Test Passed"}]},{"id":"repayment","label":"Thanh toán & gạch nợ","desc":"Khách đã trả tiền nhưng hệ thống chưa gạch nợ / vẫn quá hạn, thanh toán không ghi nhận, lệch dư nợ, giao dịch repayment timeout.","n":31,"pct":10.99290780141844,"manual":18,"open":1,"medianDays":5.757640399305556,"avgComments":1.8387096774193548,"examples":[{"key":"PL-14073","title":"[ICE][CL] - Patch list account over due (due date = 17/08/2026)","url":"https://cakedigitalbank.atlassian.net/browse/PL-14073","status":"Open"},{"key":"PL-13926","title":"Khoản vay CAKECLZLP182328546904256 loan id 13460171","url":"https://cakedigitalbank.atlassian.net/browse/PL-13926","status":"Invalid"},{"key":"PL-13868","title":"Khoản vay KLP_cashloan CAKECLKLP191232161544896","url":"https://cakedigitalbank.atlassian.net/browse/PL-13868","status":"Test Passed"},{"key":"PL-13823","title":"Hỗ trợ Kiểm tra tool gạch nợ CAKECLVIETTEL739504124","url":"https://cakedigitalbank.atlassian.net/browse/PL-13823","status":"Test Passed"}]},{"id":"status_sync","label":"Lệch / treo trạng thái khoản vay","desc":"Trạng thái khoản vay lệch giữa Cake và đối tác (VDS/ICE/Mambu), treo ở USER_SIGN hoặc EKYC_SUCCESS, phải update trạng thái bằng tay.","n":20,"pct":7.092198581560284,"manual":10,"open":0,"medianDays":7.0052353125,"avgComments":1.65,"examples":[{"key":"PL-13758","title":"VIETTEL - LỆCH TRẠNG THÁI KHOẢN VAY CASHLOAN VÀ PAYDAY (DISBURSE-FAILED VÀ DISBURSED)","url":"https://cakedigitalbank.atlassian.net/browse/PL-13758","status":"Invalid"},{"key":"PL-13335","title":"Hỗ trợ kiểm tra & cập nhật trạng thái khoản vay","url":"https://cakedigitalbank.atlassian.net/browse/PL-13335","status":"Test Passed"},{"key":"PL-12989","title":"VIETTEL CASHLOAN - UPDATE TRẠNG THÁI KHOẢN VAY TẠI CAKE","url":"https://cakedigitalbank.atlassian.net/browse/PL-12989","status":"Invalid"},{"key":"PL-12887","title":"VIETTEL CASHLOAN - UPDATE TRẠNG THÁI GIẢI NGÂN KHOẢN VAY","url":"https://cakedigitalbank.atlassian.net/browse/PL-12887","status":"Test Passed"}]},{"id":"settlement","label":"Tất toán & đóng khoản vay","desc":"Tất toán trước hạn lỗi, khoản vay đã trả hết nhưng không đóng, force close, đóng tài khoản trên Mambu/ICE.","n":18,"pct":6.382978723404255,"manual":8,"open":0,"medianDays":11.560549456018519,"avgComments":2.5555555555555554,"examples":[{"key":"PL-13976","title":"KH tất toán khoản vay bị lỗi","url":"https://cakedigitalbank.atlassian.net/browse/PL-13976","status":"Invalid"},{"key":"PL-13536","title":"Hỗ trợ kiểm tra tool Lending Force Close Loan","url":"https://cakedigitalbank.atlassian.net/browse/PL-13536","status":"Test Passed"},{"key":"PL-12956","title":"KH tất toán CAKECLZLP182128469374720 bị lỗi, tiền ko vào khoản vay","url":"https://cakedigitalbank.atlassian.net/browse/PL-12956","status":"Test Passed"},{"key":"PL-12430","title":"Lỗi tất toán khoản vay ZLP CASHLOAN","url":"https://cakedigitalbank.atlassian.net/browse/PL-12430","status":"Invalid"}]},{"id":"contract","label":"Ký hợp đồng & OTP","desc":"Ký hợp đồng thất bại, không nhận được OTP / OTP không hợp lệ, không hiển thị được nội dung hợp đồng.","n":16,"pct":5.673758865248227,"manual":0,"open":0,"medianDays":14.128880381944445,"avgComments":3.375,"examples":[{"key":"PLO-2066","title":"[Production bug] - DTN - Send request credit score before send OTP","url":"https://cakedigitalbank.atlassian.net/browse/PLO-2066","status":"Invalid"},{"key":"PL-13767","title":"[AUTO] TC-21499. [Loan_App][Misa_CL][Sign-cakapp] Verify that at \"Khoản vay\" tab status of Misa_CL is \"đang hoạt động\" when user sign contract successfully — Misa Cashloan / Misa Cashloan Sign Contract App","url":"https://cakedigitalbank.atlassian.net/browse/PL-13767","status":"Test Passed"},{"key":"PL-12993","title":"[MB][Contract] Error when opening the loan contract for signing","url":"https://cakedigitalbank.atlassian.net/browse/PL-12993","status":"Test Passed"},{"key":"PL-12786","title":"Lỗi ký hợp đồng trên luồng DOP khoản vay CAKE_cl_affiliate( case 1821068)","url":"https://cakedigitalbank.atlassian.net/browse/PL-12786","status":"Test Passed"}]},{"id":"api_error","label":"Lỗi API đối tác & mã lỗi","desc":"API giữa Cake và đối tác trả mã lỗi (9000000, 900002, 500001, 400001, 200001…), connection refused, callback thất bại, response type sai.","n":9,"pct":3.1914893617021276,"manual":0,"open":0,"medianDays":15.058136863425926,"avgComments":1.8888888888888888,"examples":[{"key":"PL-12901","title":"[Viettel Cashloan] Kiểm tra lỗi gọi API Client Create","url":"https://cakedigitalbank.atlassian.net/browse/PL-12901","status":"Invalid"},{"key":"PL-12768","title":"HỖ TRỢ KIỂM TRA LỖI 900000 VAY VIETTEL CASHLOAN","url":"https://cakedigitalbank.atlassian.net/browse/PL-12768","status":"Invalid"},{"key":"PL-12695","title":"ZLP Cashloan - API Client-create báo lỗi 9000000","url":"https://cakedigitalbank.atlassian.net/browse/PL-12695","status":"Invalid"},{"key":"PL-12428","title":"GẤP - KIỂM TRA MÃ LỖI 400001 Không có thông tin khoản vay","url":"https://cakedigitalbank.atlassian.net/browse/PL-12428","status":"Test Passed"}]},{"id":"reconciliation","label":"Đối soát, GL & giao dịch treo","desc":"Đối soát với VDS/VPBank, GL suspend, giao dịch treo/timeout, accounting state, check giao dịch theo ngày.","n":8,"pct":2.8368794326241136,"manual":2,"open":0,"medianDays":9.048217366898148,"avgComments":2.25,"examples":[{"key":"PL-13219","title":"HỖ TRỢ KIỂM TRA GIAO DỊCH REPAYMENT VDS NGÀY 19-21.06.2026","url":"https://cakedigitalbank.atlassian.net/browse/PL-13219","status":"Invalid"},{"key":"PL-12724","title":"Check KQ gd thanh toán timeout CAKE_Viettel ngày 07/05/2026","url":"https://cakedigitalbank.atlassian.net/browse/PL-12724","status":"Invalid"},{"key":"PL-12617","title":"KIỂM TRA TRẠNG THÁI IN-PROCESS CỦA GIAO DỊCH DISBURSEMENT PAYLATER","url":"https://cakedigitalbank.atlassian.net/browse/PL-12617","status":"Test Passed"},{"key":"PL-12213","title":"MWGPL - Case #1: 0377341494 - giao dịch ngày 01/03/2026","url":"https://cakedigitalbank.atlassian.net/browse/PL-12213","status":"Invalid"}]},{"id":"noise","label":"Ticket rác / test tự động","desc":"Ticket test, ticket do automation tạo — giữ lại để thấy độ nhiễu của dữ liệu, không phải việc thật.","n":5,"pct":1.773049645390071,"manual":0,"open":0,"medianDays":0.01420699074074074,"avgComments":0.4,"examples":[{"key":"PL-12376","title":"test","url":"https://cakedigitalbank.atlassian.net/browse/PL-12376","status":"Invalid"},{"key":"PL-12059","title":"test","url":"https://cakedigitalbank.atlassian.net/browse/PL-12059","status":"Invalid"},{"key":"PL-12058","title":"test","url":"https://cakedigitalbank.atlassian.net/browse/PL-12058","status":"Invalid"},{"key":"PL-12045","title":"test","url":"https://cakedigitalbank.atlassian.net/browse/PL-12045","status":"Invalid"}]},{"id":"cancellation","label":"Hủy khoản vay / hủy trả góp","desc":"Hủy khoản vay trên tool OPS báo lỗi, hủy trả góp không thành công, khoản vay đã hủy vẫn phát sinh nghiệp vụ.","n":4,"pct":1.4184397163120568,"manual":1,"open":0,"medianDays":13.885590445601853,"avgComments":1.75,"examples":[{"key":"PL-13717","title":"ZLPCL - CHECK API CONTRACT CANCEL","url":"https://cakedigitalbank.atlassian.net/browse/PL-13717","status":"Invalid"},{"key":"PL-12880","title":"Hỗ trợ không hủy được khoản vay bị lỗi","url":"https://cakedigitalbank.atlassian.net/browse/PL-12880","status":"Test Passed"},{"key":"PL-12207","title":"Hỗ trợ khoản vay đã hủy nhưng vẫn nhận được sao kê ( case 1674169)","url":"https://cakedigitalbank.atlassian.net/browse/PL-12207","status":"Invalid"},{"key":"PL-9526","title":"1132504 - Không hủy được khoản vay CAKE Cashloan","url":"https://cakedigitalbank.atlassian.net/browse/PL-9526","status":"Done"}]},{"id":"fee_insurance","label":"Phí, lãi & bảo hiểm","desc":"Phí bảo hiểm tính sai / thiếu bảo hiểm, lãi OD sai, số tiền giải ngân gồm cả phí bảo hiểm.","n":3,"pct":1.0638297872340425,"manual":0,"open":0,"medianDays":24.216655208333332,"avgComments":1.6666666666666667,"examples":[{"key":"PL-13113","title":"Kiểm tra phí bảo hiểm khoản vay VPO_cl_pension","url":"https://cakedigitalbank.atlassian.net/browse/PL-13113","status":"Test Passed"},{"key":"PL-11418","title":"Khoản vay CAKE_payday CAKEPD124584759195264 không có bảo hiểm","url":"https://cakedigitalbank.atlassian.net/browse/PL-11418","status":"Done"},{"key":"PL-9183","title":"Kiểm tra lãi OD","url":"https://cakedigitalbank.atlassian.net/browse/PL-9183","status":"Done"}]},{"id":"ops_tool","label":"Tool nội bộ OPS / Cake Task","desc":"Lỗi trên tool vận hành: Cake Task, tool gạch nợ, Lending Force Close Loan, phân quyền, download template, patch dữ liệu.","n":3,"pct":1.0638297872340425,"manual":1,"open":0,"medianDays":4.303754618055556,"avgComments":2.3333333333333335,"examples":[{"key":"PL-12676","title":"Viettel Cashloan - Hủy khoản vay cashloan trên tool Cake Task bị báo Lỗi không xác định","url":"https://cakedigitalbank.atlassian.net/browse/PL-12676","status":"Test Passed"},{"key":"PL-11585","title":"Check case hủy trả góp trên tool OPS báo lỗi","url":"https://cakedigitalbank.atlassian.net/browse/PL-11585","status":"Done"},{"key":"PL-10657","title":"Kiểm tra tool THN trên Cake tasks","url":"https://cakedigitalbank.atlassian.net/browse/PL-10657","status":"Done"}]},{"id":"statement_display","label":"Sao kê & hiển thị thông tin","desc":"Không xuất được sao kê, sao kê sai, app không hiển thị / hiển thị sai chi tiết khoản vay, thông tin KH sai.","n":2,"pct":0.7092198581560284,"manual":0,"open":0,"medianDays":23.055850561342595,"avgComments":2,"examples":[{"key":"PL-12586","title":"Kiểm tra thông tin khoản vay CAKEPD153420844012608","url":"https://cakedigitalbank.atlassian.net/browse/PL-12586","status":"Test Passed"},{"key":"PL-11222","title":"Kiểm tra hiển thị khoản vay VNPOST CL trong lịch sử khoản vay trên app PostPay","url":"https://cakedigitalbank.atlassian.net/browse/PL-11222","status":"Done"}]},{"id":"other","label":"Chưa phân loại được","desc":"Title/description quá ngắn (chỉ có mã khoản vay hoặc số điện thoại) nên không suy ra được nhóm lỗi.","n":2,"pct":0.7092198581560284,"manual":0,"open":0,"medianDays":50.28840659722222,"avgComments":2,"examples":[{"key":"PL-10717","title":"KH đổi SĐT chọn ứng trước báo Khoản vay không tồn tại","url":"https://cakedigitalbank.atlassian.net/browse/PL-10717","status":"Done"},{"key":"DOP-668","title":"[FE][DOP] Ward address defaults to Hue City wards when user selects a different province and district = \"Không\"","url":"https://cakedigitalbank.atlassian.net/browse/DOP-668","status":"Test Passed"}]}],"trend":{"months":["2025-05","2025-06","2025-07","2025-08","2025-09","2025-10","2025-11","2025-12","2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08"],"series":["Giải ngân & active khoản vay","Ví trả sau & trả góp","Đăng ký vay & eKYC","Nhóm còn lại"],"values":[[0,6,3,2],[2,7,3,7],[1,7,6,8],[0,1,0,0],[0,3,2,4],[2,3,1,3],[3,0,0,2],[5,0,0,3],[0,0,3,9],[1,4,1,2],[22,4,5,23],[10,0,8,10],[9,2,0,28],[10,2,3,8],[16,0,2,8],[4,0,0,4]]},"byMonth":[{"m":"2025-05","n":11},{"m":"2025-06","n":19},{"m":"2025-07","n":22},{"m":"2025-08","n":1},{"m":"2025-09","n":9},{"m":"2025-10","n":9},{"m":"2025-11","n":5},{"m":"2025-12","n":8},{"m":"2026-01","n":12},{"m":"2026-02","n":8},{"m":"2026-03","n":54},{"m":"2026-04","n":28},{"m":"2026-05","n":39},{"m":"2026-06","n":23},{"m":"2026-07","n":26},{"m":"2026-08","n":8}],"byPartner":[{"label":"Viettel","n":78},{"label":"VDS / VPBank","n":54},{"label":"MWG (TGDĐ)","n":49},{"label":"Cake (kênh trực tiếp)","n":47},{"label":"ZaloPay","n":31},{"label":"VNPay","n":25},{"label":"Không xác định","n":19},{"label":"BE","n":17},{"label":"OD / TD (nội bộ)","n":12},{"label":"VNPost / VPO","n":10},{"label":"MISA","n":3},{"label":"KLP","n":1}],"byProduct":[{"label":"Cashloan","n":131},{"label":"Payday","n":67},{"label":"Paylater / Ví trả sau","n":65},{"label":"Không xác định","n":21},{"label":"OD / TD","n":18}],"byStatus":[{"label":"Invalid","n":111},{"label":"Done","n":93},{"label":"Test Passed","n":77},{"label":"Open","n":1}],"byAssignee":[{"label":"Phạm Tiến Dũng (Associate Tech Product Manager)","n":94},{"label":"(chưa gán)","n":49},{"label":"Jira Bot","n":37},{"label":"Nguyễn Văn Phước (Sr. Software Engineer II)","n":12},{"label":"Lê Nhật Huy (Software Engineer I)","n":12},{"label":"Từ Trọng Đức (Software Engineer II)","n":10},{"label":"Lâm Duy Lạc (Lead Software Engineer)","n":10},{"label":"Phạm Ngọc Hoàng Vinh (Sr. Software Engineer II)","n":8},{"label":"Đinh Xuân Hương (Sr. Software Engineer I)","n":8},{"label":"Nguyễn Ngọc Thao (Software Engineer II)","n":7},{"label":"Lê Tuấn Anh (Software Engineer I)","n":6},{"label":"Nguyễn Hữu Trường (Software Engineer II)","n":5}],"byCode":[{"label":"900000","n":7},{"label":"900002","n":6},{"label":"10000040","n":5},{"label":"500000","n":4},{"label":"90000","n":2},{"label":"300002","n":2},{"label":"9000000","n":2},{"label":"10001","n":2}],"heat":{"cats":["Giải ngân & active khoản vay","Ví trả sau & trả góp","Đăng ký vay & eKYC","Thanh toán & gạch nợ","Lệch / treo trạng thái khoản vay","Tất toán & đóng khoản vay","Ký hợp đồng & OTP","Lỗi API đối tác & mã lỗi"],"partners":["Viettel","VDS / VPBank","MWG (TGDĐ)","Cake (kênh trực tiếp)","ZaloPay","VNPay","BE"],"rows":[[26,15,10,25,17,6,1],[1,10,13,0,0,10,9],[9,4,9,6,0,0,2],[12,4,4,4,4,5,2],[9,9,3,0,1,1,1],[4,2,1,3,5,1,0],[7,1,4,4,1,0,0],[5,5,2,1,1,0,0]]},"clusters":[{"label":"Check GL suspend Paylater","n":6,"months":3,"manual":0,"keys":["PL-9416","PL-9410","PL-9287","PL-9200","PL-9199","PL-8961"]},{"label":"ZLP CASHLOAN - CHỜ GIẢI NGÂN","n":5,"months":3,"manual":4,"keys":["PL-13128","PL-12577","PL-12566","PL-12093","PL-11977"]},{"label":"Hỗ trợ giải ngân khoản vay gãy luồng","n":4,"months":4,"manual":3,"keys":["PL-13815","PL-13153","PL-12410","PL-12149"]},{"label":"VIETTEL CASHLOAN - CẬP NHẬT TRẠNG THÁI GIẢI NGÂN","n":4,"months":4,"manual":4,"keys":["PL-13752","PL-13112","PL-12887","PL-12368"]},{"label":"Viettel Payday - Kiểm tra trạng thái khoản vay","n":4,"months":1,"manual":4,"keys":["PL-12785","PL-12775","PL-12755","PL-12754"]},{"label":"Lỗi giản ngân Cake Payday (Loan id 8486472)","n":4,"months":3,"manual":3,"keys":["PL-12686","PL-12062","PL-11320","PL-11315"]},{"label":"VT CASHLOAN - Đăng ký vay","n":4,"months":3,"manual":0,"keys":["PL-12470","PL-12433","PL-12206","PL-11647"]},{"label":"MWG PL - KÝ HĐ LỖI","n":4,"months":3,"manual":0,"keys":["PL-12440","PL-12417","PL-12183","PL-10054"]},{"label":"Check GD paylater","n":4,"months":2,"manual":0,"keys":["PL-9405","PL-9198","PL-9197","PL-9159"]},{"label":"KH tất toán khoản vay bị lỗi","n":3,"months":3,"manual":2,"keys":["PL-13976","PL-12335","PL-12220"]},{"label":"ZLPCL - UPDATE DISBURSE STATUS AND ACTIVE LOAN ACCOUNT","n":3,"months":3,"manual":3,"keys":["PL-13853","PL-13318","PL-12814"]},{"label":"Retry giải ngân không thành công","n":3,"months":3,"manual":3,"keys":["PL-13152","PL-12685","PL-11433"]},{"label":"Hỗ trợ gạch nợ khoản vay VNP_cashloan CAKECLVNP656692857 trên ICE CASHLOAN chưa ghi nhận và đang bị quá hạn ( case 1788579)","n":3,"months":1,"manual":3,"keys":["PL-12764","PL-12731","PL-12687"]},{"label":"VDS PAYLATER - Check trạng thái khoản vay","n":3,"months":3,"manual":1,"keys":["PL-12579","PL-11550","PL-9958"]},{"label":"Lỗi tất toán khoản vay ZLP CASHLOAN","n":3,"months":2,"manual":0,"keys":["PL-12430","PL-12429","PL-9137"]}],"oldestOpen":[{"key":"PL-14073","title":"[ICE][CL] - Patch list account over due (due date = 17/08/2026)","url":"https://cakedigitalbank.atlassian.net/browse/PL-14073","status":"Open","age":4,"cat":"Thanh toán & gạch nợ"}]}</script>
+<script>
+const D = JSON.parse(document.getElementById('data').textContent);
+const tip = document.getElementById('tip');
+const SEQ = ['--seq-1','--seq-2','--seq-3','--seq-4'];
+const INK = ['--ink-1','--ink-2','--ink-3','--ink-4'];
+const stepOf = (share) => Math.min(SEQ.length - 1, Math.floor(share * (SEQ.length - 0.01)));
+const CAT = ['--series-1','--series-2','--series-3','--series-4','--series-5'];
+const v = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const n1 = (x) => (Math.round(x * 10) / 10).toLocaleString('vi-VN');
+const n0 = (x) => Math.round(x).toLocaleString('vi-VN');
+
+function bindTip(el, html) {
+  el.addEventListener('mousemove', (e) => {
+    tip.innerHTML = html;
+    tip.style.opacity = '1';
+    const pad = 14;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    const r = tip.getBoundingClientRect();
+    if (x + r.width > innerWidth - 8) x = e.clientX - r.width - pad;
+    if (y + r.height > innerHeight - 8) y = e.clientY - r.height - pad;
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+  });
+  el.addEventListener('mouseleave', () => { tip.style.opacity = '0'; });
+}
+
+/** bar ngang, một hue sequential — đậm dần theo độ lớn */
+function bars(el, rows) {
+  const max = Math.max(...rows.map(r => r.n), 1);
+  el.innerHTML = '';
+  rows.forEach((r) => {
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    const share = r.n / max;
+    const step = SEQ[stepOf(share)];
+    row.innerHTML = '<div class="lb" title="' + r.label.replace(/"/g,'&quot;') + '">' + r.label + '</div>'
+      + '<div class="bar-track"><div class="bar-fill" style="width:' + Math.max(share * 100, 1.5) + '%;background:var(' + step + ')"></div></div>'
+      + '<div class="vl">' + (r.display !== undefined ? r.display : n0(r.n)) + '</div>';
+    bindTip(row, '<b>' + r.label + '</b><br>' + (r.tip || (n0(r.n) + ' ticket')));
+    el.appendChild(row);
+  });
+}
+
+// ── 1. KPI
+document.getElementById('meta').textContent =
+  'Sinh lúc ' + new Date(D.generatedAt).toLocaleString('vi-VN') + ' · ' + n0(D.kpi.total)
+  + ' ticket · dữ liệu từ ' + D.kpi.from + ' đến ' + D.kpi.to;
+const kpis = [
+  { v: n0(D.kpi.total), l: 'ticket support', h: D.kpi.from + ' → ' + D.kpi.to },
+  { v: n1(D.kpi.perMonth), l: 'ticket / tháng (trung bình)', h: 'trên ' + D.byMonth.length + ' tháng có dữ liệu' },
+  { v: n0(D.kpi.manualPct) + '%', l: 'ticket phải tác động tay', h: 'active, gạch nợ, patch, update status…' },
+  { v: n1(D.kpi.medianDays) + ' ngày', l: 'trung vị thời gian xử lý (ước lượng)', h: 'P90 ' + n1(D.kpi.p90Days) + ' ngày (created → updated)' },
+  { v: n0(D.kpi.open), l: 'ticket đang mở', h: D.kpi.openOld + ' ticket mở quá 30 ngày' },
+  { v: n0(D.kpi.invalidPct) + '%', l: 'đóng ở trạng thái Invalid', h: 'phần lớn là "hỗ trợ xong, không phải bug"' },
+];
+document.getElementById('kpis').innerHTML = kpis.map(k =>
+  '<div class="kpi"><div class="v">' + k.v + '</div><div class="l">' + k.l + '</div><div class="h">' + k.h + '</div></div>').join('');
+document.getElementById('svkNote').textContent =
+  'Hệ thống đang lưu ' + n0(D.kpi.svkCount) + ' ticket SVK (yêu cầu từ OPS/đối tác), trong đó '
+  + n0(D.kpi.svkWithPl) + ' ticket có link sang PL. Phần chưa có link PL là yêu cầu được xử lý trực tiếp mà không mở ticket dev.';
+
+// ── 2. nhóm lỗi
+bars(document.getElementById('catBars'), D.categories.map(c => ({
+  label: c.label, n: c.n,
+  tip: n0(c.n) + ' ticket · ' + n1(c.pct) + '% tổng<br>' + n0(c.manual) + ' ticket tác động tay · ' + n0(c.open) + ' đang mở<br>trung vị ' + n1(c.medianDays) + ' ngày',
+})));
+document.getElementById('catTable').innerHTML =
+  '<thead><tr><th>Nhóm lỗi</th><th class="num">Ticket</th><th class="num">%</th><th class="num">Tác động tay</th><th class="num">Đang mở</th><th class="num">Trung vị (ngày)</th><th class="num">Comment/ticket</th></tr></thead><tbody>'
+  + D.categories.map(c => '<tr><td>' + c.label + '</td><td class="num">' + n0(c.n) + '</td><td class="num">' + n1(c.pct)
+    + '%</td><td class="num">' + n0(c.manual) + '</td><td class="num">' + n0(c.open) + '</td><td class="num">' + n1(c.medianDays)
+    + '</td><td class="num">' + n1(c.avgComments) + '</td></tr>').join('') + '</tbody>';
+
+// ── 3. xu hướng (stacked column, SVG)
+(function trend() {
+  const months = D.trend.months, series = D.trend.series, vals = D.trend.values;
+  const W = 1000, H = 300, ml = 34, mr = 8, mt = 12, mb = 42;
+  const totals = vals.map(r => r.reduce((a, b) => a + b, 0));
+  const max = Math.max(...totals, 1);
+  const iw = W - ml - mr, ih = H - mt - mb;
+  const bw = Math.min(46, (iw / months.length) * 0.68);
+  const step = iw / months.length;
+  const y = (val) => mt + ih - (val / max) * ih;
+  let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '" role="img" aria-label="Số ticket theo tháng">';
+  const ticks = 4;
+  for (let i = 0; i <= ticks; i++) {
+    const val = (max / ticks) * i, yy = y(val);
+    svg += '<line x1="' + ml + '" x2="' + (W - mr) + '" y1="' + yy + '" y2="' + yy + '" stroke="' + v('--grid') + '" stroke-width="1"/>';
+    svg += '<text x="' + (ml - 7) + '" y="' + (yy + 4) + '" text-anchor="end" font-size="11" fill="' + v('--text-muted') + '">' + Math.round(val) + '</text>';
+  }
+  months.forEach((m, i) => {
+    const x = ml + step * i + (step - bw) / 2;
+    let acc = 0;
+    vals[i].forEach((val, si) => {
+      if (!val) return;
+      const y0 = y(acc + val), y1 = y(acc);
+      const h = Math.max(y1 - y0 - 2, 1);
+      const first = acc + val >= totals[i] - 0.001;
+      svg += '<rect class="seg" data-m="' + i + '" data-s="' + si + '" x="' + x + '" y="' + y0 + '" width="' + bw + '" height="' + h
+        + '" rx="' + (first ? 4 : 0) + '" fill="var(' + CAT[si % CAT.length] + ')"/>';
+      acc += val;
+    });
+    svg += '<text x="' + (x + bw / 2) + '" y="' + (y(totals[i]) - 6) + '" text-anchor="middle" font-size="11" fill="' + v('--text-secondary') + '">' + (totals[i] || '') + '</text>';
+    svg += '<text x="' + (x + bw / 2) + '" y="' + (H - 22) + '" text-anchor="middle" font-size="10.5" fill="' + v('--text-muted')
+      + '" transform="rotate(-40 ' + (x + bw / 2) + ' ' + (H - 22) + ')">' + m + '</text>';
+  });
+  svg += '</svg>';
+  document.getElementById('trendChart').innerHTML = svg;
+  document.getElementById('trendLegend').innerHTML = series.map((s, i) =>
+    '<span><i style="background:var(' + CAT[i % CAT.length] + ')"></i>' + s + '</span>').join('');
+  document.querySelectorAll('#trendChart .seg').forEach(seg => {
+    const i = +seg.dataset.m, si = +seg.dataset.s;
+    bindTip(seg, '<b>' + months[i] + '</b><br>' + series[si] + ': ' + vals[i][si] + ' ticket<br>tổng tháng: ' + totals[i]);
+  });
+})();
+
+// ── 4. đối tác / sản phẩm
+bars(document.getElementById('partnerBars'), D.byPartner);
+bars(document.getElementById('productBars'), D.byProduct);
+
+// ── 5. heatmap
+(function heat() {
+  const { cats, partners, rows } = D.heat;
+  const max = Math.max(...rows.flat(), 1);
+  let h = '<thead><tr><th></th>' + partners.map(p => '<th>' + p + '</th>').join('') + '</tr></thead><tbody>';
+  rows.forEach((r, ri) => {
+    h += '<tr><th class="rowh">' + cats[ri] + '</th>' + r.map((c, ci) => {
+      const share = c / max;
+      const si = c === 0 ? null : stepOf(share);
+      const bg = si === null ? 'var(--surface-2)' : 'var(' + SEQ[si] + ')';
+      const fg = si === null ? 'var(--text-muted)' : 'var(' + INK[si] + ')';
+      return '<td><div class="cell" data-r="' + ri + '" data-c="' + ci + '" style="background:' + bg + ';color:' + fg + '">' + (c || '·') + '</div></td>';
+    }).join('') + '</tr>';
+  });
+  document.getElementById('heat').innerHTML = h + '</tbody>';
+  document.querySelectorAll('#heat .cell').forEach(cell => {
+    const ri = +cell.dataset.r, ci = +cell.dataset.c;
+    bindTip(cell, '<b>' + cats[ri] + '</b><br>' + partners[ci] + ': ' + rows[ri][ci] + ' ticket');
+  });
+})();
+
+// ── 6. cluster
+document.getElementById('clusters').innerHTML =
+  '<thead><tr><th>Nhóm ticket lặp lại</th><th class="num">Lần</th><th class="num">Số tháng</th><th class="num">Tác động tay</th><th>Ticket ví dụ</th></tr></thead><tbody>'
+  + D.clusters.map(c => '<tr><td>' + c.label + '</td><td class="num">' + c.n + '</td><td class="num">' + c.months
+    + '</td><td class="num">' + c.manual + '</td><td>' + c.keys.join(', ') + '</td></tr>').join('') + '</tbody>';
+
+// ── 7. mã lỗi
+bars(document.getElementById('codeBars'), D.byCode.map(c => ({ label: 'Mã ' + c.label, n: c.n })));
+
+// ── 8. thời gian xử lý & trạng thái
+bars(document.getElementById('daysBars'), [...D.categories].filter(c => c.n >= 5)
+  .sort((a, b) => b.medianDays - a.medianDays)
+  .map(c => ({ label: c.label, n: c.medianDays, display: n1(c.medianDays), tip: 'trung vị ' + n1(c.medianDays) + ' ngày trên ' + c.n + ' ticket' })));
+bars(document.getElementById('statusBars'), D.byStatus);
+document.getElementById('invalidNote').textContent =
+  n0(D.kpi.noComment) + '% ticket không có comment nào — phần lớn là ticket được xử lý qua chat rồi đóng, nên lịch sử xử lý không nằm trong Jira.';
+document.getElementById('oldest').innerHTML =
+  '<thead><tr><th>Ticket</th><th>Nhóm lỗi</th><th>Trạng thái</th><th class="num">Tuổi (ngày)</th></tr></thead><tbody>'
+  + D.oldestOpen.map(t => '<tr><td><a href="' + t.url + '" target="_blank" rel="noreferrer">' + t.key + '</a> — ' + t.title
+    + '</td><td>' + t.cat + '</td><td>' + t.status + '</td><td class="num">' + t.age + '</td></tr>').join('') + '</tbody>';
+
+// ── 9. assignee
+bars(document.getElementById('assigneeBars'), D.byAssignee);
+
+// ── 10. chi tiết nhóm lỗi
+document.getElementById('catDetails').innerHTML = D.categories.map(c =>
+  '<div class="card"><h3>' + c.label + ' <span class="pill">' + n0(c.n) + ' ticket · ' + n1(c.pct) + '%</span> '
+  + (c.manual ? '<span class="pill manual">' + n0(c.manual) + ' tác động tay</span> ' : '')
+  + (c.open ? '<span class="pill open">' + n0(c.open) + ' đang mở</span>' : '') + '</h3>'
+  + '<p class="note">' + c.desc + '</p>'
+  + '<details><summary>Ticket ví dụ</summary><ul class="tight">'
+  + c.examples.map(e => '<li><a href="' + e.url + '" target="_blank" rel="noreferrer">' + e.key + '</a> — ' + e.title + ' <span class="pill">' + e.status + '</span></li>').join('')
+  + '</ul></details></div>').join('');
+
+// ── 11. nhận định tự sinh
+(function insights() {
+  const top = D.categories[0], top3 = D.categories.slice(0, 3);
+  const share3 = top3.reduce((a, c) => a + c.pct, 0);
+  const manualCats = [...D.categories].filter(c => c.n >= 5).sort((a, b) => (b.manual / b.n) - (a.manual / a.n))[0];
+  const repeat = D.clusters.reduce((a, c) => a + c.n, 0);
+  const repeatManual = D.clusters.reduce((a, c) => a + c.manual, 0);
+  const topP = D.byPartner.filter(p => p.label !== 'Không xác định');
+  const topAssignee = D.byAssignee.filter(a => a.label !== '(chưa gán)' && a.label !== 'Jira Bot')[0];
+  const items = [
+    '<b>' + top.label + '</b> là việc chiếm nhiều thời gian nhất: ' + n0(top.n) + ' ticket ('
+      + n1(top.pct) + '% tổng), trong đó ' + n0(top.manual) + ' ticket phải tác động dữ liệu bằng tay. '
+      + 'Ba nhóm lớn nhất đã chiếm ' + n1(share3) + '% khối lượng — muốn giảm tải thì phải giảm đúng ba nhóm này.',
+    '<b>' + n0(D.kpi.manualPct) + '% ticket là vận hành, không phải fix bug</b> (active khoản vay, gạch nợ, update trạng thái, patch dữ liệu). '
+      + 'Nhóm nặng nhất theo tỉ lệ là "' + manualCats.label + '" (' + n0(manualCats.manual) + '/' + n0(manualCats.n) + ' ticket).',
+    '<b>' + n0(repeat) + ' ticket nằm trong ' + D.clusters.length + ' nhóm lặp lại</b> (' + n0(repeatManual)
+      + ' trong đó là tác động tay). Đây là danh sách ứng viên tự động hoá rõ nhất: mỗi nhóm nên thành một job/tool self-service cho OPS thay vì một ticket mới mỗi lần.',
+    '<b>Điểm nóng đối tác:</b> ' + topP.slice(0, 3).map(p => p.label + ' (' + p.n + ')').join(', ')
+      + ' — riêng ba đối tác này đã chiếm phần lớn ticket; luồng giải ngân và đồng bộ trạng thái với họ là nơi nên đầu tư trước.',
+    '<b>Rủi ro tập trung người:</b> ' + topAssignee.label + ' đứng tên ' + topAssignee.n + ' ticket ('
+      + n1((topAssignee.n / D.kpi.total) * 100) + '% tổng). Nếu người này nghỉ, phần lớn tri thức xử lý support đi theo.',
+    '<b>Chất lượng dữ liệu Jira:</b> ' + n0(D.kpi.invalidPct) + '% ticket đóng ở "Invalid" và ' + n0(D.kpi.noComment)
+      + '% không có comment nào — nghĩa là cách xử lý phần lớn ticket không được ghi lại. Bắt buộc ghi nguyên nhân + cách xử lý khi đóng ticket sẽ làm report lần sau nói được cả "vì sao lỗi", chứ không chỉ "lỗi gì".',
+  ];
+  document.getElementById('insights').innerHTML = items.map(i => '<li>' + i + '</li>').join('');
+})();
+
+// ── theme toggle: vẽ lại SVG để lấy màu mới
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark'
+    || (!document.documentElement.getAttribute('data-theme') && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+  location.hash = dark ? '#light' : '#dark';
+  location.reload();
+});
+</script>
+</body>
+</html>

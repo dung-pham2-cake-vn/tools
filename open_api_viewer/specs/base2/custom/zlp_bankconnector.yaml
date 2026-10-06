@@ -1,0 +1,331 @@
+# ─────────────────────────────────────────────────────────────
+# FRAGMENT — ZaloPay bankconnector (giải ngân/top-up ví ZLP)
+#
+# Dùng cho: zlp_cashloan, zlp_payday
+# Ghi đè:   /partner-disburse-request, /partner-disburse-status
+#
+# ZLP đã cố định hợp đồng theo chuẩn bankconnector của họ
+# (`Zalopay-IB_Mobile_Banking_Integration` v1.5): field `fnc`, `partnerId`,
+# `bankTransId`, `data` dạng string-json; ký bằng field `signature` trong body,
+# header chỉ `Content-Type`. KHÔNG đồng bộ 2 endpoint này về base.
+# ─────────────────────────────────────────────────────────────
+x-fragment:
+  name: zlp_bankconnector
+  applies-to: [ zlp_cashloan, zlp_payday ]
+  overrides-paths:
+    - /partner-disburse-request
+    - /partner-disburse-status
+
+x-error-tables:
+  bankconnector: |
+    ### Error code table — bankconnector ZLP (`resultCode` / `returnCode`)
+    Theo `Zalopay-IB_Mobile_Banking_Integration` v1.5 §2.2.6.
+
+    | Code | Status | Description |
+    |------|--------|-------------|
+    | `00` | SUCCESS | SUCCESS |
+    | `01` | PENDING | Duplicate transaction (bankTransId đã tồn tại). Giao dịch pending, chờ đối soát với ZaloPay |
+    | `02` | FAILED | Couldn't decrypt the encrypted data |
+    | `03` | FAILED | Invalid IP |
+    | `04` | FAILED | E-wallet account does not exist |
+    | `05` | FAILED | Account number is in the wrong format |
+    | `06` | FAILED | Phone number is in the wrong format |
+    | `07` | FAILED | Fullname is in the wrong format |
+    | `08` | FAILED | Account / phone number is linked with e-wallet |
+    | `09` | FAILED | No client defined yet |
+    | `10` | FAILED | Account/phone number đã liên kết nhưng chưa đủ điều kiện thực hiện giao dịch. KH cần vào app ZaloPay nâng cấp tài khoản |
+    | `11` | FAILED | Exceeded the wallet's top-up limit |
+    | `12` | FAILED | Transaction not found |
+    | `97` | FAILED | Parameter is incorrect |
+    | `98` | PENDING | Có lỗi khi xử lý. Giao dịch pending, chờ đối soát với ZaloPay |
+    | `99` | FAILED | Incorrect signature |
+    | `100` | PENDING | System error. Giao dịch pending, chờ đối soát với ZaloPay |
+
+    > **`resultCode` = `00` → ĐÃ giải ngân** vào ví ZaloPay của KH.
+    > **Mọi mã còn lại → CHƯA giải ngân.**
+
+components:
+  schemas:
+    PartnerDisburseRequest:
+      type: object
+      required:
+        - fnc
+        - partnerId
+        - bankTransId
+        - requestTime
+        - signature
+        - data
+      properties:
+        fnc:
+          type: string
+          maxLength: 30
+          description: "Tên hàm — truyền `BankCashIn`. Bộ hàm bankconnector: Register, Unregister,
+            CheckAccount, BankCashIn, QueryStatus"
+          example: "BankCashIn"
+        partnerId:
+          type: string
+          maxLength: 30
+          description: "{partnerId} = ZPCAKE — định danh do ZaloPay cấp cho Cake"
+          example: "ZPCAKE"
+        bankTransId:
+          type: string
+          maxLength: 50
+          description: UUID Cake tạo mới mỗi request
+          example: "6f2d1b3a-9c44-4c8e-b1f7-0a2d9c5e7b31"
+        requestTime:
+          type: string
+          maxLength: 19
+          description: Thời gian gọi API. Format `yyyy-MM-dd HH:mm:ss`
+          example: "2026-09-04 10:15:00"
+        signature:
+          type: string
+          description: |
+            Digital signature (DS): `signedData = fnc + partnerId + bankTransId + requestTime + data`,
+            DS của Cake, mã hoá RSA 2048 bằng private key của Cake.
+        data:
+          type: string
+          description: |
+            Chi tiết giao dịch — **string json** (không phải object) theo cấu trúc:
+            ```json
+            {
+              "phoneNumber": "0xxxxxxxxx",
+              "amount": "12840000",
+              "extraInfo": {
+                "businessLine": "CASHLOAN",
+                "productLine": "ZLPCL01",
+                "contractNumber": "u8123123Sjsdb"
+              }
+            }
+            ```
+            - `phoneNumber` (String, max 15, **M**): Số điện thoại KH
+            - `accountNumber` (String, max 20, O): **không cần truyền**
+            - `amount` (String, max 15, **M**): Số tiền deposit, dạng number, bội số 10.000 VNĐ
+              và ≥ hạn mức tối thiểu theo hợp đồng
+            - `extraInfo` (String json, **M**): map key-value, gồm
+              - `extraInfo.businessLine` (O) = `CASHLOAN` — **truyền `CASHLOAN` cho cả 2 sản phẩm**
+                (cashloan và payday)
+              - `extraInfo.productLine` (O) = `ZLPCL01`
+              - `extraInfo.contractNumber` (O) = loan code của Cake
+          example: '{"phoneNumber":"0xxxxxxxxx","amount":"12840000","extraInfo":{"businessLine":"CASHLOAN","productLine":"ZLPCL01","contractNumber":"u8123123Sjsdb"}}'
+
+    PartnerDisburseResponse:
+      type: object
+      required:
+        - resultCode
+        - message
+        - responseTime
+        - signature
+        - data
+      properties:
+        resultCode:
+          type: string
+          maxLength: 10
+          description: |
+            Transaction result code — xem bảng error code bankconnector.
+            **`00` = ĐÃ giải ngân; mọi mã khác = CHƯA giải ngân.**
+          example: "00"
+        message:
+          type: string
+          maxLength: 100
+          description: Chi tiết của resultCode
+          example: "SUCCESS"
+        responseTime:
+          type: string
+          maxLength: 19
+          description: Thời gian giao dịch. Format `yyyy-MM-dd HH:mm:ss`
+          example: "2026-09-04 10:15:02"
+        signature:
+          type: string
+          description: |
+            Digital signature (DS): `signedData = resultCode + message + responseTime + data`,
+            DS của ZaloPay, mã hoá RSA 2048 bằng private key của ZaloPay.
+        data:
+          type: string
+          description: |
+            **string json** gồm:
+            - `transId` (String, max 30, **M**): Transaction ID do ZaloPay sinh
+            - `bankTransId` (String, max 30, **M**): Transaction ID do Cake sinh (lấy từ request)
+            - `extraInfo` (String json, O): thông tin bổ sung dạng map key-value
+          example: '{"transId":"250903000123","bankTransId":"6f2d1b3a-9c44-4c8e-b1f7-0a2d9c5e7b31","extraInfo":""}'
+
+    PartnerDisburseStatusRequest:
+      type: object
+      required:
+        - fnc
+        - partnerId
+        - bankTransId
+        - requestTime
+        - signature
+        - data
+      properties:
+        fnc:
+          type: string
+          maxLength: 30
+          description: Loại giao dịch — truyền `QueryStatus`
+          example: "QueryStatus"
+        partnerId:
+          type: string
+          maxLength: 30
+          description: "{partnerId} = ZPCAKE"
+          example: "ZPCAKE"
+        bankTransId:
+          type: string
+          maxLength: 50
+          description: UUID Cake tạo mới mỗi request
+          example: "c81e5a90-4b7d-4f21-9e33-1a6c0b2d8f47"
+        requestTime:
+          type: string
+          maxLength: 19
+          description: Thời gian gọi API. Format `yyyy-MM-dd HH:mm:ss`
+          example: "2026-07-21 15:23:59"
+        signature:
+          type: string
+          description: |
+            Digital signature (DS): `signedData = resultCode + message + responseTime + data`,
+            mã hoá RSA 2048 bằng private key.
+          example: "UpFK24EJUTZTNHZuPy+Sfe6dRmfujrhL3Dl...HBXsM3cA=="
+        data:
+          type: string
+          description: |
+            `QueryStatusRequest` — **string json escape** (nested/stringified), không phải object.
+            Parse chuỗi này mới ra 4 field bên dưới:
+            ```json
+            {
+              "phoneNumber": "0xxxxxxxxx",
+              "amount": "100000",
+              "orgBankTransId": "7d24613b-88f9-4c2d-af55-23fc8b837051",
+              "extraInfo": ""
+            }
+            ```
+            - `phoneNumber` (String, max 15, **M**): Số điện thoại KH
+            - `amount` (String, max 15, O): Số tiền deposit, dạng number, bội số 10.000 VNĐ
+              và ≥ hạn mức tối thiểu theo hợp đồng
+            - `orgBankTransId` (String, **M**): `bankTransId` gốc của API top-up
+            - `extraInfo` (String json, **M**): thông tin bổ sung dạng map key-value.
+              Log mẫu truyền chuỗi rỗng `""`.
+          example: '{"phoneNumber":"0xxxxxxxxx","amount":"100000","orgBankTransId":"7d24613b-88f9-4c2d-af55-23fc8b837051","extraInfo":""}'
+
+    PartnerDisburseStatusResponse:
+      type: object
+      required:
+        - resultCode
+        - message
+        - responseTime
+        - signature
+        - data
+      description: |
+        Envelope giống API top-up (`resultCode` / `message` / `responseTime` / `signature` / `data`).
+        5 field `QueryStatusResponse` mà bản spec ZLP §2.2.5 liệt kê nằm **trong** `data` —
+        đúng ghi chú *"The original transaction result will be returned to the data field"*.
+      properties:
+        resultCode:
+          type: string
+          maxLength: 10
+          description: Kết quả của **chính lời gọi truy vấn** (theo bảng error code của ZLP)
+          example: "1"
+        message:
+          type: string
+          maxLength: 100
+          description: Chi tiết của resultCode
+          example: "Success"
+        responseTime:
+          type: string
+          maxLength: 19
+          description: Thời gian phản hồi. Format `yyyy-MM-dd HH:mm:ss`
+          example: "2026-07-21 15:24:01"
+        signature:
+          type: string
+          description: |
+            Digital signature (DS): `signedData = resultCode + message + responseTime + data`,
+            mã hoá RSA 2048 bằng private key của ZaloPay.
+        data:
+          type: string
+          description: |
+            `QueryStatusResponse` — **string json**, mang kết quả của **giao dịch top-up gốc**:
+            - `returnCode` (String, max 10, **M**): **Origin transaction result code** — mã kết quả
+              của giao dịch top-up gốc, theo bảng error code bankconnector (`00` = SUCCESS).
+              Khác `resultCode` ở envelope.
+            - `message` (String, max 100, **M**): Chi tiết của returnCode
+            - `transId` (String, max 30, **M**): Transaction ID do ZaloPay sinh
+            - `orgBankTransId` (String, max 30, **M**): `bankTransId` gốc của API top-up
+            - `extraInfo` (String json, O): thông tin bổ sung dạng map key-value
+          example: '{"returnCode":"1","message":"Success","transId":"250903000123","orgBankTransId":"7d24613b-88f9-4c2d-af55-23fc8b837051","extraInfo":""}'
+
+paths:
+  /partner-disburse-request:
+    post:
+      tags: [ Partner Callbacks ]
+      summary: "Cake yêu cầu ZLP top-up vào ví ewallet của KH"
+      description: |
+        **Chiều: Cake → ZLP** (bản spec ZLP gọi API này là `top-up` / `transfer-fund`)
+
+        Path ZaloPay bankconnector, phân biệt hàm bằng `fnc = BankCashIn`:
+        - Non-prod: `POST https://sbzpbankconnector.zalopay.vn/banks/v1/zpcake`
+        - Prod: `POST https://bankconnector.zalopay.vn/banks/v1/zpcake`
+
+        Sau khi KH ký hợp đồng thành công, Cake gọi API do ZLP cung cấp để yêu cầu ZLP
+        deposit tiền vào ví ZLP ewallet của KH. Sau khi deposit xong ZLP gọi lại
+        /disburse-update để Cake disburse vào TTĐB của ZLP tại Cake.
+
+        **Header:** chỉ `Content-Type`. Ký bằng field `signature` trong body.
+
+        **Response:** `resultCode` = `00` → **đã giải ngân**; mọi mã khác → **chưa giải ngân**.
+      operationId: partnerDisburseRequest
+      servers:
+        - url: https://bankconnector.zalopay.vn/banks/v1/zpcake
+          description: Production
+        - url: https://sbzpbankconnector.zalopay.vn/banks/v1/zpcake
+          description: Non-prod
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerDisburseRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerDisburseResponse"
+
+  /partner-disburse-status:
+    post:
+      tags: [ Partner Callbacks ]
+      summary: "QueryStatus — Cake truy vấn trạng thái giao dịch top-up"
+      description: |
+        **Chiều: Cake → ZLP** (bản spec ZLP §2.2.5 gọi API này là `QueryStatus`)
+
+        Path ZaloPay bankconnector, phân biệt hàm bằng `fnc`:
+        - Non-prod: `POST https://sbzpbankconnector.zalopay.vn/banks/v1/zpcake`
+        - Prod: `POST https://bankconnector.zalopay.vn/banks/v1/zpcake`
+
+        **Header:** chỉ `Content-Type`. Ký bằng field `signature` trong body.
+
+        **Hợp đồng field theo chuẩn bankconnector của ZLP** (`fnc`, `partnerId`, `bankTransId`,
+        `data` string-json) — không theo chuẩn `partner-disburse-status` của Cake
+        (`success`/`code`/`message` + `data.partner_disburse_status`).
+      operationId: partnerDisburseStatus
+      servers:
+        - url: https://bankconnector.zalopay.vn/banks/v1/zpcake
+          description: Production
+        - url: https://sbzpbankconnector.zalopay.vn/banks/v1/zpcake
+          description: Non-prod
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerDisburseStatusRequest"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartnerDisburseStatusResponse"

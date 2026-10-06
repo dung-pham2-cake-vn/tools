@@ -1,0 +1,84 @@
+# ─────────────────────────────────────────────────────────────
+# FRAGMENT — Viettel legacy loan_id → loan_code
+#
+# Dùng cho: pd_viettel
+# Thêm:     /get-loan-code-from-loan-id  (tag `Legacy Support`)
+#
+# Sản phẩm Viettel chuyển từ DOP (định danh `loan_id`) sang Native
+# (định danh `loan_code`). Endpoint này chỉ để hỗ trợ khoản vay cũ.
+# ─────────────────────────────────────────────────────────────
+x-fragment:
+  name: viettel_legacy_loan_id
+  applies-to: [ pd_viettel ]
+  adds-paths:
+    - /get-loan-code-from-loan-id
+  adds-tags:
+    - name: Legacy Support
+      description: Endpoint bắc cầu cho khoản vay tạo từ mô hình DOP cũ.
+
+components:
+  schemas:
+    # ── Legacy Support ──
+    GetLoanCodeFromLoanIdRequest:
+      type: object
+      required:
+        - loan_id
+        - phone_number
+      properties:
+        loan_id:
+          type: string
+          description: Mã khoản vay theo hệ thống cũ (DOP), dùng làm loan_id trong API LoanRepayment trước đây
+          example: "27614531"
+        phone_number:
+          type: string
+          description: Số điện thoại KH (bắt đầu bằng số 0)
+          example: "0xxxxxxxxx"
+
+    GetLoanCodeFromLoanIdResponse:
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                loan_code:
+                  type: string
+                  description: Mã khoản vay theo hệ thống mới (Native), dùng cho get-loan-detail, repayment-request...
+                  example: "u8123123Sjsdb"
+
+paths:
+  # ════════════════════════════════════
+  # LEGACY SUPPORT
+  # ════════════════════════════════════
+  /get-loan-code-from-loan-id:
+    post:
+      tags: [Legacy Support]
+      summary: Tra cứu loan_code từ loan_id hệ thống cũ
+      description: |
+        Trước đây (mô hình DOP) các khoản vay được định danh bằng `loan_id`
+        (xem API `LoanRepayment` cũ). Sản phẩm chuyển sang mô hình Native dùng `loan_code`.
+
+        API này hỗ trợ các khoản vay cũ: truyền `loan_id` để lấy `loan_code` tương ứng,
+        dùng cho các API Native khác (get-loan-detail, repayment-request...).
+      operationId: getLoanCodeFromLoanId
+      parameters:
+        - $ref: "#/components/parameters/ContentTypeHeader"
+        - $ref: "#/components/parameters/PartnerHeader"
+        - $ref: "#/components/parameters/SignatureHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GetLoanCodeFromLoanIdRequest"
+            example:
+              loan_id: "27614531"
+              phone_number: "0996908143"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetLoanCodeFromLoanIdResponse"

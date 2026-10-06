@@ -1,0 +1,713 @@
+import crypto from 'crypto';
+import { jiraService } from './JiraService';
+import { SvkTicket, ISvkTicket, ISvkComment, IAttachment } from '../models/SvkTicket';
+import { SvkHistory } from '../models/SvkHistory';
+import { SupportTicket } from '../models/SupportTicket';
+import { analyzeWithCustomPrompt, testAIConfig, PromptImage } from './AIService';
+import { SVK_REVIEW_PROMPT } from './svkReviewPrompt';
+import { needsSvkChat, runSvkChat } from './SvkChatService';
+
+const SVK_JQL = `project = SVK AND "Request Type" IN ("Lending Onboarding DOP","Lending Onboarding API","Lending Onboarding Appcake","Lending Disburse","Lending Payment Installment","Lending Repayment","Lending Get Detail","Lending Termination","Lending Core","Lending Portal Support","Lending Risk Support","Lending Others") AND status NOT IN (Done,Cancelled,Ready4Test,"Waiting for customer") ORDER BY created DESC`;
+
+const PL_BROAD_JQL = `project in (PL,PLO,DOP) AND created >= -30d AND issueLinkType = "causes" AND status NOT IN (Invalid,"Test Passed")`;
+
+const SVK_FIELDS = ['summary', 'status', 'priority', 'created', 'updated', 'description', 'issuelinks', 'comment', 'attachment'];
+const PL_FIELDS = ['summary', 'status', 'comment', 'description', 'assignee', 'issuelinks', 'customfield_10020', 'created', 'attachment'];
+
+const SVK_PORTAL_BASE = 'https://internal.support.cake.vn/servicedesk/customer/portal/1';
+
+function adfToText(node: any): string {
+  if (!node) return '';
+  if (typeof node === 'string') return node;
+  const out: string[] = [];
+  const walk = (n: any) => {
+    if (!n) return;
+    if (Array.isArray(n)) return n.forEach(walk);
+    if (n.type === 'text' && typeof n.text === 'string') out.push(n.text);
+    // image-only comments would otherwise read as empty — keep the evidence signal for the AI
+    if (n.type === 'media' || n.type === 'mediaInline') {
+      out.push(`[đính kèm: ${n.attrs?.alt || n.attrs?.fileName || n.attrs?.id || 'file'}]`);
+    }
+    if (n.type === 'inlineCard' || n.type === 'blockCard') out.push(`[link: ${n.attrs?.url || ''}]`);
+    if (n.type === 'hardBreak' || n.type === 'paragraph') out.push('\n');
+    if (Array.isArray(n.content)) n.content.forEach(walk);
+  };
+  walk(node);
+  return out.join('').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/** Run tasks with bounded concurrency so a 50-ticket scan doesn't open 50 sockets at once. */
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (;;) {
+      const i = cursor++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+async function fetchAllPages(jql: string, fields: string[]): Promise<any[]> {
+  const all: any[] = [];
+  let nextPageToken: string | undefined;
+  for (;;) {
+    const res = await jiraService.searchIssuesWithOptions(jql, { maxResults: 100, fields, nextPageToken });
+    const page = res.issues || [];
+    all.push(...page);
+    if (!page.length || res.isLast || !res.nextPageToken) break;
+    nextPageToken = res.nextPageToken;
+  }
+  return all;
+}
+
+async function loadComments(issueKey: string): Promise<ISvkComment[]> {
+  const raw = await jiraService.getAllIssueComments(issueKey);
+  return raw.map((c: any) => ({
+    id: c.id,
+    author: c.author?.displayName || '',
+    body: adfToText(c.body),
+    bodyAdf: c.body ?? null,
+    created: c.created || '',
+    updated: c.updated || '',
+  }));
+}
+
+function plSprintName(fields: any): string {
+  const sprints: any[] = fields?.customfield_10020 || [];
+  if (!sprints.length) return '';
+  const active = sprints.find((s: any) => s.state === 'active') || sprints[sprints.length - 1];
+  return active?.name || '';
+}
+
+function commentsFingerprint(comments: ISvkComment[]): string {
+  return comments.map((c) => `${c.id}:${c.updated || c.created}`).join('|');
+}
+
+/** Changes to description or any comment (SVK or linked PL) invalidate a cached AI result. */
+function buildAiInputHash(doc: {
+  description: string;
+  comments: ISvkComment[];
+  linkedPl: { key: string; description: string; comments: ISvkComment[] }[];
+}): string {
+  const parts = [
+    doc.description,
+    commentsFingerprint(doc.comments),
+    ...doc.linkedPl.map((pl) => `${pl.key}::${pl.description}::${commentsFingerprint(pl.comments)}`),
+  ];
+  return crypto.createHash('sha1').update(parts.join('##')).digest('hex');
+}
+
+/**
+ * Mirror a freshly loaded ticket into the history log: overwrite the snapshot,
+ * bump the load counter, keep the original first-load timestamp.
+ */
+async function recordHistory(snapshot: Record<string, any>, keepAi: { aiResult: string; aiError: string; aiRunAt?: Date } | null) {
+  const now = new Date();
+  await SvkHistory.updateOne(
+    { key: snapshot.key },
+    {
+      $set: { ...snapshot, ...(keepAi || { aiResult: '', aiError: '', aiRunAt: undefined }), lastLoadedAt: now },
+      $inc: { loadCount: 1 },
+      $setOnInsert: { firstLoadedAt: now },
+    },
+    { upsert: true }
+  );
+}
+
+/** Jira attachment -> metadata gọn để lưu DB; file tải qua proxy /api/support/attachment/:id. */
+function mapAttachments(raw: any): IAttachment[] {
+  return ((raw || []) as Array<Record<string, any>>).map((a) => ({
+    id: String(a.id || ''),
+    filename: String(a.filename || ''),
+    mimeType: String(a.mimeType || ''),
+    size: Number(a.size || 0),
+  }));
+}
+
+/** Công thức scan hiển thị trên UI — đọc thẳng từ hằng số đang chạy nên không lệch với code. */
+export const getScanRecipe = () => ({
+  svkJql: SVK_JQL,
+  plJql: PL_BROAD_JQL,
+  svkFields: SVK_FIELDS,
+  plFields: PL_FIELDS,
+  steps: [
+    'Lấy SVK ticket theo JQL trên (phân trang 100/lần).',
+    'Từ issuelinks của mỗi SVK, bắt key khớp PL-/PLO-/DOP- làm ticket PL liên quan.',
+    'Nạp PL theo JQL rộng (30 ngày, link "causes"); PL nào thiếu thì query bù theo issueKey.',
+    'Comment trong kết quả search bị Jira cắt ngắn -> tải lại full comment của từng SVK và PL.',
+    'Tính aiInputHash = SHA1(description + comment + từng PL) — hash đổi mới chạy lại AI.',
+    'Lưu SVK + PL + file đính kèm vào DB, đồng thời ghi snapshot sang collection lịch sử.',
+    'Xoá khỏi danh sách đang mở những ticket không còn khớp JQL (đã Done/Cancelled...).',
+    'Ticket có hash mới -> đẩy vào hàng đợi AI review, chạy tối đa 5 ticket song song.',
+  ],
+  urgencyRules: [
+    '🟢 Comment có dấu đã merge/deploy nhưng chưa có xác nhận verify.',
+    '🔴 Tuổi ticket >= 5 ngày làm việc, hoặc tiêu đề có gấp/urgent/ảnh hưởng nhiều/DPD tăng — trừ khi comment nói đã giảm ưu tiên.',
+    '🟡 Các trường hợp còn lại.',
+  ],
+});
+
+export interface ScanResult {
+  total: number;
+  pendingAi: number;
+  /** Tickets whose content changed (or are new) — the ones queued for a fresh AI review. */
+  changedKeys: string[];
+  /** false = the AI provider failed its probe, so no ticket was sent for review. */
+  aiAvailable: boolean;
+  aiUnavailableReason: string;
+}
+
+let scanInFlight: Promise<ScanResult> | null = null;
+
+/** Only one scan at a time — a concurrent caller joins the running scan instead of starting a second one. */
+export const scanSvkTickets = async (): Promise<ScanResult> => {
+  if (scanInFlight) return scanInFlight;
+  scanInFlight = runScan().finally(() => {
+    scanInFlight = null;
+  });
+  return scanInFlight;
+};
+
+export const isScanRunning = (): boolean => scanInFlight !== null;
+
+const runScan = async (): Promise<ScanResult> => {
+  const svkIssues = await fetchAllPages(SVK_JQL, SVK_FIELDS);
+
+  // map SVK -> linked PL keys
+  const svkPlMap = new Map<string, string[]>();
+  const allPlKeys = new Set<string>();
+  for (const svk of svkIssues) {
+    const linked = new Set<string>();
+    for (const link of svk.fields?.issuelinks || []) {
+      const issue = link.inwardIssue || link.outwardIssue;
+      if (issue?.key && /^(PL|PLO|DOP)-\d+$/.test(issue.key)) {
+        linked.add(issue.key);
+        allPlKeys.add(issue.key);
+      }
+    }
+    svkPlMap.set(svk.key, [...linked]);
+  }
+
+  // fetch linked PL issues: one broad query, then fill gaps by key
+  const plMap = new Map<string, any>();
+  if (allPlKeys.size) {
+    for (const pl of await fetchAllPages(PL_BROAD_JQL, PL_FIELDS)) plMap.set(pl.key, pl);
+
+    const missing = [...allPlKeys].filter((k) => !plMap.has(k));
+    for (let i = 0; i < missing.length; i += 50) {
+      const batch = missing.slice(i, i + 50);
+      for (const pl of await fetchAllPages(`issueKey in (${batch.join(',')})`, PL_FIELDS)) plMap.set(pl.key, pl);
+    }
+  }
+
+  // the `comment` search field is truncated by Jira — pull full comment threads per issue
+  const plKeysNeeded = [...allPlKeys].filter((k) => plMap.has(k));
+  const plCommentsMap = new Map<string, ISvkComment[]>();
+  await mapLimit(plKeysNeeded, 5, async (key) => {
+    plCommentsMap.set(key, await loadComments(key));
+  });
+
+  const jiraHost = process.env.JIRA_HOST || '';
+  const changedKeys: string[] = [];
+
+  // One cheap probe up front: if the provider is down or the key is dead, every ticket
+  // would fail the same way — skip the whole AI pass instead of burning N failing calls.
+  const probe = await testAIConfig();
+  aiUnavailableReason = probe.ok ? '' : probe.error || 'AI không khả dụng';
+  if (!probe.ok) {
+    console.warn(`[SVK AI] provider không khả dụng (${aiUnavailableReason}) — bỏ qua AI review cho lần scan này`);
+  }
+
+  await mapLimit(svkIssues, 5, async (svk) => {
+    const f = svk.fields || {};
+    const comments = await loadComments(svk.key);
+    const plKeys = svkPlMap.get(svk.key) || [];
+
+    const linkedPl = plKeys
+      .filter((k) => plMap.has(k))
+      .map((k) => {
+        const pf = plMap.get(k).fields || {};
+        return {
+          key: k,
+          summary: pf.summary || '',
+          status: pf.normalizedStatusName || pf.status?.name || '',
+          assignee: pf.normalizedAssigneeName || pf.assignee?.displayName || '',
+          sprint: plSprintName(pf),
+          created: pf.created || '',
+          description: adfToText(pf.description),
+          descriptionAdf: pf.description ?? null,
+          comments: plCommentsMap.get(k) || [],
+          attachments: mapAttachments(pf.attachment),
+        };
+      });
+
+    const description = adfToText(f.description);
+    const aiInputHash = buildAiInputHash({ description, comments, linkedPl });
+
+    const existing = await SvkTicket.findOne({ key: svk.key }).select('aiInputHash aiResult aiError aiRunAt').lean();
+    const needsAi = !existing || existing.aiInputHash !== aiInputHash || !existing.aiResult;
+    if (needsAi) changedKeys.push(svk.key);
+
+    await SvkTicket.findOneAndUpdate(
+      { key: svk.key },
+      {
+        jiraId: svk.id,
+        key: svk.key,
+        summary: f.summary || '',
+        status: f.normalizedStatusName || f.status?.name || '',
+        priority: f.normalizedPriorityName || f.priority?.name || '',
+        created: f.created || '',
+        updated: f.updated || '',
+        hyperlink: `${SVK_PORTAL_BASE}/${svk.key}`,
+        description,
+        descriptionAdf: f.description ?? null,
+        comments,
+        attachments: mapAttachments(f.attachment),
+        linkedPlKeys: plKeys,
+        linkedPl,
+        aiInputHash,
+        lastScanAt: new Date(),
+        // stale AI output is cleared so the UI never shows a result for outdated content
+        ...(needsAi ? { aiResult: '', aiError: probe.ok ? '' : aiUnavailableReason } : {}),
+      },
+      { upsert: true, new: true }
+    );
+
+    // history keeps this snapshot even after the ticket leaves the JQL; a still-valid
+    // AI result is carried over, a stale one is cleared like on the live ticket
+    await recordHistory(
+      {
+        jiraId: svk.id,
+        key: svk.key,
+        summary: f.summary || '',
+        status: f.normalizedStatusName || f.status?.name || '',
+        priority: f.normalizedPriorityName || f.priority?.name || '',
+        created: f.created || '',
+        updated: f.updated || '',
+        hyperlink: `${SVK_PORTAL_BASE}/${svk.key}`,
+        description,
+        descriptionAdf: f.description ?? null,
+        comments,
+        attachments: mapAttachments(f.attachment),
+        linkedPlKeys: plKeys,
+        linkedPl,
+      },
+      needsAi ? null : { aiResult: existing!.aiResult || '', aiError: existing!.aiError || '', aiRunAt: existing!.aiRunAt }
+    );
+
+    // kick AI off right away — don't wait for the rest of the scan; the queue also asks
+    // the ticket's Chat AI conversation "what next" when the content changed
+    if (probe.ok && (needsAi || (await needsSvkChat(svk.key, aiInputHash)))) enqueueAi(svk.key);
+  });
+
+  // drop tickets that no longer match the JQL (closed/cancelled since last scan)
+  const liveKeys = svkIssues.map((i) => i.key);
+  await SvkTicket.deleteMany({ key: { $nin: liveKeys } });
+
+  return {
+    total: svkIssues.length,
+    pendingAi: probe.ok ? changedKeys.length : 0,
+    changedKeys,
+    aiAvailable: probe.ok,
+    aiUnavailableReason,
+  };
+};
+
+// ── AI review ────────────────────────────────────────────────────────────────
+
+const STOPWORDS = new Set([
+  'không', 'được', 'của', 'cho', 'khi', 'này', 'các', 'với', 'lỗi', 'bị', 'là', 'có', 'và',
+  'the', 'and', 'for', 'with', 'error', 'issue', 'ticket', 'from', 'that', 'this',
+]);
+
+function keywords(text: string): string[] {
+  return [
+    ...new Set(
+      (text || '')
+        .toLowerCase()
+        .split(/[^a-zà-ỹ0-9_]+/i)
+        .filter((w) => w.length >= 4 && !STOPWORDS.has(w))
+    ),
+  ];
+}
+
+/**
+ * Similar-ticket context comes from the PL tickets already saved by the PL tab scan,
+ * whose analyzeNote records how each was resolved.
+ */
+async function findSimilarTickets(doc: ISvkTicket, limit = 5) {
+  const candidates = await SupportTicket.find({ analyzeNote: { $nin: ['', null] } })
+    .sort({ created: -1 })
+    .limit(300)
+    .select('key title status analyzeNote created')
+    .lean();
+
+  const target = new Set(keywords(`${doc.summary} ${doc.description}`));
+  if (!target.size) return [];
+
+  const ownKeys = new Set(doc.linkedPlKeys || []);
+  return candidates
+    .filter((c) => !ownKeys.has(c.key))
+    .map((c) => ({ ...c, score: keywords(c.title).filter((w) => target.has(w)).length }))
+    .filter((c) => c.score >= 2)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
+function formatComments(comments: ISvkComment[]): string {
+  if (!comments?.length) return '(không có comment)';
+  return comments
+    .map((c) => `[${c.author} — ${c.created ? new Date(c.created).toLocaleString('vi-VN') : '?'}]\n${c.body || '(trống)'}`)
+    .join('\n\n');
+}
+
+export const buildSvkReviewPrompt = (
+  doc: ISvkTicket,
+  similar: { key: string; title: string; status: string; analyzeNote: string }[]
+): string => {
+  const plBlocks = (doc.linkedPl || []).length
+    ? doc.linkedPl
+        .map(
+          (pl) => `### PL ticket: ${pl.key} — ${pl.summary}
+Link: ${process.env.JIRA_HOST || 'https://cakedigitalbank.atlassian.net'}/browse/${pl.key}
+Trạng thái: ${pl.status || '?'} | Assignee: ${pl.assignee || 'chưa gán'} | Sprint: ${pl.sprint || '—'} | Tạo: ${pl.created || '?'}
+
+Nội dung:
+${pl.description || '(trống)'}
+
+Comment:
+${formatComments(pl.comments)}`
+        )
+        .join('\n\n')
+    : '(SVK này chưa link tới PL ticket nào)';
+
+  const similarBlock = similar.length
+    ? similar
+        .map((s) => `- ${s.key} (${s.status}) — ${s.title}\n  Đã xử lý: ${(s.analyzeNote || '').slice(0, 800)}`)
+        .join('\n')
+    : '(không tìm thấy ticket tương tự trong dữ liệu đã lưu)';
+
+  // Dòng key dựng sẵn để AI copy nguyên văn — tránh việc nó tự bịa URL.
+  const jiraHost = process.env.JIRA_HOST || 'https://cakedigitalbank.atlassian.net';
+  const mdKey = (key: string, url: string) => {
+    const [prefix, ...rest] = key.split('-');
+    return rest.length ? `[${prefix}](${url})-${rest.join('-')}` : `[${key}](${url})`;
+  };
+  const plKeyLinks = (doc.linkedPlKeys || [])
+    .map((key) => mdKey(key, `${jiraHost}/browse/${key}`))
+    .join(', ');
+  const keyLine = `${plKeyLinks || 'PL: chưa có'} x ${mdKey(doc.key, doc.hyperlink)}`;
+
+  return `${SVK_REVIEW_PROMPT}
+
+---
+
+# DỮ LIỆU TICKET CẦN ĐÁNH GIÁ
+
+DÒNG KEY (copy nguyên văn vào dòng đầu phần Tổng quan):
+${keyLine}
+
+## SVK ticket: ${doc.key} — ${doc.summary}
+Link: ${doc.hyperlink}
+Trạng thái: ${doc.status || '?'} | Ưu tiên: ${doc.priority || '?'} | Tạo: ${doc.created || '?'}
+PL liên quan: ${(doc.linkedPlKeys || []).join(', ') || '(chưa có)'}
+
+Nội dung:
+${doc.description || '(trống)'}
+
+Comment:
+${formatComments(doc.comments)}
+
+## PL ticket liên quan
+${plBlocks}
+
+## Ticket tương tự gần đây (từ dữ liệu PL đã lưu, kèm cách đã xử lý)
+${similarBlock}
+
+---
+
+Đánh giá ticket trên theo đúng 4 phần đã quy định (Tổng quan → Kết luận → Thiếu/Chưa rõ → Đề xuất). Trả lời bằng tiếng Việt, dùng Markdown.`;
+};
+
+/** Bật/tắt việc đẩy kết quả AI lên chính ticket SVK. */
+const AI_COMMENT_ENABLED = process.env.SVK_AI_COMMENT !== 'false';
+/** Comment nội bộ (chỉ agent thấy); đặt false nếu muốn khách hàng đọc được. */
+const AI_COMMENT_INTERNAL = process.env.SVK_AI_COMMENT_INTERNAL !== 'false';
+const AI_COMMENT_HEADER = '🤖 AI review (tự động từ tool Support)';
+
+/**
+ * Đẩy kết quả AI lên ticket: lần đầu tạo comment, các lần sau sửa lại đúng comment đó
+ * nên ticket không bị ngập comment mỗi lần chạy lại AI.
+ */
+async function syncAiComment(doc: any, result: string): Promise<void> {
+  if (!AI_COMMENT_ENABLED) return;
+
+  const body = `${AI_COMMENT_HEADER}\n\n${result}`;
+  try {
+    if (doc.aiCommentId) {
+      await jiraService.updateComment(doc.key, doc.aiCommentId, body);
+      return;
+    }
+    const commentId = await jiraService.addComment(doc.key, body, AI_COMMENT_INTERNAL);
+    doc.aiCommentId = commentId;
+    await SvkTicket.updateOne({ key: doc.key }, { $set: { aiCommentId: commentId } });
+  } catch (error: any) {
+    const message = error?.message || String(error);
+    // comment bị xoá thủ công -> tạo lại thay vì chịu lỗi mãi
+    if (doc.aiCommentId && /404|does not exist|not found/i.test(message)) {
+      try {
+        const commentId = await jiraService.addComment(doc.key, body, AI_COMMENT_INTERNAL);
+        doc.aiCommentId = commentId;
+        await SvkTicket.updateOne({ key: doc.key }, { $set: { aiCommentId: commentId } });
+        return;
+      } catch (retryError: any) {
+        console.error(`[SVK AI] ${doc.key} tạo lại comment lỗi:`, retryError?.message || retryError);
+        return;
+      }
+    }
+    // comment hỏng không được làm hỏng kết quả AI đã lưu
+    console.error(`[SVK AI] ${doc.key} comment lên Jira lỗi:`, message);
+  }
+}
+
+/** Tối đa bao nhiêu ảnh đính kèm được nạp vào một lần gọi AI, và giới hạn dung lượng mỗi ảnh. */
+const AI_IMAGE_LIMIT = Number(process.env.SVK_AI_IMAGE_LIMIT ?? 4);
+const AI_IMAGE_MAX_BYTES = Number(process.env.SVK_AI_IMAGE_MAX_MB ?? 4) * 1024 * 1024;
+const AI_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+
+/** Tải ảnh đính kèm của SVK + các PL liên quan để gửi kèm prompt (chỉ ảnh, bỏ video/file khác). */
+async function loadTicketImages(doc: ISvkTicket): Promise<PromptImage[]> {
+  if (AI_IMAGE_LIMIT <= 0) return [];
+
+  const candidates = [
+    ...(doc.attachments || []),
+    ...(doc.linkedPl || []).flatMap((pl) => pl.attachments || []),
+  ].filter((a) => AI_IMAGE_TYPES.includes((a.mimeType || '').toLowerCase()) && a.size <= AI_IMAGE_MAX_BYTES);
+
+  const images: PromptImage[] = [];
+  for (const attachment of candidates.slice(0, AI_IMAGE_LIMIT)) {
+    try {
+      const base64 = await jiraService.getAttachmentBase64(attachment.id);
+      images.push({ mediaType: attachment.mimeType, base64 });
+    } catch (error: any) {
+      console.warn(`[SVK AI] ${doc.key} không tải được ảnh ${attachment.filename}:`, error?.message || error);
+    }
+  }
+  return images;
+}
+
+export const runAiForTicket = async (key: string): Promise<string> => {
+  const doc = await SvkTicket.findOne({ key });
+  if (!doc) throw new Error(`SVK ticket ${key} not found`);
+
+  const similar = await findSimilarTickets(doc);
+  const prompt = buildSvkReviewPrompt(doc, similar as any);
+  const images = await loadTicketImages(doc);
+  if (images.length) console.log(`[SVK AI] ${key}: gửi kèm ${images.length} ảnh đính kèm`);
+  const result = await analyzeWithCustomPrompt(prompt, images);
+
+  aiUnavailableReason = '';
+  consecutiveFailures = 0;
+  doc.aiResult = result;
+  doc.aiError = '';
+  doc.aiRunAt = new Date();
+  await doc.save();
+  await SvkHistory.updateOne(
+    { key },
+    { $set: { aiResult: result, aiError: '', aiRunAt: doc.aiRunAt } }
+  ).catch(() => {});
+
+  await syncAiComment(doc, result);
+  return result;
+};
+
+// ── background AI queue ──────────────────────────────────────────────────────
+// A ticket is queued the moment the scan finishes saving it, so AI runs while the
+// rest of the scan is still fetching from Jira instead of waiting for the whole batch.
+
+export interface AiJobState {
+  running: boolean;
+  total: number;
+  done: number;
+  failed: number;
+  /** Tickets dropped from the queue because the provider was declared unavailable. */
+  skipped: number;
+  queued: number;
+  current: string[];
+  startedAt: string | null;
+  finishedAt: string | null;
+  aiAvailable: boolean;
+  aiUnavailableReason: string;
+}
+
+/** Tickets reviewed at once. 1 = strictly sequential — the proxy caps concurrent requests. */
+const AI_CONCURRENCY = Math.max(1, Number(process.env.SVK_AI_CONCURRENCY ?? 1));
+/** Consecutive failures that mean the provider itself is down, not one bad ticket. */
+const AI_FAIL_LIMIT = Number(process.env.SVK_AI_FAIL_LIMIT ?? 3);
+
+/** Why AI was skipped, from the pre-scan probe or the circuit breaker. Empty = AI is fine. */
+let aiUnavailableReason = '';
+let consecutiveFailures = 0;
+
+export const getAiUnavailableReason = (): string => aiUnavailableReason;
+
+const queue: string[] = [];
+const inFlight = new Set<string>();
+/** Queued with force — review re-runs even though a result already exists. */
+const forceReview = new Set<string>();
+
+/**
+ * One queue item = review (when missing or forced) then the Chat AI "what next" turn.
+ * A chat failure is logged on the note, not counted against the review.
+ */
+async function processTicket(key: string) {
+  const doc = await SvkTicket.findOne({ key }).select('aiResult').lean();
+  if (!doc) return;
+  if (!doc.aiResult || forceReview.has(key)) await runAiForTicket(key);
+  forceReview.delete(key);
+
+  try {
+    await runSvkChat(key);
+  } catch (error: any) {
+    console.error(`[SVK chat] ${key} failed:`, error?.message || error);
+  }
+}
+let workerCount = 0;
+
+const counters = {
+  total: 0,
+  done: 0,
+  failed: 0,
+  skipped: 0,
+  startedAt: null as string | null,
+  finishedAt: null as string | null,
+};
+
+const isIdle = () => workerCount === 0 && queue.length === 0;
+
+export const getAiJobState = (): AiJobState => ({
+  running: !isIdle(),
+  total: counters.total,
+  done: counters.done,
+  failed: counters.failed,
+  skipped: counters.skipped,
+  queued: queue.length,
+  current: [...inFlight],
+  startedAt: counters.startedAt,
+  finishedAt: counters.finishedAt,
+  aiAvailable: !aiUnavailableReason,
+  aiUnavailableReason,
+});
+
+/**
+ * The provider died mid-run: drop everything still queued instead of replaying the same
+ * error per ticket. Each dropped ticket records the reason so the UI explains itself.
+ */
+async function abortQueue(reason: string) {
+  const dropped = queue.splice(0, queue.length);
+  aiUnavailableReason = reason;
+  counters.skipped += dropped.length;
+  console.error(`[SVK AI] dừng hàng đợi — ${reason}. Bỏ qua ${dropped.length} ticket.`);
+  if (dropped.length) {
+    await SvkTicket.updateMany(
+      { key: { $in: dropped } },
+      { aiError: reason, aiRunAt: new Date() }
+    ).catch(() => {});
+  }
+}
+
+async function worker() {
+  for (;;) {
+    const key = queue.shift();
+    if (!key) break;
+    inFlight.add(key);
+    try {
+      await processTicket(key);
+      counters.done++;
+      consecutiveFailures = 0;
+      console.log(`[SVK AI] ${key} done (${counters.done}/${counters.total})`);
+    } catch (error: any) {
+      counters.failed++;
+      consecutiveFailures++;
+      const message = error?.message || String(error);
+      forceReview.delete(key);
+      console.error(`[SVK AI] ${key} failed:`, message);
+      await SvkTicket.updateOne({ key }, { aiError: message, aiRunAt: new Date() }).catch(() => {});
+      // a run of failures means the provider is down, not that these tickets are odd
+      if (consecutiveFailures >= AI_FAIL_LIMIT) {
+        await abortQueue(`AI lỗi ${consecutiveFailures} lần liên tiếp: ${message}`);
+      }
+    } finally {
+      inFlight.delete(key);
+    }
+  }
+  workerCount--;
+  if (isIdle()) counters.finishedAt = new Date().toISOString();
+}
+
+function pump() {
+  while (workerCount < AI_CONCURRENCY && queue.length > 0) {
+    workerCount++;
+    void worker();
+  }
+}
+
+/** Queue one ticket for AI review. Safe to call repeatedly — duplicates are ignored. */
+export const enqueueAi = (key: string, force = false): void => {
+  if (force) forceReview.add(key);
+  if (queue.includes(key) || inFlight.has(key)) return;
+
+  // a fresh run after everything drained resets the progress counters
+  if (isIdle()) {
+    counters.total = 0;
+    counters.done = 0;
+    counters.failed = 0;
+    counters.skipped = 0;
+    consecutiveFailures = 0;
+    counters.startedAt = new Date().toISOString();
+    counters.finishedAt = null;
+  }
+
+  queue.push(key);
+  counters.total++;
+  pump();
+};
+
+/** Resolve once the AI queue has drained, or after `timeoutMs` — whichever comes first. */
+export const waitForAiIdle = async (timeoutMs = 20 * 60 * 1000, pollMs = 5000): Promise<boolean> => {
+  const deadline = Date.now() + timeoutMs;
+  while (!isIdle()) {
+    if (Date.now() > deadline) return false;
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+  return true;
+};
+
+/** Queue every ticket that has no AI result yet (force = re-run all). */
+export const startPendingAiJob = async (force = false): Promise<AiJobState> => {
+  // same guard as the scan: one probe beats N identical failures
+  const probe = await testAIConfig();
+  if (!probe.ok) {
+    aiUnavailableReason = probe.error || 'AI không khả dụng';
+    console.warn(`[SVK AI] không chạy job — ${aiUnavailableReason}`);
+    return getAiJobState();
+  }
+  aiUnavailableReason = '';
+  consecutiveFailures = 0;
+
+  const tickets = await SvkTicket.find().select('key aiResult aiInputHash').sort({ created: -1 }).lean();
+  for (const { key, aiResult, aiInputHash } of tickets) {
+    if (force || !aiResult || (await needsSvkChat(key, aiInputHash || ''))) enqueueAi(key, force);
+  }
+  return getAiJobState();
+};
+
+export const getSvkTickets = async () =>
+  SvkTicket.find().sort({ created: -1 }).lean();
+
+export const getSvkHistory = async () =>
+  SvkHistory.find().sort({ lastLoadedAt: -1 }).lean();

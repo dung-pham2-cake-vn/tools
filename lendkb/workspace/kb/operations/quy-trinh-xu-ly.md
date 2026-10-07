@@ -67,22 +67,25 @@ từng nhóm, Ops làm gì khi kẹt ở từng bước, mã lỗi workflow.
 Trả lời Ops bằng **2–3 dòng**. Ops cần biết phải làm gì tiếp, không cần đọc lại
 quá trình điều tra.
 
+**Người trả lời (AI hoặc người tra KB) không duyệt thay PO.** Chỉ kết luận đủ hay thiếu
+thông tin, và Ops làm gì tiếp. Duyệt Cake Task là việc của PO.
+
 ## Công thức
 
 ```
 <product_id> bước cuối là <bước cuối>. Ops đang dừng ở <bước Ops báo>.
-Bổ sung <bằng chứng cụ thể> → duyệt ngay.
+Bổ sung <bằng chứng cụ thể> → đủ điều kiện tạo Cake Task.
 ```
 
 Ví dụ (SVK-11763):
 
 > `CAKE_payday` bước cuối là **giải ngân vào CASA**. Ảnh mới có tab Loan Drawdown.
-> Ops bổ sung ảnh tab **CASA 1105181238** có dòng `+5.000.000` lúc 30/09 00:40:57 → duyệt ngay.
+> Ops bổ sung ảnh tab **CASA 1105181238** có dòng `+5.000.000` lúc 30/09 00:40:57 → đủ điều kiện tạo Cake Task.
 
 Khi đã đủ điều kiện thì còn ngắn hơn:
 
-> Đã xác nhận tới bước cuối (CASA). Duyệt Cake Task **Lending Force Status Loan**,
-> `loan_id 17959045` · `status DISBURSE`.
+> Đủ bằng chứng tới bước cuối (CASA). Ops tạo Cake Task **Lending Force Status Loan**
+> (`status DISBURSE`), báo PO duyệt.
 
 ## Ba quy tắc
 
@@ -90,7 +93,7 @@ Khi đã đủ điều kiện thì còn ngắn hơn:
 
 | **Nêu số, đừng nêu lý luận** | "ảnh tab CASA `1105181238` có dòng `+5.000.000` lúc 00:40:57" — không phải "cần xác nhận tiền đã vào CASA" |
 | **Một yêu cầu một lần** | Thiếu ba thứ thì liệt kê ba gạch đầu dòng, đừng hỏi rải qua nhiều comment |
-| **Nói rõ điều gì xảy ra sau đó** | *"→ duyệt ngay"* để Ops biết đây là bước cuối, không phải thêm một vòng hỏi đáp |
+| **Nói rõ điều gì xảy ra sau đó** | *"→ đủ điều kiện tạo Cake Task"* để Ops biết đây là bước cuối, không phải thêm một vòng hỏi đáp |
 
 ## Những thứ **không** đưa vào comment
 

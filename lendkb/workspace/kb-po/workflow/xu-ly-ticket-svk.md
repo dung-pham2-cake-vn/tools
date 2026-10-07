@@ -45,7 +45,7 @@ Câu hỏi quyết định:
 |---|---|
 | Balance Loan Drawdown về `₫0` | Chỉ chứng minh tiền **rời** Loan Drawdown, **không** chứng minh vào CASA. Hai tài khoản khác nhau, CASA có thể đang khoá |
 | Khách tự báo "đã nhận tiền" | Dấu hiệu mạnh nhưng **không thay được bằng chứng hệ thống** — khách dễ nhầm với khoản khác về cùng ngày |
-| Đối tác gửi email báo đã giải ngân | **Không phải** callback `disburse-update` đã tới Cake |
+| Đối tác gửi email báo đã giải ngân | **Không phải** callback `disburse-update` đã tới Cake. Trước tiên yêu cầu log / đối tác gọi lại; mail xác nhận chỉ dùng khi đối tác **không gọi được** |
 | Ops viết "đã giải ngân" chung chung | Hỏi lại **đúng bước cuối của nhóm đó**, không duyệt |
 
 **Chưa đủ → không duyệt.** Nói rõ thiếu đúng cái gì, đừng tự suy luận bù.

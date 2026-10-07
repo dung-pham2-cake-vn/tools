@@ -26,6 +26,51 @@ Loại: `ingest` (nạp nguồn mới) · `query` (câu trả lời được fil
 
 ---
 
+## [2026-10-07] query | PO hướng dẫn ticket kẹt bước gọi đối tác
+
+Ghi vào [[kb/operations/luong-giai-ngan]] mục *Kẹt ở bước gọi đối tác*, ví dụ 15–18:
+- Cake trả 900002 / 500 khi đối tác gọi `disburse-update` → **không tính timeout**; Ops retry Portal
+  → Tech → Recon.
+- Không có log đối tác gọi về → Ops cung cấp log → đối tác gọi lại → **mail xác nhận đối tác** nếu
+  không gọi được. Thay quy tắc cũ "email không thay callback".
+- Không có log nhưng Loan DD có tiền / ICE active → coi như đã gọi, xử lý tiếp 3B.
+- Đối tác trả mã lỗi khi Cake gọi sang → Ops hỏi đối tác.
+- Đối tác đã gọi thì không "Gửi lại yêu cầu giải ngân" (SVK-9735).
+- Edge case SVK-11246 (khoản vay CLOSE khi đang kẹt đi tiền) chờ PO kiểm tra thêm.
+
+## [2026-10-07] query | PO hướng dẫn ticket xin force status (kẹt USER_SIGN)
+
+Ghi vào [[kb/operations/luong-giai-ngan]] mục *Ticket xin force status — tiêu chuẩn đủ*, ví dụ 8–12:
+
+- **KB build cho AI trả lời Ops thay PO, không duyệt thay PO** — chỉ kết luận đủ/thiếu và việc
+  tiếp theo. Sửa mẫu "→ duyệt ngay" thành "→ đủ điều kiện tạo Cake Task" ở
+  [[kb/operations/quy-trinh-xu-ly]], [[kb/operations/case-ket-user-sign]].
+- Bằng chứng bước cuối phải là ảnh giao dịch **trên Core Cake**; đối tác xác nhận / khách nhận
+  tiền không đủ.
+- **Ewallet** = tài khoản ẩn trung gian của khách, **tuỳ sản phẩm mới có**. Có thì đường tiền:
+  Loan DD → Ewallet → TKĐBTT. Thêm ví dụ 13 (SVK-10787), 14 (SVK-10734).
+- Retry "Thử giải ngân lại" **bắt buộc** trước khi tạo Cake Task.
+- Lỗi retry "Thiếu thông tin cần thiết" là lỗi hệ thống, đã fix.
+
+## [2026-10-06] query | PO hướng dẫn phản hồi ticket kẹt giải ngân
+
+Qua SVK-10855 (`PD_Viettel`) và SVK-10939 (`BE_payday`), PO chốt cách trả lời — ghi vào
+[[kb/operations/luong-giai-ngan]]:
+
+- Đọc bằng chứng → bước cuối đã xong → bước kẹt → trả cách xử lý của đúng bước đó.
+  Chỉ nêu việc Ops chưa làm; ngắn, hai phần (vấn đề + cách xử lý); **không ghi mã bước**.
+- 3B tách 3B.1 (Loan DD) · 3B.2 (phí bảo hiểm) · 3B.3 (bước cuối theo nhóm).
+- Ops làm hết vẫn kẹt → Tech kiểm tra → không được thì Tech confirm để Ops nhờ **Recon đi
+  tiền thủ công** (thay hệ thống làm 3B) → Ops tạo Cake Task "Lending Force Status Loan",
+  PO approve → `DISBURSE`.
+- Troubleshoot nhóm 3, 4 ghi "deposit vào Casa" là chép nhầm — không có bước kiểm tra CASA.
+- **4 sản phẩm Viettel** đi tiền cuối vào **tài khoản phải trả của đối tác**, không phải
+  TKĐBTT. Sửa cả [[kb/operations/case-ket-user-sign]], [[kb/glossary]].
+- Force status: troubleshoot gốc ghi "thành ACTIVE"; PO xác nhận cập nhật **`DISBURSE`**
+  (khớp mẫu CSV trong case-ket-user-sign).
+- Bổ sung (2026-10-07): bước có API thì nêu tên API (`partner-disburse-request`,
+  `disburse-update`); Ops không nói rõ bước → hỏi lại Ops, không đoán. Thêm ví dụ 3–7.
+
 ## [2026-10-06] ingest | Phân loại 327 ticket SVK 12 tháng
 
 Kéo mọi ticket SVK request type Lending tạo trong 365 ngày (`export-svk.mjs` thêm chế độ

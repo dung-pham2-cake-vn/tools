@@ -29,16 +29,22 @@ Bước cuối **khác nhau theo nhóm sản phẩm** — đây là chỗ hay nh
 | Sản phẩm | Bước đi tiền cuối cùng |
 |---|---|
 | `CAKE_payday` · `CAKE_cashloan` · `BE_payday` · `CAKE_cl_affiliate` · `MWG_cashloan` · `MWG_cl_online` | **Đã giải ngân vào CASA** |
-| `ZLP_cashloan` · `ZLP_payday` · `Viettel_Cashloan` · `VT_Cashloan_S` · `VT_Payday_S` · `VTPO_cashloan` · `VNP_cashloan` · `VNP_payday` · `VPO_cashloan` · `VPO_cl_pension` · `PD_Viettel` | **Đã đi tiền vào TKĐBTT tại đối tác** |
+| `ZLP_cashloan` · `ZLP_payday` · `VTPO_cashloan` · `VNP_cashloan` · `VNP_payday` · `VPO_cashloan` · `VPO_cl_pension` | **Đã đi tiền vào TKĐBTT tại đối tác** |
+| `Viettel_Cashloan` · `VT_Cashloan_S` · `PD_Viettel` · `VT_Payday_S` | **Đã đi tiền vào tài khoản phải trả của đối tác** |
 | Paylater | Không có bước đi tiền |
 
-**Ops chưa xác nhận tiền đi tới bước cuối → hỏi lại đúng điểm đó.** Không duyệt.
+**Ops chưa xác nhận tiền đi tới bước cuối → hỏi lại đúng điểm đó.** Chưa đủ điều kiện tạo Cake Task.
 
-Chi tiết 5 nhóm: [[kb/operations/quy-trinh-xu-ly]].
+Bằng chứng phải là **ảnh giao dịch trên Core Cake**. Đối tác xác nhận, khách báo đã nhận
+tiền đều không thay được. Sản phẩm có **Ewallet** (tài khoản ẩn trung gian của khách, tuỳ sản phẩm): tiền mới tới Ewallet là
+chưa tới TKĐBTT.
+
+Chi tiết 5 nhóm: [[kb/operations/luong-giai-ngan]].
 
 ## Xử lý
 
-Ops xác nhận đủ → duyệt Cake Task **"Lending Force Status Loan"**.
+Ops đã nhấn **"Thử giải ngân lại"** (bắt buộc) và xác nhận đủ bước → Ops tạo Cake Task
+**"Lending Force Status Loan"**, PO duyệt.
 
 Hệ thống làm 2 việc:
 
@@ -124,7 +130,7 @@ Channel `iceLoanDrawdown`, user `cake-glpayment-svc`.
 Comment đã gửi Ops — mẫu trả lời ngắn, xem [[kb/operations/quy-trinh-xu-ly]] mục *Cách phản hồi ticket SVK*:
 
 > `CAKE_payday` bước cuối là **giải ngân vào CASA**. Ảnh mới có tab Loan Drawdown.
-> Ops bổ sung ảnh tab **CASA 1105181238** có dòng `+5.000.000` lúc 30/09 00:40:57 → duyệt ngay.
+> Ops bổ sung ảnh tab **CASA 1105181238** có dòng `+5.000.000` lúc 30/09 00:40:57 → đủ điều kiện tạo Cake Task.
 
 > KH nói "đã nhận tiền" là **dấu hiệu mạnh nhưng không thay được bằng chứng hệ thống**:
 > khách dễ nhầm giữa tiền giải ngân và một khoản khác về cùng ngày. Quy tắc vẫn là

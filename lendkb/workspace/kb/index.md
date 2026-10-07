@@ -1,7 +1,7 @@
 ---
 title: Index — catalog KB Ops/CSKH
 audience: [ops, po]
-last_verified: 2026-10-06
+last_verified: 2026-10-07
 owner: dung.pham2
 status: generated
 ---
@@ -19,7 +19,7 @@ Cần tra theo ý định ("muốn biết X thì xem đâu") thì xem [[kb/READM
 |---|---|---|
 | [[kb/README]] — Hướng dẫn dùng KB Lending | kb/ chỉ chứa kiến thức sản phẩm và vận hành — thứ cần để trả lời khách và xử lý | 2026-10-06 |
 | [[kb/glossary]] — Thuật ngữ Lending | Lãi phạt lãi chậm — chưa triển khai. Có trong chính sách của nhiều sản phẩm, nhưng | 2026-09-30 |
-| [[kb/index]] — Index — catalog KB Ops/CSKH | 64 trang. Đọc index trước, rồi mới mở trang chi tiết. | 2026-10-06 |
+| [[kb/index]] — Index — catalog KB Ops/CSKH | 64 trang. Đọc index trước, rồi mới mở trang chi tiết. | 2026-10-07 |
 | [[kb/product-matrix]] — Ma trận Đối tác × Sản phẩm × Kênh | - Kênh — api = đối tác tự làm app, gọi API Cake · dop = webview Cake nhúng vào app đối tác · cake = làm trên app Cake. | 2026-09-30 |
 | [[kb/reject-messages]] — Thông báo từ chối hồ sơ — tra cứu | Khách thường nhắc lại nguyên văn câu thông báo trên màn hình. Dùng bảng này để biết | 2026-09-30 |
 
@@ -104,7 +104,7 @@ Cần tra theo ý định ("muốn biết X thì xem đâu") thì xem [[kb/READM
 
 ---
 
-Thống kê: **64 trang**, **198 liên kết chéo**.
+Thống kê: **64 trang**, **200 liên kết chéo**.
 Kiểm tra sức khoẻ wiki: `node tools/kb-lint.mjs`.
 
 <!-- AUTO:end -->

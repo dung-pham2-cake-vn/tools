@@ -20,6 +20,8 @@ Mục đích: lần sau ai đó thấy một con số và định "sửa lại c
 | --- | --- | --- |
 | 2026-09-30 | `CAKE_cashloan` phí tất toán **3% → 8%/5%** | Confluence ghi 3%, nhưng PL-9170 đã live 2025-07-28. Lệch gần 3 lần. Đây là lần đầu phát hiện Confluence tụt hậu có hệ thống |
 | 2026-10-01 | `VPO_cashloan` thu nhập **4 → 5 triệu** | PL-12708, hiệu lực 2026-03-16 |
+| 2026-10-06 | 4 sản phẩm Viettel: bước đi tiền cuối **TKĐBTT → tài khoản phải trả của đối tác** | PO xác nhận. Troubleshoot gốc gộp chung với nhóm giải ngân về TKĐBTT |
+| 2026-10-06 | Cake Task "Lending Force Status Loan": cập nhật **`ACTIVE` → `DISBURSE`** | PO xác nhận. Troubleshoot gốc ghi "thành ACTIVE"; trạng thái LMS đúng là `DISBURSE`, khớp mẫu CSV đã dùng |
 | 2026-10-02 | **Lãi phạt lãi chậm: ghi rõ chưa triển khai** ở 8 file | PO xác nhận core chưa hỗ trợ trên toàn bộ lending. 19 ticket có spec `get-loan-detail` đều trả `penalty_interest_balance = 0đ`. Trước đó KB ghi mức phạt như thể có thu — báo cho khách là sai |
 | 2026-10-02 | `MBF_cashloan` thêm phí tất toán 8%/5% | Trường tên tiếng Anh `PrepaymentFee`, grep tiếng Việt trượt |
 | 2026-10-02 | `FIZA_payday` phí tất toán "chưa áp dụng" → **không có phí** | PO xác nhận là chính sách cố định, không phải chưa kịp làm |

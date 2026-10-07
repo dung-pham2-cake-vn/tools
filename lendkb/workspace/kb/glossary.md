@@ -66,7 +66,8 @@ status: draft
 | **CASA** | Tài khoản thanh toán của khách tại Cake |
 | **VAN** | Mã/tài khoản ảo để khách quét trả nợ. Tiền đi qua Liab rồi mới tới Lending — xem [[kb/operations/luong-van]] |
 | **Liab** | Đội/hệ thống phụ trách tiền vào ra trước khi tới Lending |
-| **TKĐBTT** | Tài khoản đảm bảo thanh toán của đối tác tại Cake |
+| **TKĐBTT** | Tài khoản đảm bảo thanh toán của đối tác tại Cake — bước đi tiền cuối của sản phẩm giải ngân về ví đối tác |
+| **Tài khoản phải trả của đối tác** | Bước đi tiền cuối của 4 sản phẩm Viettel (`Viettel_Cashloan`, `VT_Cashloan_S`, `PD_Viettel`, `VT_Payday_S`) thay cho TKĐBTT — xem [[kb/operations/luong-giai-ngan]] |
 | **ETB** | Existing To Bank — khách đã có quan hệ với ngân hàng |
 | **NFC** | Xác thực bằng chip căn cước |
 | **eKYC** | Định danh điện tử |

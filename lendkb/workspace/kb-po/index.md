@@ -1,7 +1,7 @@
 ---
 title: Index — catalog vùng chỉ PO
 audience: [po]
-last_verified: 2026-10-06
+last_verified: 2026-10-07
 owner: dung.pham2
 status: generated
 ---
@@ -19,7 +19,7 @@ Quy ước bảo trì wiki: [[kb-po/SCHEMA]]. Ranh giới hai vùng: [[kb-po/REA
 |---|---|---|
 | [[kb-po/README]] — KB dành riêng PO | Ops không dùng phần này. Ranh giới: kb/ chỉ chứa kiến thức sản phẩm và | 2026-10-06 |
 | [[kb-po/SCHEMA]] — Schema — cách bảo trì wiki này | Ý chính của pattern: wiki là một artefact tích luỹ, không phải kho để RAG lục lại | 2026-10-06 |
-| [[kb-po/index]] — Index — catalog vùng chỉ PO | 29 trang. Đọc index trước, rồi mới mở trang chi tiết. | 2026-10-06 |
+| [[kb-po/index]] — Index — catalog vùng chỉ PO | 30 trang. Đọc index trước, rồi mới mở trang chi tiết. | 2026-10-07 |
 
 ## Bảo trì wiki — format, log, lịch sử quyết định
 
@@ -85,7 +85,7 @@ Quy ước bảo trì wiki: [[kb-po/SCHEMA]]. Ranh giới hai vùng: [[kb-po/REA
 
 ---
 
-Thống kê: **30 trang**, **316 liên kết chéo**.
+Thống kê: **30 trang**, **326 liên kết chéo**.
 Kiểm tra sức khoẻ wiki: `node tools/kb-lint.mjs`.
 
 <!-- AUTO:end -->

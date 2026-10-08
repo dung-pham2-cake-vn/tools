@@ -85,7 +85,7 @@ Quy ước bảo trì wiki: [[kb-po/SCHEMA]]. Ranh giới hai vùng: [[kb-po/REA
 
 ---
 
-Thống kê: **30 trang**, **326 liên kết chéo**.
+Thống kê: **30 trang**, **327 liên kết chéo**.
 Kiểm tra sức khoẻ wiki: `node tools/kb-lint.mjs`.
 
 <!-- AUTO:end -->

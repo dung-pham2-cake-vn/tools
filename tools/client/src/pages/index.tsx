@@ -315,6 +315,7 @@ async function loadSprintMgmtData(activeSprintName: string): Promise<SprintMgmtL
           type: t.type ?? 'Task',
           status: t.status ?? '',
         })).filter((t) => Boolean(t.id)),
+        section: s.name ?? '',
       }))
     );
     topLevelIds = Array.from(new Set(items.flatMap((i) => i.tickets.map((t) => t.id))));
@@ -3163,14 +3164,16 @@ export default function Dashboard() {
   }, []);
 
 
-  // Cần gửi UAT = item có ticket PR mà PR chưa gắn label trạng thái nào (UatDoing / UatDone / Released).
+  // Cần gửi UAT = item mục Must have có ticket PR mà PR chưa gắn label trạng thái nào (UatDoing / UatDone / Released).
   // Label đọc thẳng từ Jira, cùng nguồn với control Labels ở Sprint check.
   useEffect(() => {
     if (smLoading || !smItems.length) {
       setNeedUatItems([]);
       return;
     }
-    const withPr = smItems.filter((item) => /^[A-Z][A-Z0-9]+-\d+$/.test(item.prNumber || ''));
+    const withPr = smItems.filter(
+      (item) => item.section === 'Must have' && /^[A-Z][A-Z0-9]+-\d+$/.test(item.prNumber || '')
+    );
     const keys = Array.from(new Set(withPr.map((item) => item.prNumber)));
     if (!keys.length) {
       setNeedUatItems([]);
@@ -3366,7 +3369,7 @@ export default function Dashboard() {
       filter: (
         <TaskFilterNote
           notes={[
-            'Nguồn: item trong page Sprint check của sprint hiện tại',
+            'Nguồn: item mục Must have trong page Sprint check của sprint hiện tại',
             `Cần gửi UAT = item có ticket PR mà PR chưa có label nào trong ${PR_STATUS_LABELS.join(' / ')}`,
             'Gắn label ngay tại Sprint check (chip Labels trên từng item)',
           ]}

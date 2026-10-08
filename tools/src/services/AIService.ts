@@ -188,7 +188,11 @@ const callClaudeCode = async (model: string, prompt: string, images: PromptImage
     if (model?.trim()) args.push('--model', model.trim());
 
     const stdout = await new Promise<string>((resolve, reject) => {
-      const child = spawn(CLAUDE_CODE_BIN, args, { cwd: workDir, env: process.env });
+      // NODE_EXTRA_CA_CERTS trong package.json là đường dẫn tương đối (certs/...) — child chạy ở workDir
+      // nên phải đổi sang tuyệt đối, không thì Claude Code không nạp được CA Cloudflare Gateway.
+      const env = { ...process.env };
+      if (env.NODE_EXTRA_CA_CERTS) env.NODE_EXTRA_CA_CERTS = path.resolve(env.NODE_EXTRA_CA_CERTS);
+      const child = spawn(CLAUDE_CODE_BIN, args, { cwd: workDir, env });
       let out = '';
       let err = '';
       const timer = setTimeout(() => {

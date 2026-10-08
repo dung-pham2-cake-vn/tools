@@ -15,6 +15,8 @@ status: draft
 
 # Case mẫu — KH đổi số điện thoại khi đang có ví / khoản vay
 
+> **Trả lời ticket cho Ops:** 1–2 câu — việc cần làm tiếp và ai làm. Không nêu tên file, đường dẫn hay mục của KB, không dẫn nguồn, không giải thích lý do, không ghi mã bước (3B.1…). Mẫu: [[kb/operations/quy-trinh-xu-ly]] mục *Cách phản hồi ticket SVK*.
+
 Ví dụ gốc: *"KH mở ví được duyệt nhưng chưa ký, giờ muốn đổi sđt khác thì có đổi được không?"*
 
 ## Trả lời ngắn

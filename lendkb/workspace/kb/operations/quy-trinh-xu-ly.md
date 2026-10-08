@@ -14,6 +14,8 @@ status: draft
 ---
 # Quy trình xử lý ticket vận hành
 
+> **Trả lời ticket cho Ops:** 1–2 câu — việc cần làm tiếp và ai làm. Không nêu tên file, đường dẫn hay mục của KB, không dẫn nguồn, không giải thích lý do, không ghi mã bước (3B.1…). Mẫu: mục *Cách phản hồi ticket SVK* bên dưới.
+
 Nguồn: file **Troubleshoot Lending Ops.xls** — 15 tab. Parse bằng `tools/parse-troubleshoot.py`,
 sinh tài liệu bằng `tools/gen-ops-docs.py`, chạy lại được khi file nguồn cập nhật.
 
@@ -100,6 +102,8 @@ Khi đã đủ điều kiện thì còn ngắn hơn:
 - Quá trình điều tra, đối chiếu ticket cũ, giải mã cột dữ liệu — để trong KB
 - Phỏng đoán nguyên nhân gốc khi chưa chắc
 - Nhắc lại thông tin Ops vừa gửi
+- **Tên file, đường dẫn, mục của KB** (`kb/operations/…`) và câu dẫn nguồn kiểu "theo KB…" — Ops không mở được KB; chỉ nói việc cần làm
+- Mã bước (3A, 3B.1…) — Ops không tra theo mã này
 
 Nguyên nhân gốc chỉ nhắc khi **đổi việc Ops phải làm**. Ví dụ *"thuộc đợt lỗi
 thứ Ba–thứ Tư đã fix"* thì đáng nói, vì Ops biết không cần gom thêm ca nữa.

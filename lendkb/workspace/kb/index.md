@@ -104,7 +104,7 @@ Cần tra theo ý định ("muốn biết X thì xem đâu") thì xem [[kb/READM
 
 ---
 
-Thống kê: **64 trang**, **200 liên kết chéo**.
+Thống kê: **64 trang**, **207 liên kết chéo**.
 Kiểm tra sức khoẻ wiki: `node tools/kb-lint.mjs`.
 
 <!-- AUTO:end -->

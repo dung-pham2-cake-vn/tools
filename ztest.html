@@ -1,0 +1,701 @@
+<meta charset="utf-8">
+<title>Xác nhận thông tin khoản vay — UI Flow</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&display=swap');
+
+:root{
+  --page:#e9ebef; --app-bg:#f2f3f5; --card:#ffffff;
+  --fg:#2e3a4d; --fg-2:#8a94a6; --fg-3:#b0b7c3; --line:#eceef1;
+  --brand:#ff37a5; --accent:#2f80ed;
+  --green:#20b757; --green-bg:#e8f8ee; --red:#ef4444;
+  --disabled-bg:#e4e7eb; --disabled-fg:#b0b7c3;
+  --font:'Be Vietnam Pro',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --sh:0 4px 16px -6px rgba(20,30,50,.10);
+}
+[data-theme="dark"]{
+  --page:#08070a; --app-bg:#100f14; --card:#1c1b22;
+  --fg:#f5f6f8; --fg-2:#9ea3ad; --fg-3:#6c7079; --line:#2a2930;
+  --brand:#ff5cb8; --accent:#5ea0ff; --green:#3ed47e; --green-bg:rgba(62,212,126,.18);
+  --disabled-bg:#2a2930; --disabled-fg:#5c5c5c;
+  --sh:0 8px 24px -10px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+body{font-family:var(--font);background:var(--page);color:var(--fg);padding:36px 24px 70px}
+
+.hdr{max-width:1100px;margin:0 auto 26px;display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap}
+.hdr h1{font:700 28px/36px var(--font);letter-spacing:-.8px}
+.hdr .sub{font:400 13px/20px var(--font);color:var(--fg-2);margin-top:6px;max-width:600px}
+.mark{font:800 20px/28px var(--font);color:var(--brand);letter-spacing:-.5px}
+.acts{display:flex;gap:10px;align-items:center}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:100px;padding:9px 16px;font:600 13px/20px var(--font);cursor:pointer}
+.btn.pri{background:var(--brand);border-color:var(--brand);color:#fff}
+
+.sect{max-width:1100px;margin:22px auto 0;padding-top:10px}
+.sect h2{font:600 18px/26px var(--font);letter-spacing:-.3px;display:flex;gap:10px;align-items:center}
+.sect h2 i{width:24px;height:24px;border-radius:7px;background:var(--brand);color:#fff;font:700 12px/24px var(--font);text-align:center;font-style:normal;flex:none}
+.sect p{font:400 13px/20px var(--font);color:var(--fg-2);margin-top:5px;max-width:840px}
+.grid{max-width:1100px;margin:0 auto;display:flex;gap:29px;flex-wrap:wrap;padding:16px 0 4px}
+
+.frame{width:328px;flex:none}
+.cap{margin-top:11px}
+.cap .t{font:600 13px/20px var(--font)}
+.cap .d{font:400 12px/18px var(--font);color:var(--fg-2);margin-top:2px}
+
+.ph{width:328px;height:660px;background:var(--app-bg);border-radius:22px;overflow:hidden;
+    box-shadow:var(--sh),0 0 0 1px var(--line);display:flex;flex-direction:column;position:relative}
+.sb{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex:none;font:600 12px/16px var(--font)}
+.sb .r{display:flex;gap:5px;align-items:center;opacity:.9;font-size:11px}
+.nb{height:46px;display:flex;align-items:center;padding:0 16px;flex:none;position:relative}
+.nb .bk{width:22px;height:22px;color:var(--fg);display:flex;align-items:center}
+.nb .tt{position:absolute;left:0;right:0;text-align:center;font:600 15px/22px var(--font);pointer-events:none}
+.bd{flex:1;overflow:hidden;padding:6px 16px 0}
+.bd.sc{overflow-y:auto}.bd::-webkit-scrollbar{width:0}
+.ft{padding:10px 16px 18px;flex:none}
+.home{width:110px;height:4px;border-radius:100px;background:var(--fg);opacity:.85;margin:6px auto 0}
+
+.card{background:var(--card);border-radius:12px;box-shadow:var(--sh);overflow:hidden}
+.card+.card{margin-top:10px}
+.rw{display:flex;align-items:center;gap:12px;padding:14px 14px}
+.rw+.rw{border-top:1px solid var(--line)}
+.rw .g{flex:1;min-width:0}
+.rw .t{font:400 13px/19px var(--font)}
+.rw .s{font:400 11px/16px var(--font);color:var(--fg-2);margin-top:2px}
+.ico{width:20px;height:20px;flex:none;color:var(--fg);opacity:.85}
+.cv{color:var(--fg-3);flex:none;font-size:15px}
+
+.slbl{font:500 13px/20px var(--font);color:var(--fg);margin:14px 2px 8px}
+.slbl span{font:400 11px/18px var(--font);color:var(--fg-2);margin-left:4px}
+.opt{background:var(--card);border-radius:12px;box-shadow:var(--sh);padding:14px;display:flex;gap:12px;align-items:flex-start}
+.opt+.opt{margin-top:10px}
+.opt .g{flex:1;min-width:0}
+.opt .ot{font:400 13px/19px var(--font)}
+.opt .os{font:400 11px/17px var(--font);color:var(--fg-2);margin-top:2px}
+.opt .amt{font:500 11px/17px var(--font);color:var(--fg);margin-top:3px}
+
+.cb{width:19px;height:19px;border-radius:4px;border:1.5px solid #d3d8e0;flex:none;margin-top:1px}
+[data-theme="dark"] .cb{border-color:var(--fg-3)}
+.cb.on{background:var(--accent);border-color:var(--accent);position:relative}
+.cb.on::after{content:"";position:absolute;left:5px;top:3px;width:6px;height:10px;border-right:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(42deg)}
+.rd{width:19px;height:19px;border-radius:100px;border:1.5px solid #d3d8e0;flex:none;margin-top:1px}
+[data-theme="dark"] .rd{border-color:var(--fg-3)}
+.rd.on{border:6px solid var(--accent)}
+
+.stp{display:flex;align-items:center;gap:9px;flex:none}
+.stp b{width:26px;height:26px;border-radius:100px;background:var(--accent);color:#fff;font:600 15px/25px var(--font);text-align:center}
+.stp b.off{background:var(--disabled-bg);color:var(--disabled-fg)}
+.stp span{font:500 13px/20px var(--font);min-width:18px;text-align:center}
+
+.note{background:var(--card);border-radius:12px;padding:12px 13px;display:flex;gap:9px;align-items:flex-start;margin-top:12px;box-shadow:var(--sh)}
+.note .ni{color:var(--fg-2);flex:none;font:400 12px/17px var(--font)}
+.note .nt{font:400 11px/17px var(--font);color:var(--fg-2)}
+.note a{color:var(--accent);text-decoration:none}
+
+.cta{display:block;width:100%;text-align:center;background:var(--brand);color:#fff;border:none;
+     border-radius:100px;padding:13px 0;font:600 15px/22px var(--font);cursor:default}
+.cta.dis{background:var(--disabled-bg);color:var(--disabled-fg)}
+
+.sum{background:var(--card);border-radius:12px;box-shadow:var(--sh);padding:4px 14px}
+.sr{display:flex;justify-content:space-between;gap:14px;padding:11px 0}
+.sr+.sr{border-top:1px solid var(--line)}
+.sr .k{font:400 12px/18px var(--font);color:var(--fg-2);flex:none}
+.sr .v{font:500 12px/18px var(--font);text-align:right}
+.sr.fee .k{font:400 12px/22px var(--font);color:var(--fg-2)}
+.sr.fee .v{font:700 17px/22px var(--font);letter-spacing:-.3px}
+
+.legal{background:var(--card);border-radius:12px;box-shadow:var(--sh);padding:13px 14px;margin-top:10px}
+.legal .lt{font:600 12px/18px var(--font);margin-bottom:6px}
+.legal p{font:400 11px/17px var(--font);color:var(--fg-2);margin-bottom:7px}
+.legal ol{margin:0 0 0 15px}
+.legal li{font:400 11px/17px var(--font);color:var(--fg-2);margin-bottom:4px}
+
+.web{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 26px}
+.web h3{font:600 19px/26px var(--font);margin-bottom:8px}
+.web p{font:400 12px/19px var(--font);color:var(--fg-2)}
+.agree{display:flex;gap:10px;align-items:flex-start;padding:0 2px 12px}
+.agree .at{font:400 11px/17px var(--font);color:var(--fg-2)}
+
+.otp{display:flex;gap:9px;justify-content:center;margin:22px 0 14px}
+.otp i{width:34px;height:44px;border-radius:8px;background:var(--card);box-shadow:var(--sh);
+       display:flex;align-items:center;justify-content:center;font-style:normal}
+.otp i b{width:7px;height:7px;border-radius:100px;background:var(--fg);display:block}
+.otp i.cur{border:1.5px solid var(--accent)}
+.otp i.cur::after{content:"";width:1.5px;height:18px;background:var(--fg)}
+.otp i.er{border:1.5px solid var(--red)}
+.ctr{text-align:center}
+.lk{font:500 12px/20px var(--font);color:var(--accent);text-decoration:none}
+.ermsg{font:500 10px/16px var(--font);color:var(--red);text-align:center;margin-top:2px}
+
+.pad{background:#d5d8de;padding:6px 5px 4px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;flex:none}
+[data-theme="dark"] .pad{background:#2a2930}
+.pad div{background:#fff;border-radius:5px;text-align:center;padding:5px 0 4px;font:400 20px/24px var(--font)}
+[data-theme="dark"] .pad div{background:#3a3942;color:var(--fg)}
+.pad div s{display:block;font:600 8px/10px var(--font);letter-spacing:.6px;text-decoration:none;color:var(--fg-2)}
+.pad div.bl{background:transparent}
+
+.otpbox{background:var(--card);border-radius:10px;box-shadow:var(--sh);padding:14px;text-align:center;margin:0 6px}
+.otpbox .n{font:600 22px/30px var(--font);letter-spacing:7px;color:var(--accent)}
+.otpbox .u{height:2px;background:var(--accent);opacity:.35;margin-top:4px;border-radius:2px}
+
+.shieldwrap{position:relative;width:66px;height:76px;margin:0 auto 16px}
+.shield{width:66px;height:76px;background:var(--brand);opacity:.12;clip-path:polygon(50% 0,100% 20%,100% 62%,50% 100%,0 62%,0 20%)}
+.shieldwrap .lock{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:26px}
+
+.illus{width:150px;height:112px;margin:0 auto 18px;border-radius:14px;background:var(--card);
+       box-shadow:var(--sh);display:flex;align-items:center;justify-content:center;font-size:44px}
+.toast{background:#2b3140;border-radius:10px;padding:11px 12px;display:flex;gap:10px;align-items:flex-start;margin-top:16px}
+.toast .lg{width:22px;height:22px;border-radius:6px;background:var(--brand);flex:none;color:#fff;font:800 13px/22px var(--font);text-align:center}
+.toast .tt{font:600 10px/15px var(--font);color:#fff}
+.toast .ts{font:400 10px/15px var(--font);color:#b8bfcc;margin-top:3px}
+.toast .x{color:#8a94a6;flex:none;font-size:12px}
+
+.scrim{position:absolute;inset:0;background:rgba(120,126,138,.55);z-index:2;display:flex;align-items:center;justify-content:center;padding:0 20px}
+[data-theme="dark"] .scrim{background:rgba(0,0,0,.7)}
+.dlg{background:var(--card);border-radius:14px;padding:20px 18px 16px;text-align:center;width:100%}
+.dlg h4{font:600 15px/22px var(--font);margin-bottom:7px}
+.dlg p{font:400 12px/18px var(--font);color:var(--fg-2);margin-bottom:16px}
+
+/* ---------- PRINT ---------- */
+@page{size:A4 landscape;margin:8mm}
+@media print{
+  html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{background:#fff;padding:0;zoom:.74}
+  .acts,.printhint{display:none !important}
+  .hdr{display:block;margin:0 0 6px;max-width:none}
+  .hdr h1{font:700 19px/25px var(--font)}
+  .hdr .sub{display:none}
+  .mark{font:800 14px/19px var(--font)}
+  .sect{max-width:none;margin:0;padding:0;break-before:page;page-break-before:always;
+        break-after:avoid;page-break-after:avoid;break-inside:avoid}
+  .sect:first-of-type{break-before:auto;page-break-before:auto}
+  .sect h2{font:600 15px/22px var(--font)}
+  .sect h2 i{width:20px;height:20px;font:700 11px/20px var(--font)}
+  .sect p{font:400 11px/16px var(--font);margin-top:3px}
+  .grid{max-width:1384px;gap:24px;padding:10px 0 0}
+  .frame{break-inside:avoid;page-break-inside:avoid}
+  .cap{margin-top:8px}
+  .ph{box-shadow:none;border:1px solid #dfe2e7}
+  .card,.opt,.sum,.legal,.note,.otpbox,.illus,.otp i{box-shadow:none;border:1px solid #eceef1}
+}
+</style>
+
+<div class="hdr">
+  <div>
+    <div class="mark">Cake</div>
+    <h1>Xác nhận thông tin khoản vay — UI Flow</h1>
+    <div class="sub">Luồng khách hàng trên App Cake: Hỗ trợ → Truy xuất dữ liệu cá nhân → Xác nhận thông tin khoản vay. Chọn hình thức nhận dữ liệu trước, sau đó chọn khoản vay theo quy tắc tương ứng.</div>
+    <div class="sub printhint" style="margin-top:8px;font-size:12px">Bấm <b>Xuất PDF</b> rồi chọn “Save as PDF”, khổ ngang A4, bật “Background graphics”. In bằng Chrome hoặc Edge.</div>
+  </div>
+  <div class="acts">
+    <button class="btn" onclick="var h=document.documentElement;h.setAttribute('data-theme',h.getAttribute('data-theme')==='dark'?'light':'dark')">Light / Dark</button>
+    <button class="btn pri" onclick="document.documentElement.setAttribute('data-theme','light');setTimeout(function(){window.print()},150)">Xuất PDF</button>
+  </div>
+</div>
+
+<!-- 1 -->
+<div class="sect"><h2><i>1</i> Điều hướng vào dịch vụ</h2>
+<p>Tài khoản cá nhân → Hỗ trợ → Truy xuất dữ liệu cá nhân → Xác nhận thông tin khoản vay.</p></div>
+
+<div class="grid">
+  <div class="frame">
+   <div class="ph">
+    <div class="sb"><span>9:41</span><span class="r">▪▪▪ ⌁ ▰</span></div>
+    <div class="nb"><div class="bk">←</div><div class="tt">Hỗ trợ</div></div>
+    <div class="bd sc">
+      <div class="card">
+        <div class="rw"><div class="ico">☎</div><div class="g"><div class="t">Hỗ trợ qua Hotline</div></div><div class="cv">›</div></div>
+        <div class="rw"><div class="ico">✉</div><div class="g"><div class="t">Hỗ trợ qua Email</div></div><div class="cv">›</div></div>
+        <div class="rw"><div class="ico">📋</div><div class="g"><div class="t">Truy xuất dữ liệu cá nhân</div></div><div class="cv">›</div></div>
+        <div class="rw"><div class="ico">？</div><div class="g"><div class="t">Câu hỏi thường gặp</div></div><div class="cv">›</div></div>
+      </div>
+    </div>
+    <div class="ft"><div class="home"></div></div>
+   </div>
+   <div class="cap"><div class="t">S1 · Hỗ trợ</div>
+   <div class="d">Danh sách dịch vụ hỗ trợ hiện có.</div></div>
+  </div>
+
+  <div class="frame">
+   <div class="ph">
+    <div class="sb"><span>9:41</span><span class="r">▪▪▪ ⌁ ▰</span></div>
+    <div class="nb"><div class="bk">←</div><div class="tt">Truy xuất dữ liệu cá nhân</div></div>
+    <div class="bd sc">
+      <div class="card">
+        <div class="rw"><div class="ico">📋</div><div class="g"><div class="t">Sao kê tài khoản</div></div><div class="cv">›</div></div>
+        <div class="rw"><div class="ico">📋</div><div class="g"><div class="t">Xác nhận số dư tài khoản thanh toán</div></div><div class="cv">›</div></div>
+        <div class="rw"><div class="ico">📋</div><div class="g"><div class="t">Xác nhận số dư tiền gửi có kỳ hạn</div></div><div class="cv">›</div></div>
+        <div class="rw"><div class="ico">📋</div><div class="g"><div class="t">Xác nhận thông tin khoản vay</div></div><div class="cv">›</div></div>
+      </div>
+    </div>
+    <div class="ft"><div class="home"></div></div>
+   </div>
+   <div class="cap"><div class="t">S2 · Truy xuất dữ liệu cá nhân</div>
+   <div class="d">Bổ sung dịch vụ “Xác nhận thông tin khoản vay”.</div></div>
+  </div>
+</div>
+
+<!-- 2 -->
+<div class="sect"><h2><i>2</i> Chọn hình thức nhận dữ liệu</h2>
+<p>Bước đầu tiên của luồng. Chỉ được chọn <b>một trong hai</b> hình thức. Bản mềm không dấu 11.000 đ/bản (gồm VAT), gửi PDF đến email. Bản cứng có dấu 22.000 đ/bản (gồm VAT), tối đa 10 bản mỗi lần, kèm chọn địa chỉ nhận. Cuối màn hình, khách hàng khai số lần yêu cầu: chọn “Lần đầu”, hoặc chọn “Khác” rồi nhập số lần bằng nút cộng trừ (tối thiểu 2).</p></div>
+
+<div class="grid">
+  <div class="frame">
+   <div class="ph">
+    <div class="sb"><span>9:41</span><span class="r">▪▪▪ ⌁ ▰</span></div>
+    <div class="nb"><div class="bk">←</div><div class="tt">Xác nhận thông tin khoản vay</div></div>
+    <div class="bd sc">
+      <div class="slbl">Hình thức nhận dữ liệu</div>
+      <div class="opt"><div class="rd"></div><div class="g">
+        <div class="ot">Bản mềm không dấu</div>
+        <div class="os">Gửi PDF đến email<br>anhtuanhoang2312@gmail.com</div>
+        <div class="amt">11.000 đ/bản (gồm VAT)</div></div></div>
+      <div class="opt"><div class="rd"></div><div class="g">
+        <div class="ot">Bản cứng có dấu</div>
+        <div class="os">Gửi qua bưu điện</div>
+        <div class="amt">22.000 đ/bản (gồm VAT)</div></div></div>
+
+      <div class="slbl">Yêu cầu cung cấp dữ liệu cá nhân</div>
+      <div class="opt"><div class="rd"></div><div class="g">
+        <div class="ot">Lần đầu</div></div></div>
+      <div class="opt"><div class="rd"></div><div class="g">
+        <div class="ot">Khác</div>
+        <div class="os">Ghi rõ số lần đã yêu cầu cung cấp thông tin có nội dung nêu trên</div></div></div>
+    </div>
+    <div class="ft"><button class="cta dis">Tiếp tục</button><div class="home"></div></div>
+   </div>
+   <div class="cap"><div class="t">S3 · Chưa chọn</div>
+   <div class="d">Chưa chọn hình thức và chưa khai số lần yêu cầu, nút Tiếp tục disable.</div></div>
+  </div>
+
+  <div class="frame">
+   <div class="ph">
+    <div class="sb"><span>9:41</span><span class="r">▪▪▪ ⌁ ▰</span></div>
+    <div class="nb"><div class="bk">←</div><div class="tt">Xác nhận thông tin khoản vay</div></div>
+    <div class="bd sc">
+      <div class="slbl">Hình thức nhận dữ liệu</div>
+      <div class="opt"><div class="rd on"></div><div class="g">
+        <div class="ot">Bản mềm không dấu</div>
+        <div class="os">Gửi PDF đến email<br>anhtuanhoang2312@gmail.com</div>
+        <div class="amt">11.000 đ/bản (gồm VAT)</div></div></div>
+      <div class="opt"><div class="rd"></div><div class="g">
+        <div class="ot">Bản cứng có dấu</div>
+        <div class="os">Gửi qua bưu điện</div>
+        <div class="amt">22.000 đ/bản (gồm VAT)</div></div></div>
+
+      <div class="note"><div class="ni">ⓘ</div><div class="nt">Nếu bạn cần thay đổi email, vui lòng thay đổi trong <a>Thông tin cá nhân</a></div></div>
+
+      <div class="slbl">Yêu cầu cung cấp dữ liệu cá nhân</div>
+      <div class="opt"><div class="rd on"></div><div class="g">
+        <div class="ot">Lần đầu</div></div></div>
+      <div class="opt"><div class="rd"></div><div class="g">
+        <div class="ot">Khác</div>
+        <div class="os">Ghi rõ số lần đã yêu cầu cung cấp thông tin có nội dung nêu trên</div></div></div>
+    </div>
+    <div class="ft"><button class="cta">Tiếp tục</button><div class="home"></div></div>
+   </div>
+   <div class="cap"><div class="t">S4 · Chọn bản mềm</div>
+   <div class="d">Chỉ nhận qua email, không có số lượng và địa chỉ. Số lần yêu cầu = Lần đầu.</div></div>
+  </div>
+
+  <div class="frame">
+   <div class="ph">
+    <div class="sb"><span>9:41</span><span class="r">▪▪▪ ⌁ ▰</span></div>
+    <div class="nb"><div class="bk">←</div><div class="tt">Xác nhận thông tin khoản vay</div></div>
+    <div class="bd sc">
+      <div class="slbl">Hình thức nhận dữ liệu</div>
+      <div class="opt"><div class="rd"></div><div class="g">
+        <div class="ot">Bản mềm không dấu</div>
+        <div class="os">Gửi PDF đến email<br>anhtuanhoang2312@gmail.com</div>
+        <div class="amt">11.000 đ/bản (gồm VAT)</div></div></div>
+      <div class="opt"><div class="rd on"></div><div class="g">
+        <div class="ot">Bản cứng có dấu</div>
+        <div class="os">Gửi qua bưu điện</div>
+        <div class="amt">22.000 đ/bản (gồm VAT)</div></div>
+        <div class="stp"><b class="off">−</b><span>1</span><b>+</b></div></div>
+
+      <div class="slbl">Địa chỉ nhận bản cứng</div>
+      <div class="card">
+        <div class="rw" style="align-items:flex-start"><div class="rd on"></div><div class="g">
+          <div class="t">Địa chỉ hiện tại</div>
+          <div class="s">28/12 Nguyễn Thị Minh Khai, Phường 10, Quận Bình Tân, TP. Hồ Chí Minh</div></div></div>
+        <div class="rw" style="align-items:flex-start"><div class="rd"></div><div class="g">
+          <div class="t">Địa chỉ thường trú</div>
+          <div class="s">28/12 Nguyễn Thị Minh Khai, Phường 10, Quận Bình Tân, TP. Hồ Chí Minh</div></div></div>
+      </div>
+      <div class="note"><div class="ni">ⓘ</div><div class="nt">Nếu bạn cần thay đổi địa chỉ, vui lòng thay đổi trong <a>Thông tin cá nhân</a></div></div>
+
+      <div class="slbl">Yêu cầu cung cấp dữ liệu cá nhân</div>
+      <div class="opt"><div class="rd"></div><div class="g">
+        <div class="ot">Lần đầu</div></div></div>
+      <div class="opt"><div class="rd on"></div><div class="g">
+        <div class="ot">Khác</div>
+        <div class="os">Số lần đã yêu cầu</div></div>
+        <div class="stp"><b class="off">−</b><span>2</span><b>+</b></div></div>
+    </div>
+    <div class="ft"><button class="cta">Tiếp tục</button><div class="home"></div></div>
+   </div>
+   <div class="cap"><div class="t">S5 · Chọn bản cứng</div>
+   <div class="d">Hiện số lượng bản và địa chỉ nhận. Chọn “Khác” và nhập số lần bằng nút cộng trừ, nút giảm disable ở mức tối thiểu.</div></div>
+  </div>
+
+  <div class="frame">
+   <div class="ph">
+    <div class="sb"><span>9:41</span><span class="r">▪▪▪ ⌁ ▰</span></div>
+    <div class="nb"><div class="bk">←</div><div class="tt">Xác nhận thông tin khoản vay</div></div>
+    <div class="bd sc">
+      <div class="slbl">Hình thức nhận dữ liệu</div>
+      <div class="opt"><div class="rd"></div><div class="g">
+        <div class="ot">Bản mềm không dấu</div>
+        <div class="os">Gửi PDF đến email<br>anhtuanhoang2312@gmail.com</div>
+        <div class="amt">11.000 đ/bản (gồm VAT)</div></div></div>
+      <div class="opt"><div class="rd on"></div><div class="g">
+        <div class="ot">Bản cứng có dấu</div>
+        <div class="os">Gửi qua bưu điện</div>
+        <div class="amt">22.000 đ/bản (gồm VAT)</div></div>
+        <div class="stp"><b>−</b><span>10</span><b class="off">+</b></div></div>
+
+      <div class="slbl">Địa chỉ nhận bản cứng</div>
+      <div class="card">
+        <div class="rw" style="align-items:flex-start"><div class="rd on"></div><div class="g">
+          <div class="t">Địa chỉ hiện tại</div>
+          <div class="s">28/12 Nguyễn Thị Minh Khai, Phường 10, Quận Bình Tân, TP. Hồ Chí Minh</div></div></div>
+        <div class="rw" style="align-items:flex-start"><div class="rd"></div><div class="g">
+          <div class="t">Địa chỉ thường trú</div>
+          <div class="s">28/12 Nguyễn Thị Minh Khai, Phường 10, Quận Bình Tân, TP. Hồ Chí Minh</div></div></div>
+      </div>
+      <div class="note"><div class="ni">ⓘ</div><div class="nt">Nếu bạn cần thay đổi địa chỉ, vui lòng thay đổi trong <a>Thông tin cá nhân</a></div></div>
+
+      <div class="slbl">Yêu cầu cung cấp dữ liệu cá nhân</div>
+      <div class="opt"><div class="rd"></div><div class="g">
+        <div class="ot">Lần đầu</div></div></div>
+      <div class="opt"><div class="rd on"></div><div class="g">
+        <div class="ot">Khác</div>
+        <div class="os">Số lần đã yêu cầu</div></div>
+        <div class="stp"><b>−</b><span>5</span><b>+</b></div></div>
+    </div>
+    <div class="ft"><button class="cta">Tiếp tục</button><div class="home"></div></div>
+   </div>
+   <div class="cap"><div class="t">S6 · Bản cứng — số lượng tối đa</div>
+   <div class="d">Số lượng bản = 10, nút tăng disable. Số lần yêu cầu = 5.</div></div>
+  </div>
+</div>
+
+<!-- 3 -->
+<div class="sect"><h2><i>3</i> Chọn khoản vay</h2>
+<p>Hiển thị sau khi chọn hình thức. Nhóm theo trạng thái: <b>Đang hoạt động</b> gồm Disburse và Written_off; <b>Đã tất toán</b> gồm Close. Nếu chọn <b>bản mềm</b> thì được chọn nhiều khoản vay trong một lần; nếu chọn <b>bản cứng</b> thì mỗi lần chỉ được chọn một khoản vay.</p></div>
+
+<div class="grid">
+  <div class="frame">
+   <div class="ph">
+    <div class="sb"><span>9:41</span><span class="r">▪▪▪ ⌁ ▰</span></div>
+    <div class="nb"><div class="bk">←</div><div class="tt">Xác nhận thông tin khoản vay</div></div>
+    <div class="bd sc">
+      <div class="slbl">Đang hoạt động <span>2 khoản</span></div>
+      <div class="opt"><div class="cb"></div><div class="g">
+        <div class="ot">Vay nhanh Cake</div>
+        <div class="os">CAKECL2033002011</div>
+        <div class="os">Giải ngân 30/11/2023</div></div></div>
+      <div class="opt"><div class="cb"></div><div class="g">
+        <div class="ot">Ứng tiền nhanh</div>
+        <div class="os">CA48OD12009326</div>
+        <div class="os">Giải ngân 10/07/2023</div></div></div>
+
+      <div class="slbl">Đã tất toán <span>2 khoản</span></div>
+      <div class="opt"><div class="cb"></div><div class="g">
+        <div class="ot">Viettel Cashloan</div>
+        <div class="os">CAKECLVIETTEL7010409</div>
+        <div class="os">Tất toán 01/03/2024</div></div></div>
+      <div class="opt"><div class="cb"></div><div class="g">
+        <div class="ot">MWG Paylater</div>
+        <div class="os">CAKEPLMWG55120043</div>
+        <div class="os">Tất toán 18/09/2024</div></div></div>
+    </div>
+    <div class="ft"><button class="cta dis">Tiếp tục</button><div class="home"></div></div>
+   </div>
+   <div class="cap"><div class="t">S7 · Bản mềm — chưa chọn</div>
+   <div class="d">Checkbox chọn nhiều. Nút Tiếp tục disable khi chưa chọn khoản nào.</div></div>
+  </div>
+
+  <div class="frame">
+   <div class="ph">
+    <div class="sb"><span>9:41</span><span class="r">▪▪▪ ⌁ ▰</span></div>
+    <div class="nb"><div class="bk">←</div><div class="tt">Xác nhận thông tin khoản vay</div></div>
+    <div class="bd sc">
+      <div class="slbl">Đang hoạt động <span>2 khoản</span></div>
+      <div class="opt"><div class="cb on"></div><div class="g">
+        <div class="ot">Vay nhanh Cake</div>
+        <div class="os">CAKECL2033002011</div>
+        <div class="os">Giải ngân 30/11/2023</div></div></div>
+      <div class="opt"><div class="cb on"></div><div class="g">
+        <div class="ot">Ứng tiền nhanh</div>
+        <div class="os">CA48OD12009326</div>
+        <div class="os">Giải ngân 10/07/2023</div></div></div>
+
+      <div class="slbl">Đã tất toán <span>2 khoản</span></div>
+      <div class="opt"><div class="cb on"></div><div class="g">
+        <div class="ot">Viettel Cashloan</div>
+        <div class="os">CAKECLVIETTEL7010409</div>
+        <div class="os">Tất toán 01/03/2024</div></div></div>
+      <div class="opt"><div class="cb"></div><div class="g">
+        <div class="ot">MWG Paylater</div>
+        <div class="os">CAKEPLMWG55120043</div>
+        <div class="os">Tất toán 18/09/2024</div></div></div>
+    </div>
+    <div class="ft"><button class="cta">Tiếp tục</button><div class="home"></div></div>
+   </div>
+   <div class="cap"><div class="t">S8 · Bản mềm — chọn nhiều khoản</div>
+   <div class="d">Chọn 3 khoản trong cùng một lần yêu cầu.</div></div>
+  </div>
+
+  <div class="frame">
+   <div class="ph">
+    <div class="sb"><span>9:41</span><span class="r">▪▪▪ ⌁ ▰</span></div>
+    <div class="nb"><div class="bk">←</div><div class="tt">Xác nhận thông tin khoản vay</div></div>
+    <div class="bd sc">
+      <div class="note" style="margin:6px 0 2px"><div class="ni">ⓘ</div>
+        <div class="nt">Với bản cứng có dấu, mỗi lần yêu cầu bạn chỉ chọn được một khoản vay.</div></div>
+
+      <div class="slbl">Đang hoạt động <span>2 khoản</span></div>
+      <div class="opt"><div class="rd on"></div><div class="g">
+        <div class="ot">Vay nhanh Cake</div>
+        <div class="os">CAKECL2033002011</div>
+        <div class="os">Giải ngân 30/11/2023</div></div></div>
+      <div class="opt"><div class="rd"></div><div class="g">
+        <div class="ot">Ứng tiền nhanh</div>
+        <div class="os">CA48OD12009326</div>
+        <div class="os">Giải ngân 10/07/2023</div></div></div>
+
+      <div class="slbl">Đã tất toán <span>2 khoản</span></div>
+      <div class="opt"><div class="rd"></div><div class="g">
+        <div class="ot">Viettel Cashloan</div>
+        <div class="os">CAKECLVIETTEL7010409</div>
+        <div class="os">Tất toán 01/03/2024</div></div></div>
+      <div class="opt"><div class="rd"></div><div class="g">
+        <div class="ot">MWG Paylater</div>
+        <div class="os">CAKEPLMWG55120043</div>
+        <div class="os">Tất toán 18/09/2024</div></div></div>
+    </div>
+    <div class="ft"><button class="cta">Tiếp tục</button><div class="home"></div></div>
+   </div>
+   <div class="cap"><div class="t">S9 · Bản cứng — chọn một khoản</div>
+   <div class="d">Radio chọn một. Chọn khoản khác sẽ tự bỏ chọn khoản trước đó.</div></div>
+  </div>
+
+  <div class="frame">
+   <div class="ph">
+    <div class="sb"><span>9:41</span><span class="r">▪▪▪ ⌁ ▰</span></div>
+    <div class="nb"><div class="bk">←</div><div class="tt">Xác nhận thông tin khoản vay</div></div>
+    <div class="bd" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 34px">
+      <div style="width:76px;height:76px;border-radius:100px;background:var(--card);box-shadow:var(--sh);
+        display:flex;align-items:center;justify-content:center;font-size:32px;margin-bottom:18px">🗂️</div>
+      <div style="font:600 15px/22px var(--font);margin-bottom:6px">Chưa có khoản vay nào</div>
+      <div style="font:400 12px/18px var(--font);color:var(--fg-2)">Bạn hiện không có khoản vay nào đủ điều kiện cấp giấy xác nhận tại Cake.</div>
+    </div>
+    <div class="ft"><button class="cta">Về trang Hỗ trợ</button><div class="home"></div></div>
+   </div>
+   <div class="cap"><div class="t">S10 · Không có khoản vay</div>
+   <div class="d">Trạng thái rỗng khi khách hàng không có khoản vay đủ điều kiện.</div></div>
+  </div>
+</div>
+
+<!-- 4 -->
+<div class="sect"><h2><i>4</i> Tóm tắt yêu cầu</h2>
+<p>Phí xử lý = số bản × đơn giá của hình thức đã chọn. Dòng nơi nhận hiển thị email nếu chọn bản mềm, hiển thị địa chỉ nếu chọn bản cứng.</p></div>
+
+<div class="grid">
+  <div class="frame">
+   <div class="ph">
+    <div class="sb"><span>9:41</span><span class="r">▪▪▪ ⌁ ▰</span></div>
+    <div class="nb"><div class="bk">←</div><div class="tt">Tóm tắt yêu cầu</div></div>
+    <div class="bd sc">
+      <div class="sum">
+        <div class="sr fee"><span class="k">Phí xử lý (gồm VAT)</span><span class="v">11.000 đ</span></div>
+        <div class="sr"><span class="k">Mục đích</span><span class="v">Xác nhận thông tin<br>khoản vay</span></div>
+        <div class="sr"><span class="k">Thời gian</span><span class="v">{dd/mm/yyyy}</span></div>
+        <div class="sr"><span class="k">Hình thức</span><span class="v">Bản mềm không dấu (1 bản)</span></div>
+        <div class="sr"><span class="k">Khoản vay</span><span class="v">3 khoản</span></div>
+        <div class="sr"><span class="k">Lần yêu cầu</span><span class="v">Lần đầu</span></div>
+        <div class="sr"><span class="k">Email nhận<br>bản mềm</span><span class="v">anhtuanhoang2312@gmail.com</span></div>
+      </div>
+      <div class="legal">
+        <div class="lt">Lưu ý</div>
+        <p>Yêu cầu cung cấp thông tin của Quý Khách sẽ được xử lý theo trình tự, thủ tục của VPBank và phù hợp với quy định pháp luật hiện hành.</p>
+        <p>VPBank sẽ không cung cấp dữ liệu cá nhân trong trường hợp:</p>
+        <ol>
+          <li>VPBank xác định là việc cung cấp thông tin theo yêu cầu của KH gây tổn hại tới quốc phòng, an ninh quốc gia, trật tự an toàn xã hội;</li>
+          <li>VPBank xác định là việc cung cấp thông tin theo yêu cầu của KH có thể ảnh hưởng tới sự an toàn, sức khỏe thể chất hoặc tinh thần của người khác.</li>
+        </ol>
+      </div>
+    </div>
+    <div class="ft"><button class="cta">Tiếp tục</button><div class="home"></div></div>
+   </div>
+   <div class="cap"><div class="t">S11 · Tóm tắt — bản mềm</div>
+   <div class="d">1 bản mềm = 11.000 đ, gồm 3 khoản vay, kèm số lần yêu cầu.</div></div>
+  </div>
+
+  <div class="frame">
+   <div class="ph">
+    <div class="sb"><span>9:41</span><span class="r">▪▪▪ ⌁ ▰</span></div>
+    <div class="nb"><div class="bk">←</div><div class="tt">Tóm tắt yêu cầu</div></div>
+    <div class="bd sc">
+      <div class="sum">
+        <div class="sr fee"><span class="k">Phí xử lý (gồm VAT)</span><span class="v">66.000 đ</span></div>
+        <div class="sr"><span class="k">Mục đích</span><span class="v">Xác nhận thông tin<br>khoản vay</span></div>
+        <div class="sr"><span class="k">Thời gian</span><span class="v">{dd/mm/yyyy}</span></div>
+        <div class="sr"><span class="k">Hình thức</span><span class="v">Bản cứng có dấu (3 bản)</span></div>
+        <div class="sr"><span class="k">Khoản vay</span><span class="v">CAKECL2033002011</span></div>
+        <div class="sr"><span class="k">Lần yêu cầu</span><span class="v">2</span></div>
+        <div class="sr"><span class="k">Địa chỉ nhận<br>bản cứng</span><span class="v">28/12 Nguyễn Thị Minh Khai,<br>Phường 10, TP. Hồ Chí Minh</span></div>
+      </div>
+      <div class="legal">
+        <div class="lt">Lưu ý</div>
+        <p>Yêu cầu cung cấp thông tin của Quý Khách sẽ được xử lý theo trình tự, thủ tục của VPBank và phù hợp với quy định pháp luật hiện hành.</p>
+        <p>VPBank sẽ không cung cấp dữ liệu cá nhân trong trường hợp:</p>
+        <ol>
+          <li>VPBank xác định là việc cung cấp thông tin theo yêu cầu của KH gây tổn hại tới quốc phòng, an ninh quốc gia, trật tự an toàn xã hội;</li>
+          <li>VPBank xác định là việc cung cấp thông tin theo yêu cầu của KH có thể ảnh hưởng tới sự an toàn, sức khỏe thể chất hoặc tinh thần của người khác.</li>
+        </ol>
+      </div>
+    </div>
+    <div class="ft"><button class="cta">Tiếp tục</button><div class="home"></div></div>
+   </div>
+   <div class="cap"><div class="t">S12 · Tóm tắt — bản cứng</div>
+   <div class="d">3 bản cứng = 66.000 đ, một khoản vay, kèm số lần yêu cầu.</div></div>
+  </div>
+</div>
+
+<!-- 5 -->
+<div class="sect"><h2><i>5</i> Trường hợp đủ số dư</h2>
+<p>Sau khi bấm Tiếp tục ở màn Tóm tắt, hệ thống kiểm tra số dư tài khoản thanh toán. Đủ số dư → Phiếu yêu cầu → Smart OTP → tiếp nhận yêu cầu.</p></div>
+
+<div class="grid">
+  <div class="frame">
+   <div class="ph">
+    <div class="sb"><span>9:41</span><span class="r">▪▪▪ ⌁ ▰</span></div>
+    <div class="nb"><div class="bk">←</div><div class="tt">Phiếu đăng ký xuất dữ liệu</div></div>
+    <div class="web">
+      <h3>Webview Content</h3>
+      <p>Nội dung Phiếu yêu cầu cung cấp dữ liệu cá nhân, render từ template.</p>
+    </div>
+    <div class="ft">
+      <div class="agree"><div class="cb on"></div>
+        <div class="at">Bằng việc chọn Xác nhận, bạn đồng ý với điều khoản của Cake về phiếu yêu cầu cung cấp dữ liệu cá nhân</div></div>
+      <button class="cta">Xác nhận</button><div class="home"></div></div>
+   </div>
+   <div class="cap"><div class="t">S13 · Phiếu yêu cầu</div>
+   <div class="d">Phải tích chọn đồng ý điều khoản trước khi Xác nhận.</div></div>
+  </div>
+
+  <div class="frame">
+   <div class="ph">
+    <div class="sb"><span>9:41</span><span class="r">▪▪▪ ⌁ ▰</span></div>
+    <div class="nb"><div class="bk">←</div></div>
+    <div class="bd">
+      <div class="ctr" style="margin-top:16px">
+        <div style="font:600 20px/28px var(--font)">Nhập mã PIN Smart OTP</div>
+        <div style="font:400 12px/18px var(--font);color:var(--fg-2);margin-top:4px">Nhập mã PIN 6 chữ số</div>
+      </div>
+      <div class="otp"><i><b></b></i><i class="cur"></i><i></i><i></i><i></i><i></i></div>
+      <div class="ctr"><a class="lk">Hiện mã PIN</a></div>
+    </div>
+    <div class="ft"><div class="ctr"><a class="lk">Quên mã PIN? Tạo mã PIN mới ngay</a></div><div class="home"></div></div>
+   </div>
+   <div class="cap"><div class="t">S14 · Nhập mã PIN Smart OTP</div>
+   <div class="d">Nhập mã PIN 6 chữ số.</div></div>
+  </div>
+
+  <div class="frame">
+   <div class="ph">
+    <div class="sb"><span>9:41</span><span class="r">▪▪▪ ⌁ ▰</span></div>
+    <div class="nb"><div class="bk">←</div></div>
+    <div class="bd" style="padding-bottom:0">
+      <div class="ctr" style="margin-top:10px">
+        <div style="font:600 19px/26px var(--font)">Nhập mã PIN Smart OTP</div>
+        <div style="font:400 12px/18px var(--font);color:var(--fg-2);margin-top:3px">Nhập mã PIN 6 chữ số</div>
+      </div>
+      <div class="otp" style="margin:16px 0 6px"><i><b></b></i><i class="cur er"></i><i></i><i></i><i></i><i></i></div>
+      <div class="ermsg">Mã PIN không chính xác. Bạn còn 2 lần thử</div>
+      <div class="ctr" style="margin-top:8px"><a class="lk">Hiện mã PIN</a></div>
+      <div class="ctr" style="margin-top:20px"><a class="lk">Quên mã PIN? Tạo mã PIN mới ngay</a></div>
+    </div>
+    <div class="pad">
+      <div>1<s>&nbsp;</s></div><div>2<s>ABC</s></div><div>3<s>DEF</s></div>
+      <div>4<s>GHI</s></div><div>5<s>JKL</s></div><div>6<s>MNO</s></div>
+      <div>7<s>PQRS</s></div><div>8<s>TUV</s></div><div>9<s>WXYZ</s></div>
+      <div class="bl"></div><div>0<s>&nbsp;</s></div><div>⌫<s>&nbsp;</s></div>
+    </div>
+    <div class="ft" style="padding-top:4px"><div class="home"></div></div>
+   </div>
+   <div class="cap"><div class="t">S15 · Nhập sai mã PIN</div>
+   <div class="d">Hiển thị lỗi và số lần thử còn lại.</div></div>
+  </div>
+
+  <div class="frame">
+   <div class="ph">
+    <div class="sb"><span>9:41</span><span class="r">▪▪▪ ⌁ ▰</span></div>
+    <div class="nb"><div class="bk">←</div></div>
+    <div class="bd" style="text-align:center;padding-top:26px">
+      <div class="shieldwrap"><div class="shield"></div><div class="lock">🔒</div></div>
+      <div style="font:600 15px/22px var(--font)">Mã Smart OTP của bạn</div>
+      <div style="font:400 11px/17px var(--font);color:var(--fg-2);margin:5px 0 16px">
+        Bấm Xác nhận giao dịch, mã OTP sẽ được nhập tự động và hoàn tất giao dịch</div>
+      <div class="otpbox"><div class="n">250199</div><div class="u"></div></div>
+    </div>
+    <div class="ft"><button class="cta">Xác nhận giao dịch</button><div class="home"></div></div>
+   </div>
+   <div class="cap"><div class="t">S16 · Mã Smart OTP</div>
+   <div class="d">Xác nhận giao dịch để hoàn tất thu phí.</div></div>
+  </div>
+
+  <div class="frame">
+   <div class="ph">
+    <div class="sb"><span>9:41</span><span class="r">▪▪▪ ⌁ ▰</span></div>
+    <div class="nb"><div class="bk">←</div></div>
+    <div class="bd sc" style="text-align:center;padding-top:20px">
+      <div class="illus">🎉</div>
+      <div style="font:600 16px/24px var(--font)">Đã tiếp nhận yêu cầu</div>
+      <div style="font:400 11px/17px var(--font);color:var(--fg-2);margin-top:5px">
+        Kết quả sẽ được gửi đến email của bạn trong vòng 3 ngày làm việc.</div>
+      <div class="toast" style="text-align:left">
+        <div class="lg">C</div>
+        <div style="flex:1">
+          <div class="tt">Thông báo biến động số dư</div>
+          <div class="ts">Số dư tài khoản của bạn vừa giảm 66.000 đ. Nội dung: Thu phí nghiệp vụ xác nhận thông tin khoản vay ngày {dd/mm/yyyy}. Số dư hiện tại của tài khoản thanh toán là 2.074.310 đ</div>
+        </div>
+        <div class="x">✕</div>
+      </div>
+    </div>
+    <div class="ft"><button class="cta">Về trang chủ</button><div class="home"></div></div>
+   </div>
+   <div class="cap"><div class="t">S17 · Đã tiếp nhận yêu cầu</div>
+   <div class="d">Kèm thông báo biến động số dư sau khi thu phí.</div></div>
+  </div>
+</div>
+
+<!-- 6 -->
+<div class="sect"><h2><i>6</i> Trường hợp không đủ số dư</h2>
+<p>Chặn ngay tại bước kiểm tra số dư, trước khi vào Phiếu yêu cầu và Smart OTP. Bấm “Đã hiểu” để quay lại màn Tóm tắt yêu cầu.</p></div>
+
+<div class="grid">
+  <div class="frame">
+   <div class="ph">
+    <div class="sb"><span>9:41</span><span class="r">▪▪▪ ⌁ ▰</span></div>
+    <div class="nb"><div class="bk">←</div><div class="tt">Tóm tắt yêu cầu</div></div>
+    <div class="bd" style="opacity:.5">
+      <div class="sum">
+        <div class="sr fee"><span class="k">Phí xử lý (gồm VAT)</span><span class="v">66.000 đ</span></div>
+        <div class="sr"><span class="k">Mục đích</span><span class="v">Xác nhận thông tin<br>khoản vay</span></div>
+        <div class="sr"><span class="k">Thời gian</span><span class="v">{dd/mm/yyyy}</span></div>
+      </div>
+    </div>
+    <div class="scrim">
+      <div class="dlg">
+        <h4>Số dư khả dụng không đủ</h4>
+        <p>Bạn vui lòng nạp thêm tiền vào tài khoản để thực hiện dịch vụ.</p>
+        <button class="cta">Đã hiểu</button>
+      </div>
+    </div>
+   </div>
+   <div class="cap"><div class="t">S18 · Số dư khả dụng không đủ</div>
+   <div class="d">Popup chặn giao dịch, khách hàng bấm “Đã hiểu” để quay lại.</div></div>
+  </div>
+</div>

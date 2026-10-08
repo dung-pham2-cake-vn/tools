@@ -12,6 +12,8 @@ status: draft
 
 # Case mẫu — kẹt `USER_SIGN` sau khi tiền đã đi đủ
 
+> **Trả lời ticket cho Ops:** 1–2 câu — việc cần làm tiếp và ai làm. Không nêu tên file, đường dẫn hay mục của KB, không dẫn nguồn, không giải thích lý do, không ghi mã bước (3B.1…). Mẫu: [[kb/operations/quy-trinh-xu-ly]] mục *Cách phản hồi ticket SVK*.
+
 Ca phổ biến nhất của nhóm giải ngân. Ví dụ gốc: **SVK-11748** (`CAKE_payday`, 2026-10-02).
 
 ## Dấu hiệu

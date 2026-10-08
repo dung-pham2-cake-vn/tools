@@ -11,6 +11,8 @@ status: draft
 
 # Mã lỗi API & cách xử lý
 
+> **Trả lời ticket cho Ops:** 1–2 câu — việc cần làm tiếp và ai làm. Không nêu tên file, đường dẫn hay mục của KB, không dẫn nguồn, không giải thích lý do, không ghi mã bước (3B.1…). Mẫu: [[kb/operations/quy-trinh-xu-ly]] mục *Cách phản hồi ticket SVK*.
+
 Sinh từ `tools/scan/troubleshoot.json` bằng `tools/gen-ops-docs.py`.
 Nguồn gốc: file **Troubleshoot Lending Ops.xls**, tab *APIs sau vay* và *Payment*.
 

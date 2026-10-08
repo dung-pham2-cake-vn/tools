@@ -26,6 +26,28 @@ Loại: `ingest` (nạp nguồn mới) · `query` (câu trả lời được fil
 
 ---
 
+## [2026-10-07] refactor | Thử đồng bộ kb/ lên Arkon (cake-kb)
+
+Đề xuất 2 trang lên Arkon, phòng Lending-Tech, loại `sop`, chờ editor duyệt:
+`lending/operations/luong-van` (draft `db2d0d6f`) · `lending/operations/luong-giai-ngan` (draft `fd83269b`).
+Chuyển đổi: bỏ frontmatter và banner "Trả lời ticket cho Ops", `[[kb/x]]` → `[[lending/x]]`,
+link sang `kb-po/` thay bằng chữ, che mã tài khoản / mã giao dịch thật, thêm dòng "sinh từ
+lendkb, sửa ở repo". Repo vẫn là nguồn chuẩn. Không đẩy `kb-po/`.
+
+2026-10-08: PO có quyền admin → tạo thẳng `lending/operations/luong-van` (v1, không qua
+duyệt). Hai draft ngày 2026-10-07 không còn trong danh sách chờ duyệt.
+
+## [2026-10-07] query | Lệch trạng thái Cake ↔ đối tác; quy tắc trả lời không dẫn nguồn
+
+- [[kb/operations/luong-giai-ngan]] thêm mục *Lệch trạng thái Cake ↔ đối tác* (ví dụ 19–21):
+  `DISBURSE_FAILED`/`Disbursed` → ngoại lệ COO · đối tác `CONTRACT_IS_CLOSED` → hỏi đối tác ·
+  `Approved`/`Rejected` → xem log bắn sang đối tác · đối tác báo order success → quy trình log /
+  gọi lại / mail. PL-13944 PO xác nhận đã chặn (Jira chưa cập nhật status).
+- AI trong app Support trả lời SVK-11823 kèm đường dẫn `kb/operations/case-ket-user-sign.md`.
+  PO: giữ prompt, sửa KB. Thêm banner *Trả lời ticket cho Ops* đầu mọi trang `kb/operations/`
+  (không nêu file/đường dẫn KB, không dẫn nguồn, không mã bước). Gốc: `KB_RULES` trong
+  `tools/src/services/AIChatService.ts` yêu cầu "ghi rõ đường dẫn file làm nguồn".
+
 ## [2026-10-07] query | PO hướng dẫn ticket kẹt bước gọi đối tác
 
 Ghi vào [[kb/operations/luong-giai-ngan]] mục *Kẹt ở bước gọi đối tác*, ví dụ 15–18:

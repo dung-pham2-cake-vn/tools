@@ -40,6 +40,8 @@ export interface SprintItem {
   prNumber: string;
   title: string;
   tickets: SprintTicket[];
+  /** tên mục chứa item (Core / Must have / Nice to have) — chỉ loader ở index.tsx gán */
+  section?: string;
 }
 
 interface SprintSection {

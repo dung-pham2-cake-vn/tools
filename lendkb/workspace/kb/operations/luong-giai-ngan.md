@@ -16,6 +16,8 @@ status: draft
 ---
 # Luồng giải ngân & trạng thái
 
+> **Trả lời ticket cho Ops:** 1–2 câu — việc cần làm tiếp và ai làm. Không nêu tên file, đường dẫn hay mục của KB, không dẫn nguồn, không giải thích lý do, không ghi mã bước (3B.1…). Mẫu: [[kb/operations/quy-trinh-xu-ly]] mục *Cách phản hồi ticket SVK*.
+
 **Mỗi nhóm sản phẩm giải ngân một kiểu.** Trước khi kết luận "đã giải ngân đủ bước",
 xác định sản phẩm thuộc nhóm nào. Nguồn chính: tab *Giải ngân* của file
 `Troubleshoot Lending Ops`.
@@ -291,6 +293,29 @@ giải ngân, Cake đã gọi `partner-disburse-request`, VDS đã gọi `disbur
 `disbursed_amount` 8.560.000 trong khi số duyệt 8.000.000.
 
 > `disbursed_amount` = số tiền duyệt + phí bảo hiểm — đúng với số giải ngân vào Loan DD.
+
+## Lệch trạng thái Cake ↔ đối tác
+
+| Cake | Đối tác | Xử lý |
+|---|---|---|
+| `DISBURSE_FAILED` (ICE đã `CLOSE`) | `Disbursed` — đã chuyển tiền cho khách | Trình **ngoại lệ COO duyệt** để chuyển account đã `CANCEL` thành `ACTIVE` (mục *Ngoại lệ*). Ví dụ SVK-11006 |
+| `USER_SIGN` | `CANCELLED` / `CALLED_OFF`, đối tác trả `CONTRACT_IS_CLOSED` | **Lỗi phía đối tác** — đối tác tự huỷ khoản vay. Ops hỏi đối tác vì sao trả trạng thái `CONTRACT_IS_CLOSED`. Ví dụ SVK-10698 (~280 khoản `PD_Viettel` một ngày) |
+| `Approved` | `Rejected` (lệch ngay lúc onboarding) | Kiểm tra log Cake bắn sang đối tác là approve hay reject: bắn **approve** → báo đối tác kiểm tra; bắn **reject** → báo Tech kiểm tra. Ví dụ SVK-11339 |
+| `USER_SIGN` | Đối tác báo order đã success, nhờ Cake cập nhật | Như mục *Kẹt ở bước gọi đối tác*: cần log đối tác đã gọi `disburse-update`; chưa gọi thì yêu cầu gọi lại; không gọi được thì cần mail xác nhận. Ví dụ SVK-9533 |
+
+**Ví dụ 19 — `DISBURSE_FAILED` nhưng đối tác đã giải ngân.**
+
+> Cake ghi giải ngân thất bại nhưng Viettel đã chuyển tiền cho khách → trình ngoại lệ COO duyệt
+> chuyển khoản vay từ CANCEL sang ACTIVE, có mail duyệt thì gửi Tech xử lý.
+
+**Ví dụ 20 — Đối tác trả `CONTRACT_IS_CLOSED`.**
+
+> Viettel tự huỷ các khoản vay này — Ops hỏi Viettel vì sao trả trạng thái CONTRACT_IS_CLOSED.
+
+**Ví dụ 21 — Cake `Approved`, Viettel `Rejected`.**
+
+> Ops kiểm tra log Cake gửi sang Viettel: gửi approve thì nhờ Viettel kiểm tra; gửi reject thì
+> gửi Tech kiểm tra.
 
 ### Khoản vay kẹt `USER_SIGN` mà khách vẫn trả nợ được, rồi bị `CLOSE`
 
